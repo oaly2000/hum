@@ -15,5 +15,5 @@ export const handlers: Handlers = {
 };
 
 export default define.page<BlogPageData>(({ data }) => (
-  <h1>Blog post {data?.post.title}</h1>
+  <h1>Blog post {data.post.title}</h1>
 ));

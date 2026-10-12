@@ -5,7 +5,14 @@ import { basicAuth } from "hono/basic-auth";
 import { Suspense } from "preact/compat";
 import { describe, expect, it } from "vitest";
 
-import { createApp, define, mountHum, page } from "../src/mod.js";
+import {
+  createApp,
+  createResource,
+  define,
+  mountHum,
+  page,
+  Suspense as HumSuspense,
+} from "../src/mod.js";
 import { Partial } from "../src/runtime/shared.js";
 import type { HumManifest, RouteProps } from "../src/types.js";
 
@@ -72,6 +79,11 @@ const streamPending = new Promise<void>((resolve) => {
   };
 });
 
+let rejectResourceStream: () => void = () => {};
+const resourceStreamPending = new Promise<string>((_resolve, reject) => {
+  rejectResourceStream = () => reject(new Error("resource stream failed"));
+});
+
 function StreamContent() {
   if (!streamReady) throw streamPending;
   return h(
@@ -90,6 +102,17 @@ function StreamingPage() {
   );
 }
 
+function ResourceFailurePage(
+  props: { data: { resource: ReturnType<typeof createResource<string>> } },
+) {
+  return h(HumSuspense, {
+    resource: props.data.resource,
+    fallback: h("i", null, "resource pending"),
+    errorFallback: h("p", null, "resource error fallback"),
+    children: (value) => h("p", null, value),
+  });
+}
+
 function PartialsPage() {
   return h(
     "div",
@@ -103,13 +126,15 @@ function PartialsPage() {
   );
 }
 
-const PageView = define.page<{
-  extra?: string;
-  params?: { id: string };
-}>(
+const PageView = define.page<
+  {
+    extra?: string;
+    params?: { id: string };
+  } | undefined
+>(
   function PageView(
     props: RouteProps & {
-      data?: { extra?: string; params?: { id: string } };
+      data: { extra?: string; params?: { id: string } } | undefined;
     },
   ) {
     return h(
@@ -279,6 +304,19 @@ const manifest: HumManifest = {
         head: h("title", null, "Streaming"),
       }),
     },
+    {
+      file: "routes/resource-failure.tsx",
+      absPath: "/app/routes/resource-failure.tsx",
+      kind: "route",
+      urlPath: "/resource-failure",
+      load: async () => ({
+        default: ResourceFailurePage,
+        config: { streaming: true },
+        handlers: {
+          GET: () => page({ resource: createResource(resourceStreamPending) }),
+        },
+      }),
+    },
   ],
 };
 
@@ -388,6 +426,28 @@ describe("experimental streaming", () => {
     expect(html).toContain("hum:island:Counter");
     expect(html).toContain('import hum_island_0 from "/islands/Counter.tsx"');
     expect(html).toContain("</body></html>");
+  });
+
+  it("streams the Hum Suspense error fallback when a resource rejects", async () => {
+    const response = await app.request("http://localhost/resource-failure");
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
+    let html = "";
+    while (!html.includes("resource pending")) {
+      const { value, done } = await reader.read();
+      expect(done).toBe(false);
+      html += decoder.decode(value, { stream: true });
+    }
+
+    rejectResourceStream();
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      html += decoder.decode(value, { stream: true });
+    }
+    html += decoder.decode();
+
+    expect(html).toContain("resource error fallback");
   });
 });
 

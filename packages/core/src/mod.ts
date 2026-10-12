@@ -21,8 +21,8 @@ export type { Define } from "./define.js";
 
 export {
   defaultLogger,
-  resolveConfig,
   type HumConfig,
+  resolveConfig,
   type ResolvedConfig,
 } from "./config.js";
 
@@ -50,14 +50,24 @@ export type {
   RouteProps,
 } from "./types.js";
 
-export { asset, IS_BROWSER, Partial, type PartialProps } from "./runtime/shared.js";
+export {
+  asset,
+  IS_BROWSER,
+  Partial,
+  type PartialProps,
+} from "./runtime/shared.js";
 
 export { page } from "./request_context.js";
-export { createResource, type Resource } from "./resource.js";
+export {
+  createResource,
+  type Resource,
+  Suspense,
+  type SuspenseProps,
+} from "./resource.js";
 
 export {
   BuildCache,
   manifestPath,
-  readProdManifest,
   type ProdManifest,
+  readProdManifest,
 } from "./build_cache.js";

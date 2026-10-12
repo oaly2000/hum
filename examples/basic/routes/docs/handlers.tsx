@@ -2,12 +2,12 @@ import { define, page, Partial, type RouteProps } from "@hum/core";
 import { CodeBlock } from "../_components/CodeBlock.js";
 
 type HandlerPageData = { notice: string };
-type HandlerPageProps = RouteProps & { data?: HandlerPageData };
+type HandlerPageProps = RouteProps & { data: HandlerPageData };
 
 export const head = define.head(<title>Route handlers — Hum Guides</title>);
 
 export const handlers = define.handlers({
-  GET: () => page(),
+  GET: () => page({ notice: "" }),
   POST: async (c) => {
     const form = await c.req.formData();
     const name = String(form.get("name") ?? "").trim();
@@ -32,7 +32,7 @@ export const handlers = define.handlers({
 });
 
 export default define.page<{ post: { title: string } }>(({ data }) => (
-  <article><h1>{data?.post.title}</h1></article>
+  <article><h1>{data.post.title}</h1></article>
 ));`;
 
 const directResponseExample = `export const handlers = {
@@ -135,7 +135,7 @@ export default define.page<HandlerPageData>(({ data }: HandlerPageProps) => {
           </button>
         </form>
         <Partial name="welcome">
-          {data?.notice && (
+          {data.notice && (
             <p class="mt-4 rounded-xl bg-[#eff8d6] px-4 py-3 font-semibold text-[#45651c]">
               {data.notice}
             </p>

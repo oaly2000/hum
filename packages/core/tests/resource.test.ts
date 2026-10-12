@@ -1,9 +1,8 @@
 import { h } from "preact";
-import { Suspense } from "preact/compat";
 import { renderToStringAsync } from "preact-render-to-string";
 import { describe, expect, it } from "vitest";
 
-import { createResource } from "../src/resource.js";
+import { createResource, Suspense } from "../src/resource.js";
 
 describe("createResource", () => {
   it("suspends while pending and returns the resolved value", async () => {
@@ -53,20 +52,45 @@ describe("createResource", () => {
     let resolve!: (value: string) => void;
     const promise = new Promise<string>((res) => resolve = res);
     const resource = createResource(promise);
-    function Content() {
-      return h("p", null, resource.read());
-    }
-
     const rendered = renderToStringAsync(
       h(
         Suspense,
-        { fallback: h("i", null, "loading") },
-        h(Content),
+        {
+          resource,
+          fallback: h("i", null, "loading"),
+          errorFallback: h("b", null, "failed"),
+          children: (value) => h("p", null, value),
+        },
       ),
     );
     resolve("loaded");
 
     await expect(rendered).resolves.toContain("<p>loaded</p>");
+    await expect(rendered).resolves.not.toContain("loading");
+  });
+
+  it("renders its error fallback when a suspended resource rejects", async () => {
+    let reject!: (error: Error) => void;
+    const promise = new Promise<string>((_resolve, rej) => reject = rej);
+    const resource = createResource(promise);
+
+    const rendered = renderToStringAsync(
+      h(
+        Suspense,
+        {
+          resource,
+          fallback: h("i", null, "loading"),
+          errorFallback: (error: unknown) =>
+            h("p", { role: "alert" }, `Could not load: ${String(error)}`),
+          children: (value) => h("p", null, value),
+        },
+      ),
+    );
+    reject(new Error("network error"));
+
+    await expect(rendered).resolves.toContain(
+      '<p role="alert">Could not load: Error: network error</p>',
+    );
     await expect(rendered).resolves.not.toContain("loading");
   });
 });

@@ -14,13 +14,14 @@ const LOAD_MORE_ITEMS = [
 const LOAD_MORE_BATCH_SIZE = 2;
 
 interface PartialsPageProps extends RouteProps {
-  data?: {
+  data: {
     batch?: number;
     hasMore?: boolean;
   };
 }
 
 export const handlers = define.handlers({
+  GET: () => page({ hasMore: true }),
   POST: async (c) => {
     const form = await c.req.formData();
     const batch = Number(form.get("batch"));
@@ -76,8 +77,8 @@ export default function PartialsPage({
   url,
   data,
 }: PartialsPageProps) {
-  const batch = data?.batch;
-  const hasMore = data?.hasMore ?? true;
+  const batch = data.batch;
+  const hasMore = data.hasMore ?? true;
   const topic = url.searchParams.get("topic") ?? "start";
   const initialItems = LOAD_MORE_ITEMS.slice(0, LOAD_MORE_BATCH_SIZE);
   const appendedItems = batch === undefined ? [] : LOAD_MORE_ITEMS.slice(

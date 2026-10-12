@@ -1,5 +1,10 @@
-import { createResource, define, page, type Resource } from "@hum/core";
-import { lazy, Suspense } from "preact/compat";
+import {
+  createResource,
+  define,
+  page,
+  type Resource,
+  Suspense,
+} from "@hum/core";
 import { CodeBlock } from "../_components/CodeBlock.js";
 
 export const config = define.config({ streaming: true });
@@ -25,11 +30,8 @@ export const head = define.head(
   <title>Experimental streaming — Hum Guides</title>,
 );
 
-const LazyCodeBlock = lazy(() => import("./_components/LazyCodeBlock.js"));
-
 const resourceExample =
-  `import { createResource, define, page, type Resource } from "@hum/core";
-import { Suspense } from "preact/compat";
+  `import { createResource, define, page, Suspense, type Resource } from "@hum/core";
 
 type Profile = { name: string };
 type PageData = { profile: Resource<Profile> };
@@ -40,21 +42,25 @@ export const handlers = define.handlers({
   }),
 });
 
-function ProfilePanel({ profile }: PageData) {
-  const data = profile.read();
-  return <p>{data.name}</p>;
+function ProfilePanel({ profile }: { profile: Profile }) {
+  return <p>{profile.name}</p>;
 }
 
 export const config = define.config({ streaming: true });
 
 export default define.page<PageData>(({ data }) => (
-  <Suspense fallback={<p>Loading profile…</p>}>
-    {data && <ProfilePanel profile={data.profile} />}
+  <Suspense
+    resource={data.profile}
+    fallback={<p>Loading profile…</p>}
+    errorFallback={(error) => (
+      <p role="alert">Could not load: {String(error)}</p>
+    )}
+  >
+    {(profile) => <ProfilePanel profile={profile} />}
   </Suspense>
 ));`;
 
-function ResourceDemo({ resource }: { resource: Resource<DemoData> }) {
-  const data = resource.read();
+function ResourceDemo({ data }: { data: DemoData }) {
   return (
     <p class="font-semibold text-[#45651c]" aria-live="polite">
       {data.message}
@@ -85,8 +91,12 @@ export default define.page<StreamingPageData>(({ data }) => {
           short delay.
         </p>
         <div class="mt-4 rounded-xl bg-white px-4 py-3">
-          <Suspense fallback={<p role="status">Loading server data…</p>}>
-            {data && <ResourceDemo resource={data.demo} />}
+          <Suspense
+            resource={data.demo}
+            fallback={<p role="status">Loading server data…</p>}
+            errorFallback={<p role="alert">Could not load server data.</p>}
+          >
+            {(demo) => <ResourceDemo data={demo} />}
           </Suspense>
         </div>
       </section>
@@ -95,10 +105,12 @@ export default define.page<StreamingPageData>(({ data }) => {
         Enable it for one route
       </h2>
       <p class="mt-3 leading-7 text-[#657168]">
-        Set <code>streaming: true</code> in the route’s config and use{" "}
-        <code>Suspense</code> from{" "}
-        <code>preact/compat</code>. Its fallback is sent with the initial shell;
-        when the suspended subtree resolves, Preact streams its replacement.
+        Set <code>streaming: true</code> in the route’s config, then use Hum’s
+        {" "}
+        <code>Suspense</code>{" "}
+        with a resource. It shows the pending fallback first, renders the
+        resource value when ready, or displays the error fallback if loading
+        fails.
       </p>
 
       <CodeBlock code={resourceExample} language="typescript" />
@@ -106,9 +118,10 @@ export default define.page<StreamingPageData>(({ data }) => {
       <p class="mt-5 leading-7 text-[#657168]">
         The handler starts the request and passes a stable resource to the page.
         <code>profile.read()</code>{" "}
-        returns the value when ready, throws the pending promise to suspend, or
-        throws the rejection reason. Do not create the resource during component
-        rendering; create it once per request in the handler.
+        returns the value when ready or suspends while pending. If it rejects,
+        Hum’s <code>Suspense</code>{" "}
+        takes care of pending and rejected states in one place. Create the
+        resource once per request in the handler.
       </p>
 
       <h2 class="mt-12 text-2xl font-extrabold tracking-tight">
@@ -124,8 +137,8 @@ export default define.page<StreamingPageData>(({ data }) => {
           longer be changed.
         </li>
         <li>
-          Errors from a rejected Suspense promise are not reliably propagated by
-          the current renderer.
+          Hum’s <code>Suspense</code>{" "}
+          renders its configured error fallback if a resource rejects.
         </li>
         <li>
           Use it selectively and verify the behavior with your own suspended

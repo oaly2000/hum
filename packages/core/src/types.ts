@@ -13,7 +13,7 @@ export interface PageRenderOptions {
 /** Route props supplied to a view defined with `define.page`. */
 export interface PageViewProps<Data = unknown> {
   /** Business data supplied by the route handler through {@link PageFn}. */
-  data?: Data;
+  data: Data;
 }
 
 /**

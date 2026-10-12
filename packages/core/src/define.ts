@@ -26,7 +26,7 @@ import type {
  * });
  *
  * export default define.page<{ post: Post }>(({ data }) => (
- *   <h1>{data?.post.title}</h1>
+ *   <h1>{data.post.title}</h1>
  * ));
  * ```
  *
