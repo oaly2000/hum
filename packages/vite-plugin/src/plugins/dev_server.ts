@@ -187,28 +187,73 @@ async function writeResponse(
   server: ViteDevServer,
 ): Promise<void> {
   const type = response.headers.get("content-type") ?? "";
-  let payload = Buffer.from(await response.arrayBuffer());
-
-  // The document is produced by Hum, not by Vite, so both the HMR client and
-  // the collected global styles (e.g. TailwindCSS) have to be injected by hand
-  // into the `</head>`.
   if (type.includes("text/html")) {
     const script = `<script type="module" src="/@vite/client"></script>`;
     const styles = await collectCss(server);
     const stylesHtml = styles.join("\n");
-    const html = payload.toString("utf8")
-      .replace("</head>", `${script}\n${stylesHtml}</head>`);
-    payload = Buffer.from(html, "utf8");
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+    let buffered = "";
+    let done = reader === undefined;
+
+    while (!done && !buffered.includes("</head>")) {
+      const result = await reader!.read();
+      done = result.done;
+      if (result.value !== undefined) {
+        buffered += decoder.decode(result.value, { stream: !done });
+      }
+      if (done) buffered += decoder.decode();
+    }
+
+    const headEnd = buffered.indexOf("</head>");
+    let initial: string;
+    if (headEnd === -1) {
+      initial = buffered;
+    } else {
+      const end = headEnd + "</head>".length;
+      initial = buffered.slice(0, headEnd) +
+        `${script}\n${stylesHtml}</head>` +
+        buffered.slice(end);
+    }
+
+    setResponseHeaders(res, response);
+    if (initial !== "") res.write(initial);
+    if (reader !== undefined) {
+      try {
+        while (!done) {
+          const result = await reader.read();
+          done = result.done;
+          const chunk = result.value === undefined
+            ? ""
+            : decoder.decode(result.value, { stream: !done });
+          if (chunk !== "") res.write(chunk);
+          if (done) {
+            const tail = decoder.decode();
+            if (tail !== "") res.write(tail);
+          }
+        }
+      } catch (error) {
+        res.destroy(error instanceof Error ? error : new Error(String(error)));
+        return;
+      } finally {
+        reader.releaseLock();
+      }
+    }
+    res.end();
+    return;
   }
 
+  const payload = Buffer.from(await response.arrayBuffer());
+  setResponseHeaders(res, response);
+  res.end(payload);
+}
+
+function setResponseHeaders(res: ServerResponse, response: Response): void {
   res.statusCode = response.status;
   response.headers.forEach((value, name) => {
     if (name === "content-length") return;
     res.setHeader(name, value);
   });
-  res.setHeader("Content-Length", String(payload.byteLength));
-  res.end(payload);
-  void server;
 }
 
 /**

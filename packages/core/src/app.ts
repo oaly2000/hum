@@ -77,7 +77,14 @@ function htmlResponse(
       outcome.links.map((url) => `<${url}>; rel=modulepreload`).join(", "),
     );
   }
-  return c.html(outcome.html, outcome.status as ContentfulStatusCode);
+  if (typeof outcome.body === "string") {
+    return c.html(outcome.body, outcome.status as ContentfulStatusCode);
+  }
+  return c.body(
+    outcome.body,
+    outcome.status as ContentfulStatusCode,
+    { "Content-Type": "text/html; charset=UTF-8" },
+  );
 }
 
 function pickHandler(

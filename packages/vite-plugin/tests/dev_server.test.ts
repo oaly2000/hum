@@ -16,6 +16,32 @@ describe("Hum Vite dev server", () => {
       join(routesRoot, "index.tsx"),
       'export default function Home() { return "home"; }\n',
     );
+    await writeFile(
+      join(routesRoot, "streaming.tsx"),
+      `import { createResource, define, page, type Resource } from "@hum/core";
+import { Suspense } from "preact/compat";
+
+type PageData = { value: Resource<string> };
+const loadValue = () => new Promise<string>((resolve) =>
+  setTimeout(() => resolve("late-value"), 1000)
+);
+
+export const config = define.config({ streaming: true });
+export const handlers = define.handlers({
+  GET: () => page({ value: createResource(loadValue()) }),
+});
+
+function DelayedValue({ value }: PageData) {
+  return <p>{value.read()}</p>;
+}
+
+export default define.page<PageData>(({ data }) => (
+  <Suspense fallback={<p>waiting-value</p>}>
+    {data && <DelayedValue value={data.value} />}
+  </Suspense>
+));
+`,
+    );
 
     const server = await createServer({
       configFile: false,
@@ -34,6 +60,25 @@ describe("Hum Vite dev server", () => {
       const api = await fetch(`${origin}/api/health`);
       expect(api.status).toBe(200);
       expect(api.headers.get("x-powered-by")).toBe("Hum + Hono");
+
+      const streaming = await fetch(`${origin}/streaming`);
+      expect(streaming.status).toBe(200);
+      const reader = streaming.body!.getReader();
+      const decoder = new TextDecoder();
+      const first = await reader.read();
+      expect(first.done).toBe(false);
+      const initialHtml = decoder.decode(first.value, { stream: true });
+      expect(initialHtml).toContain("waiting-value");
+      expect(initialHtml).not.toContain("late-value");
+
+      let streamedHtml = initialHtml;
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        streamedHtml += decoder.decode(value, { stream: true });
+      }
+      streamedHtml += decoder.decode();
+      expect(streamedHtml).toContain("late-value");
 
       await writeFile(
         join(routesRoot, "new-page.tsx"),

@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import {
   Fragment,
   h,
@@ -52,9 +53,8 @@ interface IslandPropsEntry {
 
 /**
  * Per request rendering state. The Preact `options` hooks installed by this
- * module read from the module level {@link RENDER_STATE} pointer, which is why
- * it must be set before rendering and cleared afterwards — otherwise two
- * concurrent requests would write into the same island props array.
+ * module read from async-local storage, which keeps concurrent renders isolated
+ * and preserves the state across asynchronous rendering work.
  */
 export class RenderState {
   nonce: string;
@@ -113,14 +113,22 @@ export class RenderState {
   }
 }
 
-let RENDER_STATE: RenderState | null = null;
+const RENDER_STATE_KEY = "__humRenderStateStorage__";
+const globalRef = globalThis as typeof globalThis & {
+  [RENDER_STATE_KEY]?: AsyncLocalStorage<RenderState>;
+};
+const renderStateStorage = globalRef[RENDER_STATE_KEY] ??
+  (globalRef[RENDER_STATE_KEY] = new AsyncLocalStorage<RenderState>());
 
 export function getRenderState(): RenderState | null {
-  return RENDER_STATE;
+  return renderStateStorage.getStore() ?? null;
 }
 
-export function setRenderState(state: RenderState | null): void {
-  RENDER_STATE = state;
+export function withRenderState<T>(
+  state: RenderState,
+  fn: () => T,
+): T {
+  return renderStateStorage.run(state, fn);
 }
 
 /**

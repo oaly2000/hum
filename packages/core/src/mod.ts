@@ -53,6 +53,7 @@ export type {
 export { asset, IS_BROWSER, Partial, type PartialProps } from "./runtime/shared.js";
 
 export { page } from "./request_context.js";
+export { createResource, type Resource } from "./resource.js";
 
 export {
   BuildCache,

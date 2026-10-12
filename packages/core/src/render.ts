@@ -10,9 +10,10 @@ import {
   DefaultApp,
   preloadLinks,
   renderDocument,
+  renderDocumentStream,
 } from "./runtime/server/document.js";
 import { mergeHeads } from "./runtime/server/head.js";
-import { RenderState, setRenderState } from "./runtime/server/preact_hooks.js";
+import { RenderState, withRenderState } from "./runtime/server/preact_hooks.js";
 import type {
   AppModule,
   HeadExport,
@@ -24,7 +25,7 @@ import type {
 } from "./types.js";
 
 export interface RenderOutcome {
-  html: string;
+  body: string | ReadableStream<Uint8Array>;
   links: string[];
   status: number;
 }
@@ -109,14 +110,23 @@ async function renderTree(
   });
   renderState.headNodes = mergeHeads(headChain, props as unknown as RouteProps);
 
-  setRenderState(renderState);
-  try {
-    const html = renderDocument(root);
-    return { html, links: preloadLinks(renderState), status };
-  } finally {
-    renderState.clear();
-    setRenderState(null);
-  }
+  return await withRenderState(renderState, () => {
+    if (pageModule?.config?.streaming === true) {
+      const stream = renderDocumentStream(root);
+      return {
+        body: stream,
+        links: preloadLinks(renderState),
+        status,
+      };
+    }
+
+    try {
+      const html = renderDocument(root);
+      return { body: html, links: preloadLinks(renderState), status };
+    } finally {
+      renderState.clear();
+    }
+  });
 }
 
 /**

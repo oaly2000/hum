@@ -88,6 +88,20 @@ export default function DocsLayout({
             >
               Partials
             </a>
+            <a
+              href="/docs/streaming"
+              aria-current={currentPath === "/docs/streaming"
+                ? "page"
+                : undefined}
+              class={[
+                "shrink-0 rounded-xl px-3 py-2.5 text-sm font-semibold transition",
+                currentPath === "/docs/streaming"
+                  ? "bg-[#edf6d8] text-[#45651c]"
+                  : "text-[#657168] hover:bg-white hover:text-[#17211b]",
+              ].join(" ")}
+            >
+              Streaming
+            </a>
           </nav>
         </aside>
         <main class="min-w-0 max-w-3xl pb-16">

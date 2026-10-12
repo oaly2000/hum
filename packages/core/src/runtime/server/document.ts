@@ -1,5 +1,6 @@
-import { Fragment, h, type ComponentChildren, type VNode } from "preact";
+import { type ComponentChildren, Fragment, h, type VNode } from "preact";
 import { renderToString } from "preact-render-to-string";
+import { renderToReadableStream } from "preact-render-to-string/stream";
 
 import { type AnyVNode, escapeScript } from "../shared_internal.js";
 import type { Island } from "../../types.js";
@@ -7,9 +8,10 @@ import type { Island } from "../../types.js";
 import {
   getRenderState,
   HEAD_PLACEHOLDER_PREFIX,
-  SCRIPTS_PLACEHOLDER_PREFIX,
   type RenderState,
+  SCRIPTS_PLACEHOLDER_PREFIX,
   serializeIslandProps,
+  withRenderState,
 } from "./preact_hooks.js";
 
 /** Minimal document shell used when the project has no `_app.tsx`. */
@@ -49,14 +51,30 @@ function link(rel: string, href: string): AnyVNode {
  * assets that were discovered while walking the tree.
  */
 export function renderHead(state: RenderState): string {
+  const nodes = renderResourceNodes(state);
+
+  for (const node of state.headNodes) {
+    nodes.push(node as AnyVNode);
+  }
+
+  if (nodes.length === 0) return "";
+  return renderToString(h(Fragment, null, nodes));
+}
+
+function renderResourceNodes(state: RenderState): AnyVNode[] {
   const nodes: AnyVNode[] = [];
 
   if (state.needsClientRuntime) {
     nodes.push(
-      link("modulepreload", withBase(state.basePath, state.buildCache.clientEntry)),
+      link(
+        "modulepreload",
+        withBase(state.basePath, state.buildCache.clientEntry),
+      ),
     );
     for (const island of state.islands) {
-      nodes.push(link("modulepreload", withBase(state.basePath, island.clientUrl)));
+      nodes.push(
+        link("modulepreload", withBase(state.basePath, island.clientUrl)),
+      );
     }
   }
 
@@ -68,10 +86,29 @@ export function renderHead(state: RenderState): string {
     nodes.push(link("stylesheet", withBase(state.basePath, css)));
   }
 
-  for (const node of state.headNodes) {
-    nodes.push(node as AnyVNode);
-  }
+  return nodes;
+}
 
+function resourceKeys(state: RenderState): Set<string> {
+  const keys = new Set<string>();
+  for (const node of renderResourceNodes(state)) {
+    const props = node.props as { rel?: string; href?: string };
+    if (props.rel !== undefined && props.href !== undefined) {
+      keys.add(`${props.rel}:${props.href}`);
+    }
+  }
+  return keys;
+}
+
+function renderLateResources(
+  state: RenderState,
+  alreadyRendered: Set<string>,
+): string {
+  const nodes = renderResourceNodes(state).filter((node) => {
+    const props = node.props as { rel?: string; href?: string };
+    return props.rel !== undefined && props.href !== undefined &&
+      !alreadyRendered.has(`${props.rel}:${props.href}`);
+  });
   if (nodes.length === 0) return "";
   return renderToString(h(Fragment, null, nodes));
 }
@@ -239,4 +276,126 @@ export function renderDocument(vnode: VNode): string {
   }
   const pageHtml = renderToString(vnode);
   return assembleDocument(state, pageHtml);
+}
+
+/**
+ * Streams a document using Preact's experimental Suspense renderer. Head data
+ * and resources found in the initial shell are emitted first; assets discovered
+ * in resumed subtrees and the island bootstrap are emitted before `</body>`.
+ */
+export function renderDocumentStream(vnode: VNode): ReadableStream<Uint8Array> {
+  const state = getRenderState();
+  if (state === null) {
+    throw new Error(
+      "Hum: renderDocumentStream() called without an active render state.",
+    );
+  }
+
+  const source = renderToReadableStream(vnode, { nonce: state.nonce });
+  const reader = source.getReader();
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+  const fullDocument = state.renderedHtmlTag && state.renderedHtmlHead &&
+    state.renderedHtmlBody;
+  const headHtml = renderHead(state);
+  const alreadyRendered = resourceKeys(state);
+  const headToken = `<!--${HEAD_PLACEHOLDER_PREFIX}${state.nonce}-->`;
+  const scriptsToken = `<!--${SCRIPTS_PLACEHOLDER_PREFIX}${state.nonce}-->`;
+  const holdLength = Math.max(headToken.length, scriptsToken.length, 20);
+  let buffer = "";
+  let started = false;
+  let finished = false;
+  let headInjected = !fullDocument;
+
+  const startDocument = (): string => {
+    if (fullDocument) {
+      const prefix = buffer.startsWith("<!DOCTYPE html>")
+        ? ""
+        : "<!DOCTYPE html>";
+      return prefix;
+    }
+    return `<!DOCTYPE html><html><head>${headHtml}</head><body>`;
+  };
+
+  const prepare = (text: string): string => {
+    let result = text;
+    if (result.includes(headToken)) {
+      result = result.replaceAll(headToken, headHtml);
+      headInjected = true;
+    } else if (!headInjected && result.includes("</head>")) {
+      result = result.replace("</head>", `${headHtml}</head>`);
+      headInjected = true;
+    }
+    result = result.replaceAll(scriptsToken, "");
+    return result;
+  };
+
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        while (!finished && buffer.length <= holdLength) {
+          const { value, done } = await reader.read();
+          if (done) {
+            buffer += decoder.decode();
+            finished = true;
+            break;
+          }
+          buffer += decoder.decode(value, { stream: true });
+          if (!started && buffer.length > 0) {
+            const prefix = startDocument();
+            started = true;
+            if (prefix !== "") controller.enqueue(encoder.encode(prefix));
+          }
+        }
+
+        if (!started && finished) {
+          const prefix = startDocument();
+          started = true;
+          if (prefix !== "") controller.enqueue(encoder.encode(prefix));
+        }
+
+        if (!finished && buffer.length > holdLength) {
+          const safeLength = buffer.length - holdLength;
+          const safe = prepare(buffer.slice(0, safeLength));
+          buffer = buffer.slice(safeLength);
+          if (safe !== "") controller.enqueue(encoder.encode(safe));
+          return;
+        }
+
+        if (finished) {
+          const final = withRenderState(state, () => {
+            const resources = renderLateResources(state, alreadyRendered);
+            const scripts = renderScripts(state);
+            let tail = prepare(buffer);
+            if (fullDocument) {
+              const bodyClose = tail.lastIndexOf("</body>");
+              if (bodyClose !== -1) {
+                tail = tail.slice(0, bodyClose) + resources + scripts +
+                  tail.slice(bodyClose);
+              } else {
+                tail += resources + scripts;
+              }
+            } else {
+              tail += resources + scripts + "</body></html>";
+            }
+            return tail;
+          });
+          if (final !== "") controller.enqueue(encoder.encode(final));
+          controller.close();
+          state.clear();
+          reader.releaseLock();
+        }
+      } catch (error) {
+        state.clear();
+        reader.releaseLock();
+        controller.error(error);
+      }
+    },
+    async cancel(reason) {
+      if (finished) return;
+      finished = true;
+      state.clear();
+      await reader.cancel(reason);
+    },
+  });
 }

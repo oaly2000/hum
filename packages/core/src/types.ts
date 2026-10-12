@@ -86,6 +86,11 @@ export interface RouteConfig {
   skipAppWrapper?: boolean;
   /** Render the page without inherited `_layout` components. */
   skipInheritedLayouts?: boolean;
+  /**
+   * Opt into experimental streaming SSR with `preact/compat` Suspense.
+   * Streamed rendering has different error and response-header guarantees.
+   */
+  streaming?: boolean;
 }
 
 /**

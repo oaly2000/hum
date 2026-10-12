@@ -2,6 +2,7 @@ import { type ComponentChildren, Fragment, h } from "preact";
 import { type Signal, signal } from "@preact/signals";
 import { Hono } from "hono";
 import { basicAuth } from "hono/basic-auth";
+import { Suspense } from "preact/compat";
 import { describe, expect, it } from "vitest";
 
 import { createApp, define, mountHum, page } from "../src/mod.js";
@@ -60,6 +61,33 @@ function FormPage() {
 
 function Boom(): never {
   throw new Error("kaboom");
+}
+
+let streamReady = false;
+let resolveStream: () => void = () => {};
+const streamPending = new Promise<void>((resolve) => {
+  resolveStream = () => {
+    streamReady = true;
+    resolve();
+  };
+});
+
+function StreamContent() {
+  if (!streamReady) throw streamPending;
+  return h(
+    "strong",
+    null,
+    "stream resolved ",
+    h(Counter, { count: START }),
+  );
+}
+
+function StreamingPage() {
+  return h(
+    Suspense,
+    { fallback: h("i", null, "stream fallback") },
+    h(StreamContent),
+  );
 }
 
 function PartialsPage() {
@@ -240,6 +268,17 @@ const manifest: HumManifest = {
       urlPath: "/partials",
       load: async () => ({ default: PartialsPage }),
     },
+    {
+      file: "routes/streaming.tsx",
+      absPath: "/app/routes/streaming.tsx",
+      kind: "route",
+      urlPath: "/streaming",
+      load: async () => ({
+        default: StreamingPage,
+        config: { streaming: true },
+        head: h("title", null, "Streaming"),
+      }),
+    },
   ],
 };
 
@@ -317,6 +356,38 @@ describe("head handling", () => {
   it("marks the active link", async () => {
     const html = await get("/");
     expect(html).toContain('aria-current="page"');
+  });
+});
+
+describe("experimental streaming", () => {
+  it("streams the Suspense fallback before the resolved subtree", async () => {
+    const response = await app.request("http://localhost/streaming");
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toContain("text/html");
+
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
+    let html = "";
+    while (!html.includes("stream fallback")) {
+      const { value, done } = await reader.read();
+      expect(done).toBe(false);
+      html += decoder.decode(value, { stream: true });
+    }
+    expect(html).toContain("<!DOCTYPE html>");
+    expect(html).toContain("<title>Streaming</title>");
+    resolveStream();
+
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      html += decoder.decode(value, { stream: true });
+    }
+    html += decoder.decode();
+
+    expect(html).toContain("stream resolved");
+    expect(html).toContain("hum:island:Counter");
+    expect(html).toContain('import hum_island_0 from "/islands/Counter.tsx"');
+    expect(html).toContain("</body></html>");
   });
 });
 
