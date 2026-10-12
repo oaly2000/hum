@@ -75,7 +75,7 @@ export default function Home() {
                 Get started <span aria-hidden="true">→</span>
               </a>
               <a
-                href="#features"
+                href="/docs/handlers"
                 class="rounded-full px-6 py-3.5 font-bold text-[#465348] transition hover:bg-white/70"
               >
                 Explore Hum

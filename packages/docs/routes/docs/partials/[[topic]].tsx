@@ -241,11 +241,11 @@ export default function PartialsPage({
           only the form area is replaced.
         </p>
         <div f-client-nav class="mt-5">
-          <Partial
-            name="load-more-items"
-            mode={batch === undefined ? "replace" : "append"}
-          >
-            <ol class="space-y-3">
+          <ol class="space-y-3">
+            <Partial
+              name="load-more-items"
+              mode={batch === undefined ? "replace" : "append"}
+            >
               {(batch === undefined ? initialItems : appendedItems).map(
                 (item, index) => {
                   const itemNumber = (batch ?? 0) * LOAD_MORE_BATCH_SIZE +
@@ -263,8 +263,8 @@ export default function PartialsPage({
                   );
                 },
               )}
-            </ol>
-          </Partial>
+            </Partial>
+          </ol>
           <Partial name="load-more-control">
             <div class="mt-4">
               {hasMore
