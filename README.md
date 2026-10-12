@@ -70,8 +70,9 @@ manifest 和客户端静态资源。
 
 ```tsx
 import Counter from "../islands/Counter.js";
+import { define } from "@hum/core";
 
-export const head = <title>首页</title>;
+export const head = define.head(<title>首页</title>);
 
 export default function Home() {
   return (
@@ -88,31 +89,49 @@ island 也可以放在就近路由的 `_islands/` 目录，例如
 `routes/blog/_islands/Editor.tsx`；在页面中通过相对路径导入即可。其余页面内容
 仍作为静态 HTML 输出。
 
-`head` 可以导出静态 JSX，也可以读取路由数据：
+`define` 是可选的类型辅助 helper，并非定义路由导出的必要步骤。它不增加运行时
+行为；你可以直接导出 `head`、`config`、`handlers` 等值，也可以直接声明默认页面
+组件。使用 `define.*` 可以让编辑器检查相应导出的类型，并明确表达定义意图。
+
+`define.head()` 可以接收静态 JSX 或读取路由数据的函数：
 
 ```tsx
-export function head({ params }: RouteProps) {
-  return <title>文章 {params.id}</title>;
-}
+import { define } from "@hum/core";
+
+export const head = define.head(({ params }) => <title>文章 {params.id}
+</title>);
 ```
 
-路由也可以导出基于 HTTP 方法的处理器。处理器接收 Hono `Context`：
+路由配置也可以直接导出对象；`define.config()` 则提供相同配置的类型检查，例如跳过
+继承的布局或 `_app` 包装：
 
 ```tsx
-import { page } from "@hum/core";
+export const config = define.config({
+  skipInheritedLayouts: true,
+  skipAppWrapper: true,
+});
+```
+
+路由也可以直接导出基于 HTTP 方法的处理器，或使用 `define.handlers()`
+获得类型检查。 处理器接收 Hono `Context`：
+
+```tsx
+import { define, page } from "@hum/core";
 
 export const handlers = {
-  GET: async (c) => page({ props: { post: await load(c.req.param("id")) } }),
+  GET: async (c) => page({ post: await load(c.req.param("id")) }),
   POST: async (c) => c.redirect("/thanks"),
 };
 
-export default function BlogPost({ post }) {
-  return <h1>{post.title}</h1>;
-}
+type PageData = { post: { title: string } };
+export default define.page<PageData>(({ data }) => <h1>{data?.post.title}</h1>);
 ```
 
-处理器返回 `Response` 时直接应答；返回 `page()` 可渲染当前页面并传递
-props/status。没有返回响应时，框架会回落到默认页面渲染。
+`define.page<Data>()` 是可选的页面组件类型辅助；也可以直接导出默认组件。 handler
+调用 `page(data)` 后，视图通过 `data` 读取它，路由的 `params`、`url`、`state` 等
+框架属性保持独立。需要设置 HTML 状态码时传第二个参数，例如
+`page({ post }, { status: 201 })`。处理器返回 `Response` 时直接应答；返回
+`page()` 可渲染当前页面。没有返回响应时，框架会回落到默认页面渲染。
 
 ## 样式
 

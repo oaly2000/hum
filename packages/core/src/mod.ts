@@ -42,6 +42,7 @@ export type {
   ModuleThunk,
   PageFn,
   PageRenderOptions,
+  PageViewProps,
   RouteConfig,
   RouteFileSpec,
   RouteKind,

@@ -1,16 +1,19 @@
-import { page, type Handlers, type RouteProps } from "@hum/core";
+import { define, type Handlers, page, type RouteProps } from "@hum/core";
 
-/** `head` as a function so it can use the matched params. */
-export function head({ params }: RouteProps) {
-  return <title>Blog {params.id}</title>;
+interface BlogPageData {
+  post: { id: string; title: string };
 }
 
-// Import `page` from @hum/core to render this file's view with the data the
-// handler loaded.
+export const head = define.head(({ params }) => <title>Blog {params.id}
+</title>);
+
 export const handlers: Handlers = {
-  GET: (c) => page({ props: { id: c.req.param("id") } }),
+  GET: (c) => {
+    const id = c.req.param("id");
+    return page({ post: { id, title: `Post ${id}` } });
+  },
 };
 
-export default function BlogPost(props: RouteProps & { id?: string }) {
-  return <h1>Blog post {props.id}</h1>;
-}
+export default define.page<BlogPageData>(({ data }) => (
+  <h1>Blog post {data?.post.title}</h1>
+));

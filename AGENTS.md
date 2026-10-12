@@ -30,9 +30,12 @@ the example where applicable.
 - Routes are derived from files under `routes/`. Special files such as
   `_app.tsx`, `_layout.tsx`, `_middleware.ts`, `_error.tsx`, and `_404.tsx`
   contribute behavior through the route tree.
-- Route handlers use Hono's `Context`. `page()` associates page props/status
-  with the current request through request-local context; avoid adding
-  framework-specific fields to Hono's context.
+- Route handlers use Hono's `Context`. `page(data, options)` associates business
+  data and an optional response status with the current request through
+  request-local context; view data is passed under the `data` prop.
+  `define.page<Data>()` types the view without mixing business data into
+  framework route props. Avoid adding framework-specific fields to Hono's
+  context.
 - Server rendering identifies registered islands and emits markers plus
   serialized props. The client runtime discovers those markers and hydrates the
   corresponding island bundles.

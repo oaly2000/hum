@@ -4,22 +4,27 @@ import type { Context, Next } from "hono";
 /** Hono context used by Hum request handlers and middlewares. */
 export type HumContext = Context<any, any, any>;
 
-/** Options accepted by {@link PageFn}. */
+/** Options accepted as the second argument to {@link PageFn}. */
 export interface PageRenderOptions {
-  /**
-   * Extra props merged into the route props the page component receives. This
-   * is how a handler hands the data it fetched to its view.
-   */
-  props?: Record<string, unknown>;
   /** Status of the rendered document. @default 200 */
   status?: number;
+}
+
+/** Route props supplied to a view defined with `define.page`. */
+export interface PageViewProps<Data = unknown> {
+  /** Business data supplied by the route handler through {@link PageFn}. */
+  data?: Data;
 }
 
 /**
  * Renders the page component of the current route file into a full HTML
  * `Response`, including layouts, the app shell and the merged head tags.
+ * Business data is exposed separately from the framework's route props.
  */
-export type PageFn = (options?: PageRenderOptions) => Promise<Response>;
+export type PageFn = (
+  data?: unknown,
+  options?: PageRenderOptions,
+) => Promise<Response>;
 
 /**
  * Handles a request for one HTTP method.

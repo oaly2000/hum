@@ -1,6 +1,6 @@
 import type { ComponentChildren } from "preact";
+import { define } from "@hum/core";
 
-/** Application wide head tags. Pages override them by tag. */
 export const head = (
   <>
     <meta name="viewport" content="width=device-width, initial-scale=1" />

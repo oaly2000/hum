@@ -1,7 +1,7 @@
 import { define, page, Partial, type RouteProps } from "@hum/core";
 import { CodeBlock } from "../../_components/CodeBlock.js";
 
-export const head = <title>Partials — Hum Guides</title>;
+export const head = define.head(<title>Partials — Hum Guides</title>);
 
 const LOAD_MORE_ITEMS = [
   "Append new content without replacing what is already on screen.",
@@ -14,8 +14,10 @@ const LOAD_MORE_ITEMS = [
 const LOAD_MORE_BATCH_SIZE = 2;
 
 interface PartialsPageProps extends RouteProps {
-  batch?: number;
-  hasMore?: boolean;
+  data?: {
+    batch?: number;
+    hasMore?: boolean;
+  };
 }
 
 export const handlers = define.handlers({
@@ -28,10 +30,8 @@ export const handlers = define.handlers({
 
     const start = batch * LOAD_MORE_BATCH_SIZE;
     return page({
-      props: {
-        batch,
-        hasMore: start + LOAD_MORE_BATCH_SIZE < LOAD_MORE_ITEMS.length,
-      },
+      batch,
+      hasMore: start + LOAD_MORE_BATCH_SIZE < LOAD_MORE_ITEMS.length,
     });
   },
 });
@@ -66,24 +66,24 @@ const linkExample = `<div f-client-nav>
 
 const topics: Record<string, string> = {
   start: "Pick a topic to update just this panel.",
-  handlers: "Handlers let a route answer HTTP requests or load data for its page.",
+  handlers:
+    "Handlers let a route answer HTTP requests or load data for its page.",
   islands: "Islands hydrate interactive components while the rest stays HTML.",
   routing: "File-based routes turn your routes directory into URLs.",
 };
 
 export default function PartialsPage({
   url,
-  batch,
-  hasMore = true,
+  data,
 }: PartialsPageProps) {
+  const batch = data?.batch;
+  const hasMore = data?.hasMore ?? true;
   const topic = url.searchParams.get("topic") ?? "start";
   const initialItems = LOAD_MORE_ITEMS.slice(0, LOAD_MORE_BATCH_SIZE);
-  const appendedItems = batch === undefined
-    ? []
-    : LOAD_MORE_ITEMS.slice(
-      batch * LOAD_MORE_BATCH_SIZE,
-      (batch + 1) * LOAD_MORE_BATCH_SIZE,
-    );
+  const appendedItems = batch === undefined ? [] : LOAD_MORE_ITEMS.slice(
+    batch * LOAD_MORE_BATCH_SIZE,
+    (batch + 1) * LOAD_MORE_BATCH_SIZE,
+  );
 
   return (
     <article>
@@ -102,10 +102,12 @@ export default function PartialsPage({
         Mark a region and opt in to client navigation
       </h2>
       <p class="mt-3 leading-7 text-[#657168]">
-        Wrap the content to update in a <code>Partial</code> with a stable,
-        unique name. Add <strong class="font-bold">f-client-nav</strong> to an ancestor to intercept
-        same-origin links and GET/POST forms inside it. Matching partials from
-        the fetched page are applied without replacing the surrounding shell.
+        Wrap the content to update in a <code>Partial</code>{" "}
+        with a stable, unique name. Add{" "}
+        <strong class="font-bold">f-client-nav</strong>{" "}
+        to an ancestor to intercept same-origin links and GET/POST forms inside
+        it. Matching partials from the fetched page are applied without
+        replacing the surrounding shell.
       </p>
       <CodeBlock code={partialExample} />
       <p class="mt-4 leading-7 text-[#657168]">
@@ -119,16 +121,17 @@ export default function PartialsPage({
       <p class="mt-3 leading-7 text-[#657168]">
         Links inside an opted-in region navigate without a full reload. GET and
         POST forms are also supported; other form methods use normal browser
-        submission. Add <code>f-partial</code> to a link or form when you want
-        to fetch a different URL than the one used for the visible navigation
-        or form action.
+        submission. Add <code>f-partial</code>{" "}
+        to a link or form when you want to fetch a different URL than the one
+        used for the visible navigation or form action.
       </p>
       <CodeBlock code={linkExample} />
       <div class="mt-5 rounded-2xl border border-[#e3eadb] bg-[#f4f8ec] p-5 leading-7 text-[#556450]">
-        For a smaller opt-in area, put <strong class="font-bold">f-client-nav</strong> only on the
-        wrapper containing the links/forms that should use partial navigation.
-        Set <code>f-client-nav={"{false}"}</code> to opt out inside an enabled
-        ancestor.
+        For a smaller opt-in area, put{" "}
+        <strong class="font-bold">f-client-nav</strong>{" "}
+        only on the wrapper containing the links/forms that should use partial
+        navigation. Set <code>f-client-nav={"{false}"}</code>{" "}
+        to opt out inside an enabled ancestor.
       </div>
 
       <h2 class="mt-12 text-2xl font-extrabold tracking-tight">
@@ -140,9 +143,18 @@ export default function PartialsPage({
         content is added at the selected edge.
       </p>
       <div class="mt-5 grid gap-3 sm:grid-cols-3">
-        <ModeCard mode="replace" description="Replace the current region contents (default)." />
-        <ModeCard mode="append" description="Add the fetched content after existing children." />
-        <ModeCard mode="prepend" description="Add the fetched content before existing children." />
+        <ModeCard
+          mode="replace"
+          description="Replace the current region contents (default)."
+        />
+        <ModeCard
+          mode="append"
+          description="Add the fetched content after existing children."
+        />
+        <ModeCard
+          mode="prepend"
+          description="Add the fetched content before existing children."
+        />
       </div>
       <CodeBlock
         code={`<Partial name="messages" mode="append">
@@ -150,16 +162,16 @@ export default function PartialsPage({
 </Partial>`}
       />
       <p class="mt-4 leading-7 text-[#657168]">
-        A “load more” interaction can submit a form, render only the next
-        batch in an append partial, and replace a separate partial containing
-        the form button.
+        A “load more” interaction can submit a form, render only the next batch
+        in an append partial, and replace a separate partial containing the form
+        button.
       </p>
       <CodeBlock
         code={`export const handlers = define.handlers({
   POST: async (c) => {
     const form = await c.req.formData();
     const batch = Number(form.get("batch"));
-    return page({ props: { batch } });
+    return page({ batch });
   },
 });
 
@@ -187,11 +199,15 @@ export default function PartialsPage({
         </p>
         <h2 class="mt-2 text-xl font-extrabold">Update one region</h2>
         <p class="mt-2 leading-7 text-[#657168]">
-          These links change the URL and replace only the matching partial.
-          The surrounding panel stays in place.
+          These links change the URL and replace only the matching partial. The
+          surrounding panel stays in place.
         </p>
         <div class="mt-5">
-          <nav f-client-nav aria-label="Choose a topic" class="flex flex-wrap gap-2">
+          <nav
+            f-client-nav
+            aria-label="Choose a topic"
+            class="flex flex-wrap gap-2"
+          >
             <TopicLink topic="start" label="Start" />
             <TopicLink topic="handlers" label="Handlers" />
             <TopicLink topic="islands" label="Islands" />
@@ -224,22 +240,28 @@ export default function PartialsPage({
           only the form area is replaced.
         </p>
         <div f-client-nav class="mt-5">
-          <Partial name="load-more-items" mode={batch === undefined ? "replace" : "append"}>
+          <Partial
+            name="load-more-items"
+            mode={batch === undefined ? "replace" : "append"}
+          >
             <ol class="space-y-3">
-              {(batch === undefined ? initialItems : appendedItems).map((item, index) => {
-                const itemNumber = (batch ?? 0) * LOAD_MORE_BATCH_SIZE + index + 1;
-                return (
-                  <li
-                    key={itemNumber}
-                    class="flex items-start gap-3 rounded-2xl bg-[#f4f8ec] p-4 text-sm leading-6 text-[#465348]"
-                  >
-                    <span class="grid size-7 shrink-0 place-items-center rounded-full bg-white text-xs font-bold text-[#638b27]">
-                      {itemNumber}
-                    </span>
-                    {item}
-                  </li>
-                );
-              })}
+              {(batch === undefined ? initialItems : appendedItems).map(
+                (item, index) => {
+                  const itemNumber = (batch ?? 0) * LOAD_MORE_BATCH_SIZE +
+                    index + 1;
+                  return (
+                    <li
+                      key={itemNumber}
+                      class="flex items-start gap-3 rounded-2xl bg-[#f4f8ec] p-4 text-sm leading-6 text-[#465348]"
+                    >
+                      <span class="grid size-7 shrink-0 place-items-center rounded-full bg-white text-xs font-bold text-[#638b27]">
+                        {itemNumber}
+                      </span>
+                      {item}
+                    </li>
+                  );
+                },
+              )}
             </ol>
           </Partial>
           <Partial name="load-more-control">
@@ -271,7 +293,13 @@ export default function PartialsPage({
       </section>
 
       <p class="mt-12 border-t border-[#e3eadb] pt-6 text-sm text-[#788279]">
-        Previous: <a class="font-semibold text-[#587d26] hover:underline" href="/docs/handlers">Route handlers →</a>
+        Previous:{" "}
+        <a
+          class="font-semibold text-[#587d26] hover:underline"
+          href="/docs/handlers"
+        >
+          Route handlers →
+        </a>
       </p>
     </article>
   );

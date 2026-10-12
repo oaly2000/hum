@@ -1,4 +1,4 @@
-import { Partial, type RouteProps } from "@hum/core";
+import { define, Partial, type RouteProps } from "@hum/core";
 
 const TOPICS: Record<string, string> = {
   "": "Pick a topic from the list.",
@@ -7,9 +7,9 @@ const TOPICS: Record<string, string> = {
   c: "You are reading topic C.",
 };
 
-export function head({ url }: RouteProps) {
-  return <title>Partials — {url.searchParams.get("topic") || "home"}</title>;
-}
+export const head = define.head(({ url }) => (
+  <title>Partials — {url.searchParams.get("topic") || "home"}</title>
+));
 
 /**
  * `f-client-nav` on the wrapper makes every link/submit inside it a client side

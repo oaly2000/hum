@@ -1,36 +1,39 @@
 import { pathToFileURL } from "node:url";
-import { Hono, type Env, type MiddlewareHandler, type Schema } from "hono";
+import { type Env, Hono, type MiddlewareHandler, type Schema } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 
 import {
   BuildCache,
   manifestPath,
-  readProdManifest,
   type ProdManifest,
+  readProdManifest,
 } from "./build_cache.js";
 import {
   defaultLogger,
-  resolveConfig,
   type HumConfig,
+  resolveConfig,
   type ResolvedConfig,
 } from "./config.js";
 import { crawlProject } from "./discovery/fs_crawl.js";
 import { ModuleLoader } from "./loader.js";
-import { runWithRequestContext, type RequestContext } from "./request_context.js";
+import {
+  type RequestContext,
+  runWithRequestContext,
+} from "./request_context.js";
 import {
   findNotFound,
   renderError,
   renderNotFound,
-  renderRoute,
   type RenderOutcome,
+  renderRoute,
   type RouteRenderInput,
 } from "./render.js";
 import {
   dirOf,
-  resolveRoutes,
-  unmatchedRoute,
   type ResolvedNotFound,
   type ResolvedRoute,
+  resolveRoutes,
+  unmatchedRoute,
 } from "./routing/fs_routes.js";
 import { staticAssetHandler } from "./static.js";
 import type {
@@ -49,7 +52,8 @@ export interface HumVariables {
 
 export type HumApp = Hono<{ Variables: HumVariables }> & { hum: HumInternals };
 export type MountedHumApp<E extends Env, S extends Schema, P extends string> =
-  Hono<E, S, P> & { hum: HumInternals };
+  & Hono<E, S, P>
+  & { hum: HumInternals };
 
 export interface HumInternals {
   config: ResolvedConfig;
@@ -79,16 +83,17 @@ function htmlResponse(
 function pickHandler(
   handlers: RouteModule["handlers"],
   method: string,
-): ((c: HumContext) => Response | Promise<Response> | void | Promise<void>) |
-  undefined {
+):
+  | ((c: HumContext) => Response | Promise<Response> | void | Promise<void>)
+  | undefined {
   if (handlers === undefined) return undefined;
   if (method === "HEAD" && handlers.HEAD === undefined) {
     return handlers.GET;
   }
   const byMethod = handlers as unknown as Record<
     string,
-    ((c: HumContext) => Response | Promise<Response> | void | Promise<void>) |
-      undefined
+    | ((c: HumContext) => Response | Promise<Response> | void | Promise<void>)
+    | undefined
   >;
   return byMethod[method];
 }
@@ -149,7 +154,8 @@ export async function mountHum<
   app: Hono<E, S, P>,
   config: HumConfig,
 ): Promise<MountedHumApp<E, S, P>> {
-  const manifest: HumManifest = config.manifest ?? await crawlToManifest(config);
+  const manifest: HumManifest = config.manifest ??
+    await crawlToManifest(config);
 
   const root = config.root ?? process.cwd();
   const outDir = config.outDir ?? "_hum";
@@ -210,7 +216,12 @@ export async function mountHum<
       config: resolved,
       buildCache,
       loader,
-      route: unmatchedRoute(manifest.routes, resolved.routesDir, dir, url.pathname),
+      route: unmatchedRoute(
+        manifest.routes,
+        resolved.routesDir,
+        dir,
+        url.pathname,
+      ),
       url,
       params: {},
       state: c.var as Record<string, unknown>,
@@ -286,12 +297,14 @@ function routeHandler(
         const handler = pickHandler(mod.handlers, method);
         if (handler !== undefined) {
           const requestContext: RequestContext = {
-            page: async (options?: PageRenderOptions) =>
-              htmlResponse(context, await renderRoute(input, options)),
+            page: async (data?: unknown, options?: PageRenderOptions) =>
+              htmlResponse(context, await renderRoute(input, data, options)),
           };
 
-          const res = await runWithRequestContext(requestContext, () =>
-            handler(context));
+          const res = await runWithRequestContext(
+            requestContext,
+            () => handler(context),
+          );
           if (res instanceof Response) return res;
         } else if (
           mod.handlers !== undefined && method !== "GET" && method !== "HEAD"
@@ -329,16 +342,18 @@ async function crawlToManifest(config: HumConfig): Promise<HumManifest> {
     routes: crawled.routes.map((spec) => ({
       ...spec,
       // The path is only known at runtime; Vite must not try to resolve it.
-      load: () => import(/* @vite-ignore */ pathToFileURL(spec.absPath).href) as Promise<
-        Record<string, unknown>
-      >,
+      load: () =>
+        import(/* @vite-ignore */ pathToFileURL(spec.absPath).href) as Promise<
+          Record<string, unknown>
+        >,
     })),
     islands: crawled.islands.map((spec) => ({
       ...spec,
       // The path is only known at runtime; Vite must not try to resolve it.
-      load: () => import(/* @vite-ignore */ pathToFileURL(spec.absPath).href) as Promise<
-        Record<string, unknown>
-      >,
+      load: () =>
+        import(/* @vite-ignore */ pathToFileURL(spec.absPath).href) as Promise<
+          Record<string, unknown>
+        >,
     })),
   };
 }

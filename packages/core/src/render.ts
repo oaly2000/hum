@@ -12,10 +12,7 @@ import {
   renderDocument,
 } from "./runtime/server/document.js";
 import { mergeHeads } from "./runtime/server/head.js";
-import {
-  RenderState,
-  setRenderState,
-} from "./runtime/server/preact_hooks.js";
+import { RenderState, setRenderState } from "./runtime/server/preact_hooks.js";
 import type {
   AppModule,
   HeadExport,
@@ -65,7 +62,7 @@ function routeProps(
  */
 async function renderTree(
   input: RouteRenderInput,
-  page: VNode | null,
+  page: AnyVNode | null,
   pageModule: RouteModule | null,
   props: Record<string, unknown>,
   status: number,
@@ -123,11 +120,11 @@ async function renderTree(
 }
 
 /**
- * Renders the page of a matched route. `options` come from `ctx.page()`, which
- * is how a request handler hands data and a status to its own view.
+ * Renders a matched route with optional handler data and response options.
  */
 export async function renderRoute(
   input: RouteRenderInput,
+  data?: unknown,
   options: PageRenderOptions = {},
 ): Promise<RenderOutcome> {
   const mod = (await input.loader.load(input.route.file)) as RouteModule;
@@ -139,7 +136,7 @@ export async function renderRoute(
     );
   }
 
-  const props = { ...routeProps(input), ...options.props };
+  const props = { ...routeProps(input), data };
   return await renderTree(
     input,
     h(mod.default as never, props),
@@ -202,7 +199,10 @@ export async function renderError(
         ? h(DefaultErrorContent as never, props)
         : h(mod.default as never, props);
     } catch (loadErr) {
-      input.config.logger.error("hum: failed to load the _error page:", loadErr);
+      input.config.logger.error(
+        "hum: failed to load the _error page:",
+        loadErr,
+      );
       page = h(DefaultErrorContent as never, props);
     }
   } else {

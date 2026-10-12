@@ -17,8 +17,7 @@ const globalRef = globalThis as unknown as {
   __humRequestContext?: AsyncLocalStorage<RequestContext>;
 };
 
-const storage =
-  globalRef.__humRequestContext ??
+const storage = globalRef.__humRequestContext ??
   (globalRef.__humRequestContext = new AsyncLocalStorage<RequestContext>());
 
 /**
@@ -41,10 +40,12 @@ export function runWithRequestContext<T>(
  *
  * ```tsx
  * import { page } from "@hum/core";
- * export const handlers = { GET: (c) => page({ props: { id: c.req.param("id") } }) };
+ * export const handlers = {
+ *   GET: (c) => page({ id: c.req.param("id") }),
+ * };
  * ```
  */
-export const page: PageFn = (options) => {
+export const page: PageFn = (data, options) => {
   const ctx = storage.getStore();
   if (ctx === undefined) {
     throw new Error(
@@ -52,5 +53,5 @@ export const page: PageFn = (options) => {
         "To render outside of one, use `renderRoute` directly.",
     );
   }
-  return ctx.page(options);
+  return ctx.page(data, options);
 };

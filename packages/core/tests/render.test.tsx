@@ -4,7 +4,7 @@ import { Hono } from "hono";
 import { basicAuth } from "hono/basic-auth";
 import { describe, expect, it } from "vitest";
 
-import { createApp, mountHum, page } from "../src/mod.js";
+import { createApp, define, mountHum, page } from "../src/mod.js";
 import { Partial } from "../src/runtime/shared.js";
 import type { HumManifest, RouteProps } from "../src/types.js";
 
@@ -75,9 +75,24 @@ function PartialsPage() {
   );
 }
 
-function PageView(props: RouteProps & { extra?: string }) {
-  return h("div", { id: "page-view" }, `extra: ${props.extra ?? "none"}`);
-}
+const PageView = define.page<{
+  extra?: string;
+  params?: { id: string };
+}>(
+  function PageView(
+    props: RouteProps & {
+      data?: { extra?: string; params?: { id: string } };
+    },
+  ) {
+    return h(
+      "div",
+      { id: "page-view" },
+      `extra: ${props.data?.extra ?? "none"}; ` +
+        `route param: ${props.params.id ?? "none"}; ` +
+        `data param: ${props.data?.params?.id ?? "none"}`,
+    );
+  },
+);
 
 const manifest: HumManifest = {
   islands: [
@@ -161,9 +176,11 @@ const manifest: HumManifest = {
       load: async () => ({
         default: PageView,
         handlers: {
-          // `page` is imported from @hum/core: the handler hands what it loaded
-          // straight to the page.
-          GET: () => page({ props: { extra: "from-handler" } }),
+          GET: () =>
+            page({
+              extra: "from-handler",
+              params: { id: "from-data" },
+            }, { status: 202 }),
         },
       }),
     },
@@ -338,9 +355,10 @@ describe("handlers", () => {
     const res = await app.request("http://localhost/page-fn");
     const html = await res.text();
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(202);
     // The handler's data reached the page component...
     expect(html).toContain("extra: from-handler");
+    expect(html).toContain("route param: none; data param: from-data");
     // ...and the result is still a full document.
     expect(html).toContain('<div id="page-view">');
     expect(html).toContain('<div id="layout">');

@@ -1,7 +1,9 @@
-import type { RouteProps } from "@hum/core";
+import { define, type RouteProps } from "@hum/core";
 import { CodeBlock } from "../_components/CodeBlock.js";
 
-export const head = <title>Hono and Hum middleware — Hum Guides</title>;
+export const head = define.head(
+  <title>Hono and Hum middleware — Hum Guides</title>,
+);
 
 const honoMiddlewareExample = `// server.ts
 app.use("*", async (c, next) => {
