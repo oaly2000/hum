@@ -1,4 +1,4 @@
-import { type ComponentChildren, Fragment, h, type VNode } from "preact";
+import { type ComponentChildren, Fragment, h, options, type VNode } from "preact";
 import { renderToString } from "preact-render-to-string";
 import { renderToReadableStream } from "preact-render-to-string/stream";
 
@@ -13,6 +13,9 @@ import {
   serializeIslandProps,
   withRenderState,
 } from "./preact_hooks.js";
+
+// preact-render-to-string disables class error boundaries unless opted in.
+options.errorBoundaries = true;
 
 /** Minimal document shell used when the project has no `_app.tsx`. */
 export function DefaultApp(props: {

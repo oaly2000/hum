@@ -1,4 +1,4 @@
-import { h } from "preact";
+import { h, options } from "preact";
 import { renderToStringAsync } from "preact-render-to-string";
 import { describe, expect, it } from "vitest";
 
@@ -92,5 +92,34 @@ describe("createResource", () => {
       '<p role="alert">Could not load: Error: network error</p>',
     );
     await expect(rendered).resolves.not.toContain("loading");
+  });
+
+  it("renders its error fallback when a child throws during rendering", async () => {
+    const resource = createResource(Promise.resolve("ready"));
+    function Explode() {
+      throw new Error("render failed");
+    }
+
+    const previousErrorBoundaries = options.errorBoundaries;
+    options.errorBoundaries = true;
+    try {
+      const rendered = await renderToStringAsync(
+        h(
+          Suspense,
+          {
+            resource,
+            fallback: h("i", null, "loading"),
+            errorFallback: (error: unknown) =>
+              h("p", { role: "alert" }, `Component error: ${String(error)}`),
+            children: () => h("div", null, h(Explode)),
+          },
+        ),
+      );
+      expect(rendered).toContain(
+        '<p role="alert">Component error: Error: render failed</p>',
+      );
+    } finally {
+      options.errorBoundaries = previousErrorBoundaries;
+    }
   });
 });

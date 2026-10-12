@@ -1,4 +1,4 @@
-import { type ComponentChildren, h } from "preact";
+import { Component, type ComponentChildren, h } from "preact";
 import { Suspense as PreactSuspense } from "preact/compat";
 
 /** A value that can suspend while its underlying promise is pending. */
@@ -19,6 +19,37 @@ type ResourceState<T> =
   | { status: "resolved"; value: T }
   | { status: "rejected"; error: unknown };
 
+interface ResourceValueProps<T> {
+  value: T;
+  children: (value: T) => ComponentChildren;
+}
+
+function ResourceValue<T>(
+  { value, children }: ResourceValueProps<T>,
+): ComponentChildren {
+  return children(value);
+}
+
+class ResourceErrorBoundary extends Component<
+  Pick<SuspenseProps, "errorFallback">,
+  { hasError: boolean; error: unknown }
+> {
+  override state = { hasError: false, error: undefined };
+
+  static override getDerivedStateFromError(error: unknown) {
+    return { hasError: true, error };
+  }
+
+  override render() {
+    if (this.state.hasError) {
+      return typeof this.props.errorFallback === "function"
+        ? this.props.errorFallback(this.state.error)
+        : this.props.errorFallback;
+    }
+    return this.props.children;
+  }
+}
+
 function ResourceContent<T>(
   { resource, children, errorFallback }: SuspenseProps<T>,
 ): ComponentChildren {
@@ -38,12 +69,17 @@ function ResourceContent<T>(
       ? errorFallback(error)
       : errorFallback;
   }
-  return children(value);
+  return h(
+    ResourceErrorBoundary,
+    { errorFallback },
+    h(ResourceValue<T>, { value, children }),
+  );
 }
 
 /**
  * Suspends while the resource is pending and renders `errorFallback` if it
- * rejects. Use `fallback` for the pending state.
+ * rejects or a child throws during rendering. Use `fallback` for the pending
+ * state.
  */
 export function Suspense<T>(
   props: SuspenseProps<T>,

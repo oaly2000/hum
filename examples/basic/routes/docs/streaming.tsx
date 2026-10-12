@@ -15,6 +15,7 @@ interface DemoData {
 
 interface StreamingPageData {
   demo: Resource<DemoData>;
+  renderError: Resource<void>;
 }
 
 async function loadDemoData(): Promise<DemoData> {
@@ -23,7 +24,11 @@ async function loadDemoData(): Promise<DemoData> {
 }
 
 export const handlers = define.handlers({
-  GET: () => page({ demo: createResource(loadDemoData()) }),
+  GET: () =>
+    page({
+      demo: createResource(loadDemoData()),
+      renderError: createResource(loadDemoData()),
+    }),
 });
 
 export const head = define.head(
@@ -68,6 +73,10 @@ function ResourceDemo({ data }: { data: DemoData }) {
   );
 }
 
+function BrokenRenderDemo(): never {
+  throw new Error("Intentional render error.");
+}
+
 export default define.page<StreamingPageData>(({ data }) => {
   return (
     <article>
@@ -97,6 +106,27 @@ export default define.page<StreamingPageData>(({ data }) => {
             errorFallback={<p role="alert">Could not load server data.</p>}
           >
             {(demo) => <ResourceDemo data={demo} />}
+          </Suspense>
+        </div>
+      </section>
+
+      <section class="mt-5 rounded-2xl border border-[#e8c8c8] bg-[#f8ecec] p-5">
+        <h2 class="text-lg font-extrabold">Component render error demo</h2>
+        <p class="mt-2 text-sm leading-6 text-[#657168]">
+          This resource resolves successfully, then its child deliberately
+          throws while rendering. The boundary should show its error fallback.
+        </p>
+        <div class="mt-4 rounded-xl bg-white px-4 py-3">
+          <Suspense
+            resource={data.renderError}
+            fallback={<p role="status">Loading server data…</p>}
+            errorFallback={(error) => (
+              <p role="alert" class="font-semibold text-[#651c1c]">
+                Error caught: {String(error)}
+              </p>
+            )}
+          >
+            {() => <BrokenRenderDemo />}
           </Suspense>
         </div>
       </section>
@@ -138,7 +168,16 @@ export default define.page<StreamingPageData>(({ data }) => {
         </li>
         <li>
           Hum’s <code>Suspense</code>{" "}
-          renders its configured error fallback if a resource rejects.
+          renders its configured error fallback if a resource rejects or a
+          child component throws while rendering inside that boundary.
+        </li>
+        <li>
+          Errors outside a Hum <code>Suspense</code>{" "}
+          boundary are not handled by that boundary. If they happen after the
+          shell starts streaming, Hum cannot replace the response or route it to
+          the <code>_error</code>{" "}
+          page; the stream may fail. Put potentially failing streamed content
+          inside a boundary with an appropriate error fallback.
         </li>
         <li>
           Use it selectively and verify the behavior with your own suspended

@@ -84,6 +84,11 @@ const resourceStreamPending = new Promise<string>((_resolve, reject) => {
   rejectResourceStream = () => reject(new Error("resource stream failed"));
 });
 
+let resolveRenderErrorStream: () => void = () => {};
+const renderErrorStreamPending = new Promise<string>((resolve) => {
+  resolveRenderErrorStream = () => resolve("ready");
+});
+
 function StreamContent() {
   if (!streamReady) throw streamPending;
   return h(
@@ -110,6 +115,17 @@ function ResourceFailurePage(
     fallback: h("i", null, "resource pending"),
     errorFallback: h("p", null, "resource error fallback"),
     children: (value) => h("p", null, value),
+  });
+}
+
+function ResourceRenderFailurePage(
+  props: { data: { resource: ReturnType<typeof createResource<string>> } },
+) {
+  return h(HumSuspense, {
+    resource: props.data.resource,
+    fallback: h("i", null, "render error pending"),
+    errorFallback: h("p", null, "render error fallback"),
+    children: () => h(Boom),
   });
 }
 
@@ -317,6 +333,20 @@ const manifest: HumManifest = {
         },
       }),
     },
+    {
+      file: "routes/resource-render-failure.tsx",
+      absPath: "/app/routes/resource-render-failure.tsx",
+      kind: "route",
+      urlPath: "/resource-render-failure",
+      load: async () => ({
+        default: ResourceRenderFailurePage,
+        config: { streaming: true },
+        handlers: {
+          GET: () =>
+            page({ resource: createResource(renderErrorStreamPending) }),
+        },
+      }),
+    },
   ],
 };
 
@@ -448,6 +478,30 @@ describe("experimental streaming", () => {
     html += decoder.decode();
 
     expect(html).toContain("resource error fallback");
+  });
+
+  it("streams the Hum Suspense error fallback when a resumed child throws", async () => {
+    const response = await app.request(
+      "http://localhost/resource-render-failure",
+    );
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
+    let html = "";
+    while (!html.includes("render error pending")) {
+      const { value, done } = await reader.read();
+      expect(done).toBe(false);
+      html += decoder.decode(value, { stream: true });
+    }
+
+    resolveRenderErrorStream();
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      html += decoder.decode(value, { stream: true });
+    }
+    html += decoder.decode();
+
+    expect(html).toContain("render error fallback");
   });
 });
 
