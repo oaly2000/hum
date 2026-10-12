@@ -1,0 +1,46 @@
+import type { Plugin } from "vite";
+
+import { humBuild } from "./plugins/build.js";
+import { humClientEntry } from "./plugins/client_entry.js";
+import { humDevServer } from "./plugins/dev_server.js";
+import { humIslands } from "./plugins/islands.js";
+import { resolveHumOptions, type HumContext, type HumOptions } from "./shared.js";
+
+/**
+ * The Hum Vite plugin.
+ *
+ * ```ts
+ * // vite.config.ts
+ * import { defineConfig } from "vite";
+ * import { hum } from "@hum/vite-plugin";
+ *
+ * export default defineConfig({ plugins: [hum()] });
+ * ```
+ */
+export function hum(userOptions: HumOptions = {}): Plugin[] {
+  const ctx: HumContext = {
+    options: resolveHumOptions(process.cwd(), userOptions),
+    project: { routes: [], islands: [] },
+  };
+
+  return [
+    {
+      name: "hum:config",
+      config(config) {
+        // Vite has merged its own config by now, so `root` is authoritative.
+        ctx.options = resolveHumOptions(
+          config.root ?? process.cwd(),
+          userOptions,
+        );
+        // The document is rendered by Hum, not from an `index.html`.
+        return { appType: "custom" };
+      },
+    },
+    humIslands(ctx),
+    humClientEntry(ctx),
+    humDevServer(ctx),
+    humBuild(ctx),
+  ];
+}
+
+export type { HumOptions, HumProject } from "./shared.js";

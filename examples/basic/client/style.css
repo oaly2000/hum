@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+.syntax-highlight .hljs-comment,
+.syntax-highlight .hljs-quote {
+  color: #8b9c85;
+  font-style: italic;
+}
+
+.syntax-highlight .hljs-keyword,
+.syntax-highlight .hljs-selector-tag,
+.syntax-highlight .hljs-literal,
+.syntax-highlight .hljs-built_in {
+  color: #d8f36a;
+}
+
+.syntax-highlight .hljs-title,
+.syntax-highlight .hljs-title.function_,
+.syntax-highlight .hljs-title.class_,
+.syntax-highlight .hljs-attr,
+.syntax-highlight .hljs-attribute {
+  color: #8ed7c0;
+}
+
+.syntax-highlight .hljs-string,
+.syntax-highlight .hljs-meta .hljs-string,
+.syntax-highlight .hljs-regexp {
+  color: #d9aa79;
+}
+
+.syntax-highlight .hljs-number,
+.syntax-highlight .hljs-symbol,
+.syntax-highlight .hljs-variable,
+.syntax-highlight .hljs-template-variable {
+  color: #e9a6a6;
+}
+
+.syntax-highlight .hljs-type,
+.syntax-highlight .hljs-params,
+.syntax-highlight .hljs-property {
+  color: #b6c7f3;
+}

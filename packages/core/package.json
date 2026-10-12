@@ -1,0 +1,44 @@
+{
+  "name": "@hum/core",
+  "version": "0.0.1",
+  "type": "module",
+  "description": "Hum core: islands runtime, Hono based file routing for Node.js",
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./dist/mod.d.ts",
+      "default": "./dist/mod.js"
+    },
+    "./runtime": {
+      "types": "./dist/runtime/client/mod.d.ts",
+      "default": "./dist/runtime/client/mod.js"
+    },
+    "./server": {
+      "types": "./dist/server/mod.d.ts",
+      "default": "./dist/server/mod.js"
+    },
+    "./routing": {
+      "types": "./dist/routing/mod.d.ts",
+      "default": "./dist/routing/mod.js"
+    },
+    "./discovery": {
+      "types": "./dist/discovery/mod.d.ts",
+      "default": "./dist/discovery/mod.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.4",
+    "@preact/signals": "^2.11.3",
+    "hono": "^4.13.13",
+    "preact": "^11.0.1",
+    "preact-render-to-string": "^6.8.0",
+    "tinyglobby": "^0.2.17"
+  }
+}

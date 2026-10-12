@@ -1,0 +1,21 @@
+{
+  "name": "create-hum",
+  "version": "0.0.1",
+  "type": "module",
+  "description": "Scaffolds a new Hum project",
+  "license": "MIT",
+  "bin": {
+    "create-hum": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "templates"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5"
+  }
+}

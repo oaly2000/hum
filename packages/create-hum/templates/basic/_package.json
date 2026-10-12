@@ -1,0 +1,25 @@
+{
+  "name": "{{name}}",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "start": "node _hum/server/server.js"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.4",
+    "@hum/core": "^0.0.1",
+    "@hum/vite-plugin": "^0.0.1",
+    "@preact/signals": "^2.11.3",
+    "hono": "^4.13.13",
+    "preact": "^11.0.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "^26.6.5",
+    "tailwindcss": "^4.3.3",
+    "vite": "^8.3.4"
+  }
+}
