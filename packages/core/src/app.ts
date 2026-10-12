@@ -169,7 +169,13 @@ export async function mountHum<
   const prodManifest = await readProdManifest(manifestPath(root, outDir));
   const dev = config.dev ?? prodManifest === null;
 
-  const resolved = resolveConfig({ ...config, dev }, manifest);
+  const resolved = resolveConfig({
+    ...config,
+    dev,
+    // The manifest knows the URL the build is served from, which is what keeps
+    // the client asset URLs stable when the output directory is renamed.
+    assetsBase: config.assetsBase ?? prodManifest?.assetsBase,
+  }, manifest);
   const buildCache = new BuildCache(dev);
   await buildCache.load(manifest, prodManifest, resolved.logger);
 
@@ -179,9 +185,17 @@ export async function mountHum<
   );
   const loader = new ModuleLoader(dev);
 
+  if (!resolved.dev && prodManifest === null) {
+    resolved.logger.error(
+      `hum: no build manifest found at ${manifestPath(root, outDir)}. ` +
+        `Client islands and styles cannot be served; run the production ` +
+        `build, or point \`outDir\` at the deployed output directory.`,
+    );
+  }
+
   // Serve the production build output. In dev Vite handles these requests
   // before the Hum handler, so this branch stays inert.
-  app.use(`/${outDir}/*`, staticAssetHandler(resolved));
+  app.use(`${resolved.assetsBase}/*`, staticAssetHandler(resolved));
 
   const internals: HumInternals = {
     config: resolved,

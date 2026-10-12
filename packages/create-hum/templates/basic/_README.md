@@ -11,8 +11,10 @@ npm start        # run the built server
 
 The production server bundle includes its npm dependencies, so the runtime
 deployment does not need the project's `node_modules`. The generated `_hum/`
-directory can move with the app root; keep its structure for the server code,
-manifest, and client assets. Node.js 20 or newer is still required.
+directory can move or even be renamed — it locates itself next to the server
+bundle — as long as its internal structure is kept and `server/server.js` is the
+entry point. Client assets stay reachable under `/_hum/`, the URL recorded in
+the build manifest. Node.js 20 or newer is still required.
 
 ## Hono server
 

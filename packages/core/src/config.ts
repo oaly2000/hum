@@ -13,6 +13,11 @@ export interface HumConfig {
   islandsDir?: string;
   /** Output directory of the production build. Defaults to `_hum`. */
   outDir?: string;
+  /**
+   * URL the production build output is served from. The build manifest carries
+   * it, so it is normally read from there; the fallback is `/<outDir>`.
+   */
+  assetsBase?: string;
   /** Base path the app is served from. Defaults to `/`. */
   basePath?: string;
   /**
@@ -35,6 +40,7 @@ export interface ResolvedConfig {
   routesDir: string;
   islandsDir: string;
   outDir: string;
+  assetsBase: string;
   basePath: string;
   dev: boolean;
   manifest: HumManifest;
@@ -50,6 +56,16 @@ export const defaultLogger: Logger = {
   },
 };
 
+/**
+ * Normalizes an absolute URL prefix: it always starts with `/` and never ends
+ * with one, so callers can append `/<path>` unconditionally.
+ */
+function normalizeAssetsBase(value: string): string {
+  const trimmed = value.trim().replace(/\\/g, "/");
+  const withLeadingSlash = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+  return withLeadingSlash.replace(/\/+$/, "");
+}
+
 export function resolveConfig(config: HumConfig, manifest: HumManifest): ResolvedConfig {
   const root = resolve(config.root ?? process.cwd());
   let basePath = config.basePath ?? "/";
@@ -58,11 +74,14 @@ export function resolveConfig(config: HumConfig, manifest: HumManifest): Resolve
   }
   if (basePath === "/") basePath = "";
 
+  const outDir = config.outDir ?? "_hum";
+
   return {
     root,
     routesDir: config.routesDir ?? "routes",
     islandsDir: config.islandsDir ?? "islands",
-    outDir: config.outDir ?? "_hum",
+    outDir,
+    assetsBase: normalizeAssetsBase(config.assetsBase ?? `/${outDir}`),
     basePath,
     dev: config.dev ?? true,
     manifest,

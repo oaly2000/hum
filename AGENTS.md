@@ -60,7 +60,10 @@ the example where applicable.
   wrapper around `mountHum(app, config)` so both paths share routing behavior.
 - Production server builds bundle npm dependencies into relocatable ESM chunks.
   Preserve relative output structure and verify the built `_hum/` tree runs from
-  a different directory without `node_modules`.
+  a different directory, and under a different directory name, without
+  `node_modules`. The server entry finds the output directory next to its own
+  bundle, while the client asset URL comes from `assetsBase` in the build
+  manifest, so neither may be derived from the directory name at runtime.
 
 ## Development and Validation
 

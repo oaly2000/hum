@@ -11,14 +11,25 @@ export const CLIENT_ENTRY_DEV = "/_hum/runtime.js";
 export const MANIFEST_FILE = "manifest.json";
 
 export interface ProdIslandEntry {
-  url: string;
+  /** Island chunk path, relative to the output directory. */
+  file: string;
+  /** Island stylesheet paths, relative to the output directory. */
   css?: string[];
 }
 
 export interface ProdManifest {
   buildId: string;
+  /**
+   * URL the output directory is served from, e.g. `/_hum`. The assets are
+   * addressed through it, while the directory itself is located next to the
+   * server bundle, so the built app keeps working when the output directory is
+   * renamed or moved on the deploy machine.
+   */
+  assetsBase: string;
+  /** Client runtime chunk path, relative to the output directory. */
   clientEntry: string;
   islands: Record<string, ProdIslandEntry>;
+  /** Client entry stylesheet paths, relative to the output directory. */
   entryAssets?: string[];
 }
 
@@ -58,6 +69,8 @@ export class BuildCache {
   buildId = "dev";
   readonly dev: boolean;
   #prod: ProdManifest | null = null;
+  /** URL prefix the production output directory is served from. */
+  #assetsBase = "";
 
   constructor(dev: boolean) {
     this.dev = dev;
@@ -73,6 +86,9 @@ export class BuildCache {
     this.#prod = prod;
     this.islands.clear();
     this.islandRegistry.clear();
+    this.#assetsBase = this.dev || prod === null
+      ? ""
+      : (prod.assetsBase ?? "").replace(/\/+$/, "");
 
     for (const spec of manifest.islands) {
       let component: unknown;
@@ -103,8 +119,10 @@ export class BuildCache {
         name: spec.name,
         exportName: spec.exportName,
         file: spec.file,
-        clientUrl: prodInfo?.url ?? `/${spec.file}`,
-        css: prodInfo?.css ?? [],
+        clientUrl: prodInfo === undefined
+          ? `/${spec.file}`
+          : this.#assetUrl(prodInfo.file),
+        css: (prodInfo?.css ?? []).map((css) => this.#assetUrl(css)),
       };
 
       this.islands.set(island.name, island);
@@ -112,11 +130,21 @@ export class BuildCache {
     }
 
     if (!this.dev && prod !== null) {
-      this.clientEntry = prod.clientEntry;
-      this.entryAssets = prod.entryAssets ?? [];
+      this.clientEntry = this.#assetUrl(prod.clientEntry);
+      this.entryAssets = (prod.entryAssets ?? []).map((asset) =>
+        this.#assetUrl(asset)
+      );
       this.buildId = prod.buildId;
       setBuildId(prod.buildId);
     }
+  }
+
+  /** Turns a path relative to the output directory into a public URL. */
+  #assetUrl(file: string): string {
+    // Manifests written by an older plugin stored absolute URLs; keep those
+    // working instead of prefixing them a second time.
+    if (file.startsWith("/")) return file;
+    return `${this.#assetsBase}/${file}`;
   }
 
   getIsland(name: string): Island | undefined {

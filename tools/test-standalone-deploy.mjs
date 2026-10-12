@@ -44,7 +44,10 @@ try {
   );
 
   await stat(join(buildRoot, "server", "server.js"));
-  await cp(buildRoot, join(runtimeRoot, "_hum"), { recursive: true });
+  // Rewrite the output directory name while copy-deploying: it is served under
+  // the URL recorded in the build manifest, so the name on disk must not matter.
+  const outDir = "wwwroot";
+  await cp(buildRoot, join(runtimeRoot, outDir), { recursive: true });
 
   assert.equal(
     await exists(join(runtimeRoot, "node_modules")),
@@ -58,7 +61,7 @@ try {
   );
 
   const entry = await readFile(
-    join(runtimeRoot, "_hum", "server", "server.js"),
+    join(runtimeRoot, outDir, "server", "server.js"),
     "utf8",
   );
   assert.equal(
@@ -66,7 +69,7 @@ try {
     false,
     "server entry must not embed the build machine's project root",
   );
-  for (const file of await listFiles(join(runtimeRoot, "_hum", "server"))) {
+  for (const file of await listFiles(join(runtimeRoot, outDir, "server"))) {
     if (!file.endsWith(".js")) continue;
     const contents = await readFile(file, "utf8");
     assert.equal(
@@ -78,7 +81,7 @@ try {
 
   server = spawn(
     process.execPath,
-    [join(runtimeRoot, "_hum", "server", "server.js")],
+    [join(runtimeRoot, outDir, "server", "server.js")],
     {
       cwd: runtimeRoot,
       env: { ...process.env, PORT: String(port) },
@@ -124,12 +127,29 @@ try {
   assert.equal(css.status, 200);
   assert.match(css.headers.get("content-type") ?? "", /text\/css/);
 
+  // Every client asset the rendered page points at must be reachable even
+  // though the output directory was renamed on disk.
+  const clientAssets = [
+    ...new Set(
+      [...homeHtml.matchAll(/\/_hum\/[A-Za-z0-9._/-]+/g)].map((m) => m[0]),
+    ),
+  ];
+  assert.ok(
+    clientAssets.length > 0,
+    "the rendered page should reference the client runtime and island chunks",
+  );
+  for (const asset of clientAssets) {
+    const response = await fetch(new URL(asset, origin));
+    assert.equal(response.status, 200, `client asset should be served: ${asset}`);
+  }
+
   const missing = await fetch(`${origin}/this-route-does-not-exist`);
   assert.equal(missing.status, 404);
   assert.match(await missing.text(), /404/);
 
   console.log(
-    "Scaffold and standalone deployment passed: moved _hum/ runs without node_modules or source package.json.",
+    "Scaffold and standalone deployment passed: a renamed output directory " +
+      "runs without node_modules or source package.json.",
   );
 } catch (error) {
   if (serverOutput.length > 0) {

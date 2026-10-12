@@ -135,10 +135,18 @@ describe("writeBuildEntries", () => {
     await writeBuildEntries(ctx);
     const entry = await readFile(join(root, SERVER_ENTRY), "utf8");
 
+    // The output directory is located next to the server bundle so a renamed
+    // or moved deployment keeps working; the depth comes from the configured
+    // `outDir`, the actual name from the deployed directory.
     expect(entry).toContain(
-      'const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");',
+      'const buildDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");',
     );
-    expect(entry).toContain("  root,");
+    expect(entry).toContain('const root = resolve(buildDir, "..", "..");');
+    expect(entry).toContain(
+      'const outDir = relative(root, buildDir).split(sep).join("/");',
+    );
+    expect(entry).toContain("  root,\n  routesDir:");
+    expect(entry).toContain("  outDir,\n  dev: false,");
     expect(entry).not.toContain(root.replace(/\\/g, "/"));
     expect(entry).toContain("serve(humApp);");
     expect(entry).not.toContain("startServer");

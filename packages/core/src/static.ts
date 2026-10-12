@@ -34,8 +34,8 @@ const CONTENT_TYPES: Record<string, string> = {
  */
 export function staticAssetHandler(config: ResolvedConfig): MiddlewareHandler {
   const base = join(config.root, config.outDir);
+  const prefix = `${config.assetsBase}/`;
   return async (c, next) => {
-    const prefix = `/${config.outDir}/`;
     const url = new URL(c.req.url);
     if (!url.pathname.startsWith(prefix)) return await next();
 

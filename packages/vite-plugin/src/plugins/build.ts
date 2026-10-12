@@ -32,7 +32,12 @@ function outDirs(options: ResolvedHumOptions) {
 
 /**
  * Turns Vite's client manifest into the manifest `ProdBuildCache` reads at
- * startup: one hashed URL per island, plus the client runtime entry.
+ * startup: one hashed asset per island, plus the client runtime entry.
+ *
+ * Asset paths are stored relative to the output directory, with the URL the
+ * directory is served from kept separately. The runtime locates the output
+ * directory next to the server bundle, so renaming or moving it on the deploy
+ * machine cannot break the client asset URLs.
  */
 async function writeProdManifest(ctx: HumContext): Promise<void> {
   const { options, project } = ctx;
@@ -52,19 +57,20 @@ async function writeProdManifest(ctx: HumContext): Promise<void> {
     );
   }
 
-  const prefix = `/${clientOut}/`;
+  const prefix = "client/";
   const islands: ProdManifest["islands"] = {};
   for (const spec of project.islands) {
     const entry = clientManifest[spec.file];
     if (entry === undefined) continue;
     islands[spec.name] = {
-      url: prefix + entry.file,
+      file: prefix + entry.file,
       css: (entry.css ?? []).map((css) => prefix + css),
     };
   }
 
   const manifest: ProdManifest = {
     buildId: makeBuildId(),
+    assetsBase: `/${options.outDir.replace(/\\/g, "/")}`,
     clientEntry: prefix + runtime.file,
     islands,
     entryAssets: (runtime.css ?? []).map((css) => prefix + css),
