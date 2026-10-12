@@ -1,0 +1,72 @@
+name: Docs build
+
+# Builds the documentation site and publishes the production output on its own
+# branch, so `main` stays source-only and deployments can pull a ready-made
+# artifact. The branch root is the deployable directory: `manifest.json`,
+# `client/`, and `server/server.js` (run it with `node server/server.js`).
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/core/**"
+      - "packages/vite-plugin/**"
+      - "packages/docs/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "tsconfig.base.json"
+      - ".github/workflows/docs-build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: docs-build
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      PUBLISH_BRANCH: docs
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+      - name: Publish the build output
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          publish_dir="$RUNNER_TEMP/docs-publish"
+          mkdir -p "$publish_dir"
+          cp -R packages/docs/_hum/. "$publish_dir/"
+
+          # Guard against publishing a half-finished build.
+          test -f "$publish_dir/manifest.json"
+          test -f "$publish_dir/server/server.js"
+
+          cd "$publish_dir"
+          # The branch carries artifacts only, so every run replaces it with a
+          # single fresh commit instead of growing a history of build outputs.
+          git init -q -b "$PUBLISH_BRANCH"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A --force
+          git commit -q -m "chore: build docs from ${GITHUB_SHA::7}"
+          git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force origin "$PUBLISH_BRANCH"
