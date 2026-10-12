@@ -7,8 +7,8 @@ import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
-const exampleRoot = join(repoRoot, "examples", "basic");
-const buildRoot = join(exampleRoot, "_hum");
+const docsRoot = join(repoRoot, "packages", "docs");
+const buildRoot = join(docsRoot, "_hum");
 const deployRoot = await mkdtemp(join(tmpdir(), "hum-standalone-"));
 const scaffoldRoot = join(deployRoot, "scaffold");
 const runtimeRoot = join(deployRoot, "runtime");
@@ -62,7 +62,7 @@ try {
     "utf8",
   );
   assert.equal(
-    entry.includes(exampleRoot.replace(/\\/g, "/")),
+    entry.includes(docsRoot.replace(/\\/g, "/")),
     false,
     "server entry must not embed the build machine's project root",
   );
@@ -70,7 +70,7 @@ try {
     if (!file.endsWith(".js")) continue;
     const contents = await readFile(file, "utf8");
     assert.equal(
-      contents.includes(exampleRoot.replace(/\\/g, "/")),
+      contents.includes(docsRoot.replace(/\\/g, "/")),
       false,
       `server chunk must not embed the build machine's project root: ${file}`,
     );

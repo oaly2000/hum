@@ -19,7 +19,8 @@ and ship client JavaScript only for explicitly registered islands.
   production client/server builds.
 - `packages/create-hum` (`create-hum`): project scaffolder and its templates in
   `templates/basic`.
-- `examples/basic`: integration example exercising the public framework APIs.
+- `packages/docs`: documentation site and integration example exercising the
+  public framework APIs.
 
 When changing behavior that crosses package boundaries, update every affected
 surface: core runtime, Vite development and production paths, the scaffold, and
@@ -70,8 +71,8 @@ pnpm install
 pnpm typecheck       # TypeScript across workspace packages
 pnpm test            # Vitest test suite
 pnpm build:pkgs      # Build package outputs
-pnpm dev             # Build packages and run the basic example
-pnpm build           # Build packages and production example
+pnpm dev             # Build packages and run the documentation site
+pnpm build           # Build packages and production documentation site
 pnpm start           # Run the built example server
 pnpm test:standalone  # Build and run the artifact without node_modules
 ```

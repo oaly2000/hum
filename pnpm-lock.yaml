@@ -21,17 +21,17 @@ importers:
         specifier: ^5.0.3
         version: 5.0.3(@types/node@26.6.5)(vite@8.3.4(@types/node@26.6.5)(jiti@2.7.0))
 
-  examples/basic:
+  packages/docs:
     dependencies:
       '@hono/node-server':
         specifier: ^2.1.4
         version: 2.1.4(hono@4.13.13)
       '@hum/core':
         specifier: workspace:*
-        version: link:../../packages/core
+        version: link:../core
       '@hum/vite-plugin':
         specifier: workspace:*
-        version: link:../../packages/vite-plugin
+        version: link:../vite-plugin
       '@preact/signals':
         specifier: ^2.11.3
         version: 2.11.3(preact@11.0.1)

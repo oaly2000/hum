@@ -9,7 +9,7 @@ import { hum } from "../src/mod.js";
 
 describe("Hum Vite dev server", () => {
   it("keeps running and discovers a route created after startup", async () => {
-    const root = resolve(process.cwd(), "examples", "basic");
+    const root = resolve(process.cwd(), "packages", "docs");
     const routesRoot = await mkdtemp(join(root, "routes", "watch-test-"));
     const routesDir = relative(root, routesRoot).replace(/\\/g, "/");
     await writeFile(
