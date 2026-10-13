@@ -5,18 +5,19 @@ and framework usage documentation lives in [README.md](./README.md).
 
 ## Repository
 
-Hum is a Node.js ESM islands SSR framework built with Preact, Hono, and Vite.
-Keep the framework's core contract intact: render pages to HTML on the server,
-and ship client JavaScript only for explicitly registered islands.
+Hum is an ESM islands SSR framework built with Preact, Hono, and Vite, for
+Node.js and for edge runtimes. Keep the framework's core contract intact: render
+pages to HTML on the server, and ship client JavaScript only for explicitly
+registered islands.
 
 ## Package Map
 
-- `packages/core` (`@humjs/core`): file-route discovery and matching, Hono request
-  handling, SSR, island markers/props, client runtime, and shared framework
-  types.
-- `packages/vite-plugin` (`@humjs/vite-plugin`): Vite integration, development
-  SSR/HMR, island/client entry generation, asset and CSS handling, and
-  production client/server builds.
+- `packages/core` (`@humjs/core`): file-route matching, Hono request handling,
+  SSR and the document shell, island markers/props, client runtime, and shared
+  framework types.
+- `packages/vite-plugin` (`@humjs/vite-plugin`): file discovery (routes, islands,
+  client entry), Vite integration, development SSR/HMR, island/client entry
+  generation, asset and CSS handling, and production client/server builds.
 - `packages/create-hum` (`create-hum`): project scaffolder and its templates in
   `templates/basic`.
 - `packages/docs`: documentation site and integration example exercising the
@@ -31,6 +32,29 @@ the example where applicable.
 - Routes are derived from files under `routes/`. Special files such as
   `_app.tsx`, `_layout.tsx`, `_middleware.ts`, `_error.tsx`, and `_404.tsx`
   contribute behavior through the route tree.
+- Route and island discovery is bundler driven, in both environments.
+  `virtual:hum/routes` (`packages/vite-plugin/src/plugins/routes.ts`) enumerates
+  the files with `import.meta.glob` and calls `specsFromGlob`, which the dev
+  server and the generated production server entry both consume; the islands
+  entry (`.hum/islands.js`, written by `writeBuildEntries`) is a build input
+  whose glob makes the client build emit one chunk per island. The Vite plugin
+  therefore never scans a directory: the production manifest maps island names
+  to chunks by reading Vite's own manifest. Nothing discovers files at runtime
+  either — Hum has no file system discovery at all, which is why `manifest` is
+  required configuration. Everything shares the file naming rules in
+  `packages/core/src/routing/route_files.ts` — in particular
+  `islandNameOfFile` names an island from its path, which is what keeps the
+  bundler's manifest and the glob result in agreement. `route_files.test.ts`
+  spells out which files a fixture project contributes, so a change to
+  `globPatterns` has to be reflected there.
+- The runtime never reads the build output. `mountHum` receives the routes
+  (`manifest`) and the production manifest (`prodManifest`) as configuration:
+  the generated entry reads `manifest.json` and injects it, and
+  `readProdManifest` imports `node:fs/promises` on demand so a platform without
+  one can still import Hum. Keep it that way:
+  `packages/core/tests/runtime_entry.test.ts` asserts that no module has a
+  static `node:fs` or `node:url` import, and that `build_cache.ts` is the only
+  one mentioning the file system at all.
 - Route handlers use Hono's `Context`. `page(data, options)` associates business
   data and an optional response status with the current request through
   request-local context; view data is passed under the `data` prop.
@@ -56,14 +80,22 @@ the example where applicable.
   `_error`, while Hono API failures use the user's Hono error handler. Register
   app middleware before routes so it wraps those routes; Vite owns the dev
   listener and HMR, and the production entry starts the exported app.
-- `createApp(config)` remains the standalone convenience API. Keep it as a
-  wrapper around `mountHum(app, config)` so both paths share routing behavior.
+- `createApp(config)` creates the Hono app for projects that do not have their
+  own `server.ts`. Keep it a wrapper around `mountHum(app, config)` so both
+  paths share routing behavior.
 - Production server builds bundle npm dependencies into relocatable ESM chunks.
   Preserve relative output structure and verify the built `_hum/` tree runs from
   a different directory, and under a different directory name, without
   `node_modules`. The server entry finds the output directory next to its own
   bundle, while the client asset URL comes from `assetsBase` in the build
   manifest, so neither may be derived from the directory name at runtime.
+- Hum renders asset URLs from the build manifest but never serves the output it
+  wrote. Answering `/_hum/client/*` is the application's job (see
+  `packages/docs/server.ts` and the scaffold, which use
+  `@hono/node-server/serve-static` plus `HUM_OUT_DIR`), normally delegated to a
+  reverse proxy, a CDN, or a platform asset binding. Keep only `client/` public:
+  the server bundle and `manifest.json` must stay unreachable over HTTP, and
+  `tools/test-standalone-deploy.mjs` asserts both directions.
 
 ## Development and Validation
 
@@ -83,6 +115,11 @@ pnpm test:standalone  # Build and run the artifact without node_modules
 Prefer focused package tests while iterating, then run the relevant workspace
 checks for changes that cross package boundaries. Do not commit generated
 `dist/` output unless a package explicitly tracks it.
+
+Every package build removes `dist` through `tools/clean-dist.mjs` first: `tsc`
+never prunes its output, so a deleted source file would otherwise leave a stale
+module behind that imports something which no longer exists. Keep the clean step
+in build scripts added for new packages.
 
 ## Versioning and Releases
 

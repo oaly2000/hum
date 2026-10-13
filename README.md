@@ -34,7 +34,10 @@ vite.config.ts   plugins: [hum(), tailwindcss()]
 ```
 
 Projects use Vite for dev/build, and the build output can be run directly with
-`node _hum/server/server.js`.
+`node _hum/server/server.js`. The app serves its own client assets (see
+`server.ts`, which mounts `@hono/node-server/serve-static` for `_hum/client`) —
+in production that is normally delegated to a reverse proxy, a CDN, or a
+platform asset binding.
 
 ## File-based routing
 
@@ -65,8 +68,9 @@ Every file under `routes/` produces a URL based on its relative path.
 - `_middleware.ts` — applies to routes below it (see [Middleware](#middleware)).
 - `_error.tsx` (alias `_500.tsx`) — renders route errors.
 - `_404.tsx` — handles unmatched paths under its directory subtree.
-- `server.ts` — your Hono app (not under `routes/`).
-- `client/main.ts` — the default client entry.
+
+Two files outside `routes/` configure the project rather than the route tree:
+`server.ts` is your Hono app, and `client/main.ts` is the default client entry.
 
 Directories named `_components/` and `_islands/` are excluded from route
 discovery, so you can co-locate reusable components with a route branch and

@@ -29,7 +29,9 @@ server.ts        Hono 应用，包含中间件与 API 路由
 vite.config.ts   plugins: [hum(), tailwindcss()]
 ```
 
-项目使用vite进行dev/build，build产物可以直接`node _hum/server/server.js`运行。
+项目使用 Vite 进行 dev/build，build 产物可以直接用 `node _hum/server/server.js`
+运行。客户端资源由应用自己提供（见 `server.ts`：它为 `_hum/client` 挂载了
+`@hono/node-server/serve-static`）——生产环境通常交给反向代理、CDN 或平台的静态资源绑定。
 
 
 ## 文件路由
@@ -58,8 +60,8 @@ vite.config.ts   plugins: [hum(), tailwindcss()]
 - `_middleware.ts` —— 对其下的路由生效（见[中间件](#5-中间件)）。
 - `_error.tsx`（别名 `_500.tsx`）—— 渲染路由错误。
 - `_404.tsx` —— 处理其目录子树下未匹配的路径。
-- `server.ts` —— 你的 Hono 应用（不在 `routes/` 下）。
-- `client/main.ts` —— 默认的客户端入口。
+
+`routes/` 之外还有两个配置文件：`server.ts` 是你的 Hono 应用，`client/main.ts` 是默认的客户端入口。
 
 名为 `_components/` 和 `_islands/` 的目录会被排除在路由发现之外，因此你可以把可复用
 组件与某个路由分支放在一起，并通过相对路径导入。
@@ -206,7 +208,7 @@ export const resetOrder = defineFactory(
 
 ### Streaming
 
-流式 SSR 是一个可选的进阶能力，考虑到某些情况 `handlers` 可能需要请求慢数据，这代表在数据完成之前将不会返回任何内容，这显然不秒。我们可以通过可选的配置启用流式渲染。
+流式 SSR 是一个可选的进阶能力，考虑到某些情况 `handlers` 可能需要请求慢数据，这代表在数据完成之前将不会返回任何内容，这显然不妙。我们可以通过可选的配置启用流式渲染。
 
 ```tsx
 import {
