@@ -104,9 +104,21 @@ Versions and changelogs are managed with Changesets
   Do not run `pnpm changeset`: it opens an interactive package/version prompt,
   which blocks non-interactive agents. Write the file instead, and use
   `minor` / `major` / `patch` with a short user-facing description.
-- `pnpm changeset version` consumes pending changesets, bumps package versions,
-  and writes changelogs.
-- `pnpm changeset git-tag` creates the release git tags for the bumped versions.
+- Changeset files are temporary. `pnpm changeset version` consumes them: it
+  bumps package versions, writes `CHANGELOG.md`, and deletes the files. So
+  **never commit `.changeset/*.md`** — run `version` first, then commit only the
+  resulting version bumps and changelogs, in a dedicated release commit. The
+  only tracked file under `.changeset/` is `config.json`.
+- Release order: write the changeset, run `pnpm changeset version`, commit and
+  push `main`, then run `pnpm changeset git-tag` to create the annotated
+  `<package>@<version>` tags.
+- Only pushing those tags to the GitHub remote triggers CI, and a plain
+  `git push` does not push tags (`git push github --follow-tags`). Actions runs
+  the workflow file from the pushed ref, so a tag must point at a commit that
+  already contains the tag-triggered workflows.
+- Never move or re-push a tag once its version is on npm: the registry version
+  cannot be replaced and the publish workflow skips existing versions, so ship a
+  new version instead of retagging.
 - Never publish from a local machine — `pnpm changeset publish` is not part of
   the workflow. Publishing runs in CI via
   `.github/workflows/npm-publish.yml`, which is triggered by pushing the version
