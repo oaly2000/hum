@@ -90,8 +90,7 @@ Versions and changelogs are managed with Changesets
 (`.changeset/config.json`). Published packages are `@humjs/core`,
 `@humjs/vite-plugin`, and `create-hum`; `hum-docs` is ignored.
 
-- Record a change by **creating a changeset file manually** at
-  `.changeset/<name>.md`, for example:
+- Record a change by writing `.changeset/<name>.md` by hand:
 
   ```markdown
   ---
@@ -101,33 +100,21 @@ Versions and changelogs are managed with Changesets
   Fix island props serialization for nested slots.
   ```
 
-  Do not run `pnpm changeset`: it opens an interactive package/version prompt,
-  which blocks non-interactive agents. Write the file instead, and use
-  `minor` / `major` / `patch` with a short user-facing description.
-- Changeset files are temporary. `pnpm changeset version` consumes them: it
-  bumps package versions, writes `CHANGELOG.md`, and deletes the files. So
-  **never commit `.changeset/*.md`** — run `version` first, then commit only the
-  resulting version bumps and changelogs, in a dedicated release commit. The
-  only tracked file under `.changeset/` is `config.json`.
-- Release order: write the changeset, run `pnpm changeset version`, commit and
-  push `main`, then run `pnpm changeset git-tag` to create the annotated
-  `<package>@<version>` tags.
-- Only pushing those tags to the GitHub remote triggers CI, and a plain
-  `git push` does not push tags (`git push github --follow-tags`). Actions runs
-  the workflow file from the pushed ref, so a tag must point at a commit that
-  already contains the tag-triggered workflows.
-- Never move or re-push a tag once its version is on npm: the registry version
-  cannot be replaced and the publish workflow skips existing versions, so ship a
-  new version instead of retagging.
-- Never publish from a local machine — `pnpm changeset publish` is not part of
-  the workflow. Publishing runs in CI via
-  `.github/workflows/npm-publish.yml`, which is triggered by pushing the version
-  tags created by `git-tag` (`@humjs/core@*`, `@humjs/vite-plugin@*`,
-  `create-hum@*`) and publishes with npm Trusted Publishing. The workflow skips
-  any version already on the registry, so pushing several tags is safe.
-- `.github/workflows/docs-build.yml` reacts to the same version tags: it builds
-  the documentation site and force-pushes the production output to the `docs`
-  branch. It can also be started manually from `main` via `workflow_dispatch`.
+  Never run `pnpm changeset`: its interactive package/version prompt blocks
+  agents. Use a short user-facing description with `patch` / `minor` / `major`.
+- Changeset files are temporary: `pnpm changeset version` consumes them, bumps
+  versions, and writes `CHANGELOG.md`. Run `version` first, then commit only the
+  bumps and changelogs as a release commit; never commit `.changeset/*.md`. Only
+  `config.json` is tracked under `.changeset/`.
+- Release order: `pnpm changeset version` → commit and push `main` →
+  `pnpm changeset git-tag` → `git push github --follow-tags`. Only pushing tags
+  to the GitHub remote triggers CI, a plain `git push` does not push tags, and
+  the tag must point at a commit that already has the tag-triggered workflows.
+- CI does the publishing (`npm-publish.yml`): it publishes over npm Trusted
+  Publishing and skips versions already on the registry. `docs-build.yml`
+  rebuilds the documentation site onto the `docs` branch from the same tags.
+  Never publish locally, and never move a tag once its version is on npm — ship
+  a new version instead.
 
 ## Change Practices
 

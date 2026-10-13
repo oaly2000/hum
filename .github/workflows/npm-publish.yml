@@ -11,6 +11,14 @@ permissions:
   contents: read
   id-token: write
 
+# `changeset git-tag` pushes one tag per bumped package, so several runs start
+# together. Each run publishes every package whose version is missing from the
+# registry, which makes the extra runs no-ops; serialize them so they cannot
+# race each other.
+concurrency:
+  group: npm-publish
+  cancel-in-progress: true
+
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -32,20 +40,12 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build:pkgs
 
-      - name: Pack workspace packages
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/npm-packages"
-          for package_dir in packages/core packages/vite-plugin packages/create-hum; do
-            pnpm --dir "$package_dir" pack \
-              --pack-destination "$RUNNER_TEMP/npm-packages"
-          done
-
       - name: Publish packages with npm Trusted Publishing
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/npm-packages"
+
           publish_package() {
             local package_dir="$1"
             local name version basename tarball
@@ -61,6 +61,8 @@ jobs:
               return
             fi
 
+            pnpm --dir "$package_dir" pack \
+              --pack-destination "$RUNNER_TEMP/npm-packages"
             npm publish "$tarball" --access public \
               --registry=https://registry.npmjs.org
           }
