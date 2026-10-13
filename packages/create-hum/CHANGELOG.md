@@ -1,5 +1,15 @@
 # create-hum
 
+## 0.0.6
+
+### Patch Changes
+
+- Routes, islands and client assets now reach the runtime through the build the
+  bundler produced: the generated `virtual:hum/build` module calls `defineBuild`,
+  and `mountHum` boots from it. `HumConfig` no longer takes `manifest` or
+  `prodManifest`, the production build no longer writes `manifest.json`, and the
+  runtime no longer touches the file system at all.
+
 ## 0.0.5
 
 ### Patch Changes

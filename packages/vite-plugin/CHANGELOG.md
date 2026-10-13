@@ -1,5 +1,20 @@
 # @humjs/vite-plugin
 
+## 0.2.0
+
+### Minor Changes
+
+- Routes, islands and client assets now reach the runtime through the build the
+  bundler produced: the generated `virtual:hum/build` module calls `defineBuild`,
+  and `mountHum` boots from it. `HumConfig` no longer takes `manifest` or
+  `prodManifest`, the production build no longer writes `manifest.json`, and the
+  runtime no longer touches the file system at all.
+
+### Patch Changes
+
+- Updated dependencies
+  - @humjs/core@0.3.0
+
 ## 0.1.0
 
 ### Minor Changes
