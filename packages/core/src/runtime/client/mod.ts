@@ -10,11 +10,7 @@
  */
 import { ISLAND_REGISTRY, PartialComp, revive, boot } from "./reviver.js";
 import { applyPartials } from "./partials.js";
-import { asset, IS_BROWSER, Partial } from "../shared.js";
-import type { PartialProps } from "../shared.js";
 import "./partials.js";
 
 export { boot, revive, ISLAND_REGISTRY as hum_island_registry, PartialComp };
 export { applyPartials };
-export { asset, IS_BROWSER, Partial };
-export type { PartialProps };

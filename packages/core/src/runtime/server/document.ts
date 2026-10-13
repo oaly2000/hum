@@ -281,6 +281,29 @@ export function renderDocument(vnode: VNode): string {
   return assembleDocument(state, pageHtml);
 }
 
+// Preact moves deferred Suspense content when this custom element connects.
+function safeStreamChunkLength(html: string, maxLength: number): number {
+  const tags = /<\/?preact-island\b[^>]*>/g;
+  let depth = 0;
+  let openStart = 0;
+
+  for (const match of html.matchAll(tags)) {
+    const index = match.index!;
+    if (index >= maxLength) break;
+
+    if (match[0].startsWith("</")) {
+      if (match.index! + match[0].length > maxLength) return openStart;
+      depth--;
+      if (depth === 0) openStart = 0;
+    } else {
+      if (depth === 0) openStart = index;
+      depth++;
+    }
+  }
+
+  return depth === 0 ? maxLength : openStart;
+}
+
 /**
  * Streams a document using Preact's experimental Suspense renderer. Head data
  * and resources found in the initial shell are emitted first; assets discovered
@@ -336,7 +359,16 @@ export function renderDocumentStream(vnode: VNode): ReadableStream<Uint8Array> {
   return new ReadableStream<Uint8Array>({
     async pull(controller) {
       try {
-        while (!finished && buffer.length <= holdLength) {
+        let safeLength = 0;
+        while (!finished && safeLength === 0) {
+          if (buffer.length > holdLength) {
+            safeLength = safeStreamChunkLength(
+              buffer,
+              buffer.length - holdLength,
+            );
+            if (safeLength > 0) break;
+          }
+
           const { value, done } = await reader.read();
           if (done) {
             buffer += decoder.decode();
@@ -357,8 +389,7 @@ export function renderDocumentStream(vnode: VNode): ReadableStream<Uint8Array> {
           if (prefix !== "") controller.enqueue(encoder.encode(prefix));
         }
 
-        if (!finished && buffer.length > holdLength) {
-          const safeLength = buffer.length - holdLength;
+        if (!finished && safeLength > 0) {
           const safe = prepare(buffer.slice(0, safeLength));
           buffer = buffer.slice(safeLength);
           if (safe !== "") controller.enqueue(encoder.encode(safe));

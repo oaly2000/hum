@@ -1,4 +1,5 @@
-import { define, page, Partial, type RouteProps } from "@humjs/core";
+import { define, page, type RouteProps } from "@humjs/core";
+import { Partial } from "@humjs/core/shared";
 import { CodeBlock } from "../_components/CodeBlock.js";
 
 type HandlerPageData = { notice: string };
@@ -18,7 +19,8 @@ export const handlers = define.handlers({
 });
 
 const handlerExample = `// The code behind the form at the bottom of this page.
-import { define, page, Partial } from "@humjs/core";
+import { define, page } from "@humjs/core";
+import { Partial } from "@humjs/core/shared";
 
 export const handlers = define.handlers({
   GET: () => page({ notice: "" }),

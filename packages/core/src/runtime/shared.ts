@@ -1,6 +1,5 @@
 import type { ComponentChildren, VNode } from "preact";
 
-export { HttpError } from "../error.js";
 export { asset } from "./shared_internal.js";
 
 /** `true` when running in a browser. */
@@ -19,9 +18,9 @@ export interface PartialProps {
 
 /**
  * Flag marking a component as Hum's `Partial`. Detecting partials by this flag
- * (instead of reference equality) lets the server render hooks recognise a
- * `Partial` even when `@humjs/core` has been loaded more than once — for example
- * in dev, where the vite-plugin and the route modules each import their own copy.
+ * (instead of reference equality) lets the server render hooks recognise it
+ * even when the shared entry has been loaded more than once — for example in
+ * dev, where the Vite plugin and route modules each import their own copy.
  */
 export const PARTIAL_FLAG = "__humPartial";
 
@@ -46,5 +45,3 @@ export function isPartialType(type: unknown): boolean {
   return typeof type === "function" &&
     (type as unknown as Record<string, unknown>)[PARTIAL_FLAG] === true;
 }
-
-

@@ -17,6 +17,10 @@
       "types": "./dist/runtime/client/mod.d.ts",
       "default": "./dist/runtime/client/mod.js"
     },
+    "./shared": {
+      "types": "./dist/shared.d.ts",
+      "default": "./dist/shared.js"
+    },
     "./routing": {
       "types": "./dist/routing/mod.d.ts",
       "default": "./dist/routing/mod.js"

@@ -1,4 +1,4 @@
-import { IS_BROWSER } from "@humjs/core";
+import { IS_BROWSER } from "@humjs/core/shared";
 import { useSignal } from "@preact/signals";
 
 /** Where the visitor's choice is kept, so it survives a reload. */

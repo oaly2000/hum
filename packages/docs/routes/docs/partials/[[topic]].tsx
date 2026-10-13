@@ -1,4 +1,5 @@
-import { define, page, Partial, type RouteProps } from "@humjs/core";
+import { define, page, type RouteProps } from "@humjs/core";
+import { Partial } from "@humjs/core/shared";
 import { CodeBlock } from "../../_components/CodeBlock.js";
 
 export const head = define.head(
@@ -40,7 +41,7 @@ export const handlers = define.handlers({
 });
 
 const partialExample = `// routes/docs/partials/[[topic]].tsx — the first demo on this page
-import { Partial } from "@humjs/core";
+import { Partial } from "@humjs/core/shared";
 
 export default function PartialsPage({ url }) {
   const topic = url.searchParams.get("topic") ?? "start";

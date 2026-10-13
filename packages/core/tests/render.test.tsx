@@ -474,21 +474,44 @@ describe("experimental streaming", () => {
     const reader = response.body!.getReader();
     const decoder = new TextDecoder();
     let html = "";
+    const chunks: string[] = [];
     while (!html.includes("render error pending")) {
       const { value, done } = await reader.read();
       expect(done).toBe(false);
-      html += decoder.decode(value, { stream: true });
+      const chunk = decoder.decode(value, { stream: true });
+      chunks.push(chunk);
+      html += chunk;
     }
 
     resolveRenderErrorStream();
     for (;;) {
       const { value, done } = await reader.read();
       if (done) break;
-      html += decoder.decode(value, { stream: true });
+      const chunk = decoder.decode(value, { stream: true });
+      chunks.push(chunk);
+      html += chunk;
     }
-    html += decoder.decode();
+    const finalChunk = decoder.decode();
+    chunks.push(finalChunk);
+    html += finalChunk;
 
     expect(html).toContain("render error fallback");
+    const deferredSubtree = /<preact-island\b[^>]*>[\s\S]*?<\/preact-island>/g;
+    const matches = [...html.matchAll(deferredSubtree)];
+    expect(matches.length).toBeGreaterThan(0);
+    let chunkStart = 0;
+    const chunkRanges = chunks.map((chunk) => {
+      const start = chunkStart;
+      chunkStart += chunk.length;
+      return { start, end: chunkStart };
+    });
+    for (const match of matches) {
+      const start = match.index!;
+      const end = start + match[0].length;
+      expect(
+        chunkRanges.some((range) => range.start <= start && end <= range.end),
+      ).toBe(true);
+    }
   });
 });
 

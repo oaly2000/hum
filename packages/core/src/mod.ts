@@ -1,9 +1,9 @@
 /**
  * Hum — islands, the Hono way.
  *
- * Public entry point: application factory, route module types and the shared
- * runtime component (`Partial`). Head tags are contributed per route file
- * through its `head` export, not through a component.
+ * Server/framework entry point: application factory, route module types and
+ * request helpers. Browser-safe helpers and components are exported separately
+ * from `@humjs/core/shared`.
  */
 
 export { createApp, mountHum } from "./app.js";
@@ -52,13 +52,6 @@ export type {
   RouteModule,
   RouteProps,
 } from "./types.js";
-
-export {
-  asset,
-  IS_BROWSER,
-  Partial,
-  type PartialProps,
-} from "./runtime/shared.js";
 
 export { page } from "./request_context.js";
 export {
