@@ -16,6 +16,7 @@
     "test:standalone": "pnpm build && node tools/test-standalone-deploy.mjs"
   },
   "devDependencies": {
+    "@changesets/cli": "^3.0.3",
     "@types/node": "^26.6.5",
     "typescript": "^7.0.2",
     "vite": "^8.3.4",

@@ -84,6 +84,34 @@ Prefer focused package tests while iterating, then run the relevant workspace
 checks for changes that cross package boundaries. Do not commit generated
 `dist/` output unless a package explicitly tracks it.
 
+## Versioning and Releases
+
+Versions and changelogs are managed with Changesets
+(`.changeset/config.json`). Published packages are `@humjs/core`,
+`@humjs/vite-plugin`, and `create-hum`; `hum-docs` is ignored.
+
+- Record a change by **creating a changeset file manually** at
+  `.changeset/<name>.md`, for example:
+
+  ```markdown
+  ---
+  "@humjs/core": patch
+  ---
+
+  Fix island props serialization for nested slots.
+  ```
+
+  Do not run `pnpm changeset`: it opens an interactive package/version prompt,
+  which blocks non-interactive agents. Write the file instead, and use
+  `minor` / `major` / `patch` with a short user-facing description.
+- `pnpm changeset version` consumes pending changesets, bumps package versions,
+  and writes changelogs.
+- `pnpm changeset git-tag` creates the release git tags for the bumped versions.
+- Never publish from a local machine — `pnpm changeset publish` is not part of
+  the workflow. Publishing runs in CI via
+  `.github/workflows/npm-publish.yml`, which is triggered when a GitHub release
+  is published and publishes with npm Trusted Publishing.
+
 ## Change Practices
 
 - Preserve existing user-facing behavior unless the requested change requires
