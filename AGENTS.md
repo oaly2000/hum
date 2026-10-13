@@ -109,8 +109,13 @@ Versions and changelogs are managed with Changesets
 - `pnpm changeset git-tag` creates the release git tags for the bumped versions.
 - Never publish from a local machine — `pnpm changeset publish` is not part of
   the workflow. Publishing runs in CI via
-  `.github/workflows/npm-publish.yml`, which is triggered when a GitHub release
-  is published and publishes with npm Trusted Publishing.
+  `.github/workflows/npm-publish.yml`, which is triggered by pushing the version
+  tags created by `git-tag` (`@humjs/core@*`, `@humjs/vite-plugin@*`,
+  `create-hum@*`) and publishes with npm Trusted Publishing. The workflow skips
+  any version already on the registry, so pushing several tags is safe.
+- `.github/workflows/docs-build.yml` reacts to the same version tags: it builds
+  the documentation site and force-pushes the production output to the `docs`
+  branch. It can also be started manually from `main` via `workflow_dispatch`.
 
 ## Change Practices
 

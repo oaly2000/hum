@@ -1,13 +1,16 @@
 name: Docs build
 
-# Runs when a release is published: builds the documentation site and publishes
+# Runs when a version tag is pushed: builds the documentation site and publishes
 # the production output on its own branch, so `main` stays source-only and
 # deployments can pull a ready-made artifact. The branch root is the deployable
 # directory: `manifest.json`, `client/`, and `server/server.js` (run it with
 # `node server/server.js`).
 on:
-  release:
-    types: [published]
+  push:
+    tags:
+      - "@humjs/core@*"
+      - "@humjs/vite-plugin@*"
+      - "create-hum@*"
   # Lets a maintainer rebuild the site from `main` by hand.
   workflow_dispatch:
 

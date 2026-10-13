@@ -1,8 +1,11 @@
 name: Publish npm packages
 
 on:
-  release:
-    types: [published]
+  push:
+    tags:
+      - "@humjs/core@*"
+      - "@humjs/vite-plugin@*"
+      - "create-hum@*"
 
 permissions:
   contents: read
