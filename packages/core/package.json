@@ -1,6 +1,6 @@
 {
   "name": "@humjs/core",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "type": "module",
   "description": "Hum core: islands runtime, Hono based file routing for Node.js",
   "repository": {

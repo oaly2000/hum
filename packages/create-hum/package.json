@@ -1,6 +1,6 @@
 {
   "name": "create-hum",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "type": "module",
   "description": "Scaffolds a new Hum project",
   "repository": {
