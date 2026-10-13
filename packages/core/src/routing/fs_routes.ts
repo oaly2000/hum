@@ -201,7 +201,6 @@ export function unmatchedRoute<T extends RouteFileSpec>(
   return {
     file: {
       file: `${routesDir}${dir === "" ? "" : "/" + dir}/_404`,
-      absPath: "",
       kind: "notFound",
       urlPath,
     } as unknown as T,

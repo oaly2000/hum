@@ -151,6 +151,25 @@ try {
     assert.equal(response.status, 200, `client asset should be served: ${asset}`);
   }
 
+  // Islands are lazy chunks the app addresses through the build manifest rather
+  // than through its markup, so every island — and every stylesheet the build
+  // recorded for it — has to be served too.
+  const buildManifest = JSON.parse(
+    await readFile(join(runtimeRoot, outDir, "manifest.json"), "utf8"),
+  );
+  const islandAssets = Object.values(buildManifest.islands).flatMap(
+    (island) => [island.file, ...(island.css ?? [])],
+  );
+  assert.ok(
+    islandAssets.length > 0,
+    "the build manifest should map at least one island",
+  );
+  for (const asset of islandAssets) {
+    const url = `${buildManifest.assetsBase}/${asset}`;
+    const response = await fetch(`${origin}${url}`);
+    assert.equal(response.status, 200, `island asset should be served: ${url}`);
+  }
+
   // Only the client half of the output directory is public: the server bundle
   // and the build manifest must never be reachable over HTTP.
   for (const path of ["/_hum/server/server.js", "/_hum/manifest.json"]) {

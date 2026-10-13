@@ -1,6 +1,15 @@
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
-import { BuildCache, ProdManifest } from "../src/build_cache.js";
+import {
+  BuildCache,
+  manifestPath,
+  type ProdManifest,
+  readProdManifest,
+} from "../src/build_cache.js";
 import type { HumManifest } from "../src/types.js";
 
 // Paths are relative to the output directory; `assetsBase` carries the URL the
@@ -25,7 +34,6 @@ const manifest: HumManifest = {
       name: "Counter",
       exportName: "default",
       file: "islands/Counter.tsx",
-      absPath: "/app/islands/Counter.tsx",
       load: async () => ({ default: () => null }),
     },
   ],
@@ -72,5 +80,29 @@ describe("BuildCache", () => {
     expect(cache.buildId).toBe("dev");
     expect(cache.entryAssets).toEqual([]);
     expect(cache.getIsland("Counter")?.clientUrl).toBe("/islands/Counter.tsx");
+  });
+});
+
+describe("readProdManifest", () => {
+  it("locates and reads what the build wrote", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hum-prod-"));
+    try {
+      const path = manifestPath(root, "_hum");
+      await mkdir(join(root, "_hum"), { recursive: true });
+      await writeFile(path, JSON.stringify(prod));
+
+      expect(await readProdManifest(path)).toEqual(prod);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("reports no production build when the file is missing", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hum-prod-"));
+    try {
+      expect(await readProdManifest(manifestPath(root, "_hum"))).toBeNull();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });

@@ -14,7 +14,6 @@ it("renders a plain page through the default shell", async () => {
     routes: [
       {
         file: "routes/index.tsx",
-        absPath: "/x/index.tsx",
         kind: "route",
         urlPath: "/",
         load: async () => ({ default: () => h("div", null, "hello") }),
@@ -41,14 +40,12 @@ it("renders a custom app shell", async () => {
     routes: [
       {
         file: "routes/_app.tsx",
-        absPath: "/x/_app.tsx",
         kind: "app",
         urlPath: "/",
         load: async () => ({ default: Shell }),
       },
       {
         file: "routes/index.tsx",
-        absPath: "/x/index.tsx",
         kind: "route",
         urlPath: "/",
         load: async () => ({ default: () => h("div", null, "inside") }),
@@ -70,14 +67,12 @@ it("renders a page with an island", async () => {
         name: "Counter",
         exportName: "default",
         file: "islands/Counter.tsx",
-        absPath: "/x/islands/Counter.tsx",
         load: async () => ({ default: Counter }),
       },
     ],
     routes: [
       {
         file: "routes/index.tsx",
-        absPath: "/x/index.tsx",
         kind: "route",
         urlPath: "/",
         load: async () => ({

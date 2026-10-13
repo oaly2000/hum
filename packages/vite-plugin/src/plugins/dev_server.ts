@@ -66,10 +66,11 @@ export function humDevServer(ctx: HumContext): Plugin {
 
   async function buildApp(server: ViteDevServer): Promise<RequestApp> {
     const manifest = await loadManifest(server);
-    ctx.project.routes = manifest.routes;
-    ctx.project.islands = manifest.islands;
     if (ctx.options.verbose) {
-      server.config.logger.info(projectSummary(ctx.project));
+      server.config.logger.info(projectSummary({
+        routes: manifest.routes.length,
+        islands: manifest.islands.length,
+      }));
     }
 
     const humConfig = {

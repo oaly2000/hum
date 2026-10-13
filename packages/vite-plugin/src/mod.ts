@@ -21,7 +21,6 @@ import { resolveHumOptions, type HumContext, type HumOptions } from "./shared.js
 export function hum(userOptions: HumOptions = {}): Plugin[] {
   const ctx: HumContext = {
     options: resolveHumOptions(process.cwd(), userOptions),
-    project: { routes: [], islands: [] },
   };
 
   return [
@@ -45,4 +44,4 @@ export function hum(userOptions: HumOptions = {}): Plugin[] {
   ];
 }
 
-export type { HumOptions, HumProject } from "./shared.js";
+export type { HumOptions } from "./shared.js";

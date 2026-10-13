@@ -2,13 +2,12 @@
  * The file naming rules of `routes/` and `islands/`, and the discovery of those
  * files from a bundler's `import.meta.glob` result.
  *
- * This is the bundler driven counterpart of `discovery/fs_crawl.ts`. Instead of
- * asking the file system what exists when the server starts, the bundler knows
- * the file list while it builds the module that calls
- * {@link specsFromGlob}, so a production server bundle carries lazy imports
- * rather than a serialized route table. Both paths produce the same
- * `HumManifest`, which is why the naming rules live here and the file system
- * crawler reuses them.
+ * Discovery belongs to the bundler: it knows the file list while it builds the
+ * module that calls {@link specsFromGlob}, so a server bundle carries lazy
+ * imports rather than a serialized route table, and nothing has to scan a
+ * directory when the server starts. {@link islandNameOfFile} is the single
+ * answer to "is this file an island, and what is it called", used by both the
+ * glob result and a bundler's own manifest.
  *
  * Nothing in this module touches Node built-ins, so it runs in the browser, in
  * an edge runtime, and inside a virtual module.
@@ -92,7 +91,7 @@ export interface SpecsFromGlobOptions {
   logger?: Logger;
 }
 
-/** Glob patterns that enumerate exactly the files `crawlProject` discovers. */
+/** Glob patterns that enumerate every route and island module of a project. */
 export interface HumGlobPatterns {
   routes: string[];
   islands: string[];
@@ -128,9 +127,9 @@ function includePatterns(dir: string): string[] {
 }
 
 /**
- * Patterns for the files the crawler skips: TypeScript declaration files,
- * dot files, `-name` files, and the `node_modules` directory. Dot files are
- * ignored by the glob itself, so they need no pattern.
+ * Patterns for the files Hum never treats as modules: TypeScript declaration
+ * files, dot files, `-name` files, and the `node_modules` directory. Dot files
+ * are ignored by the glob itself, so they need no pattern.
  */
 function ignorePatterns(dir: string): string[] {
   return [
@@ -141,7 +140,7 @@ function ignorePatterns(dir: string): string[] {
 }
 
 /**
- * The glob patterns that reproduce the directory walk of `crawlProject`:
+ * The glob patterns that enumerate a project's route and island modules:
  * `routes/**` without `_components` and `_islands`, every module below
  * `islands/`, and every module below a `routes/**\/_islands` directory.
  */
@@ -182,6 +181,44 @@ export function routeSpecOf(
   return { file, kind, urlPath: urlPathOf(relNoExt, kind === "route"), load };
 }
 
+/** Directory below `routes/` that holds the islands of its route directory. */
+const LOCAL_ISLANDS_DIR = "_islands";
+/** Directory that holds helpers, which the glob patterns never descend into. */
+const COMPONENTS_DIR = "_components";
+
+/**
+ * Island name of a project relative module file, or `null` when the file is no
+ * island: it then lives neither below the islands directory nor below a
+ * `routes&#47;**&#47;_islands` directory, or it sits in a `_components`
+ * directory, which the glob patterns never descend into.
+ *
+ * The glob result and a bundler's manifest both go through this function, so
+ * the two cannot name the same file differently.
+ */
+export function islandNameOfFile(
+  file: string,
+  options: HumDirectories = {},
+): string | null {
+  const routesDir = normalizeDir(options.routesDir, "routes");
+  const islandsDir = normalizeDir(options.islandsDir, "islands");
+  const name = globFileOf(file);
+  const basename = name.split("/").pop() ?? name;
+  if (!isModuleFile(basename)) return null;
+
+  if (name.startsWith(`${islandsDir}/`)) {
+    return islandNameOf(stripExtension(name.slice(islandsDir.length + 1)));
+  }
+
+  const prefix = `${routesDir}/`;
+  if (!name.startsWith(prefix)) return null;
+  const rel = name.slice(prefix.length);
+  const directories = rel.split("/").slice(0, -1);
+  if (!directories.includes(LOCAL_ISLANDS_DIR)) return null;
+  if (directories.includes(COMPONENTS_DIR)) return null;
+
+  return islandNameOf(`local_${stripExtension(rel)}`);
+}
+
 function sortedModules(
   modules: GlobModules,
 ): Array<[string, ModuleThunk<Record<string, unknown>>]> {
@@ -214,10 +251,12 @@ export function specsFromGlob(options: SpecsFromGlobOptions): HumManifest {
   const seen = new Set<string>();
   const push = (
     file: string,
-    namePath: string,
     load: ModuleThunk<Record<string, unknown>>,
   ): void => {
-    const name = islandNameOf(namePath);
+    // The same function names the islands of a bundler's manifest, so both
+    // sides of the client/server contract agree on one island's name.
+    const name = islandNameOfFile(file, { routesDir, islandsDir });
+    if (name === null) return;
     if (seen.has(name)) {
       options.logger?.warn(
         `hum: two island files map to the same island name "${name}". ` +
@@ -230,14 +269,10 @@ export function specsFromGlob(options: SpecsFromGlobOptions): HumManifest {
   };
 
   for (const [file, load] of sortedModules(options.islandModules)) {
-    push(file, stripExtension(relativeTo(file, islandsDir)), load);
+    push(file, load);
   }
   for (const [file, load] of sortedModules(options.localIslandModules)) {
-    push(
-      file,
-      `local_${stripExtension(relativeTo(file, routesDir))}`,
-      load,
-    );
+    push(file, load);
   }
 
   return { routes, islands };

@@ -26,8 +26,7 @@
   "dependencies": {
     "@hono/node-server": "^2.1.4",
     "@humjs/core": "workspace:*",
-    "hono": "^4.13.13",
-    "tinyglobby": "^0.2.17"
+    "hono": "^4.13.13"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",

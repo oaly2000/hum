@@ -1,4 +1,3 @@
-import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { setBuildId } from "./runtime/shared_internal.js";
@@ -37,11 +36,20 @@ export function manifestPath(root: string, outDir: string): string {
   return join(root, outDir, MANIFEST_FILE);
 }
 
-/** Reads the production manifest, or `null` when the app runs in dev. */
+/**
+ * Reads the production manifest, or `null` when the app runs in dev.
+ *
+ * The file system is imported on demand so that `node:fs` stays out of the
+ * static module graph: a platform without one can import Hum, and a caller that
+ * injects `prodManifest` — or a bundler that supplies the manifest — never
+ * resolves it at all. Every failure, including a missing `node:fs`, reads as
+ * "no production build", which is the dev configuration.
+ */
 export async function readProdManifest(
   path: string,
 ): Promise<ProdManifest | null> {
   try {
+    const { readFile } = await import("node:fs/promises");
     const raw = await readFile(path, "utf8");
     return JSON.parse(raw) as ProdManifest;
   } catch {

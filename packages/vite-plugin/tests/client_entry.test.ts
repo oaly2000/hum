@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   CLIENT_RUNTIME_ENTRY,
+  ISLANDS_ENTRY,
   RESOLVED_USER_ENTRY_VIRTUAL_ID,
   resolveHumOptions,
   SERVER_ENTRY,
@@ -37,7 +38,6 @@ describe("humClientEntry plugin", () => {
   it("resolves the virtual user entry id", () => {
     const ctx = {
       options: resolveHumOptions("/tmp/project"),
-      project: { routes: [], islands: [] },
     };
     const plugin = humClientEntry(ctx);
     const resolved = (plugin as { resolveId(id: string): unknown }).resolveId(
@@ -80,14 +80,29 @@ describe("humClientEntry plugin", () => {
 });
 
 describe("writeBuildEntries", () => {
+  it("writes the islands entry as the glob that emits one chunk per island", async () => {
+    const root = tempProject();
+    const ctx = { options: resolveHumOptions(root) };
+
+    await writeBuildEntries(ctx);
+    const entry = await readFile(join(root, ISLANDS_ENTRY), "utf8");
+
+    expect(entry).toContain("export const islandModules = import.meta.glob(");
+    expect(entry).toContain('"/islands/**/*.tsx"');
+    expect(entry).toContain('"/routes/**/_islands/**/*.tsx"');
+    expect(entry).toContain('"!/routes/**/_islands/**/_components/**"');
+    // A `_components` file below the islands directory is an island, exactly
+    // like the crawler treats it.
+    expect(entry).not.toContain('"!/islands/**/_components/**"');
+    rmSync(root, { recursive: true, force: true });
+  });
+
   it("imports the user client entry into the generated runtime entry", async () => {
     const root = tempProject();
     mkdirSync(join(root, "client"), { recursive: true });
     writeFileSync(join(root, "client", "main.ts"), "export {};\n");
-    const ctx = {
-      options: resolveHumOptions(root),
-      project: { routes: [], islands: [] },
-    };
+    const ctx = { options: resolveHumOptions(root) };
+
     await writeBuildEntries(ctx);
     const entry = await readFile(join(root, CLIENT_RUNTIME_ENTRY), "utf8");
     // The user entry's global styles are pulled in first...
@@ -107,10 +122,7 @@ describe("writeBuildEntries", () => {
       join(root, "server.ts"),
       "export default function start() {}\n",
     );
-    const ctx = {
-      options: resolveHumOptions(root),
-      project: { routes: [], islands: [] },
-    };
+    const ctx = { options: resolveHumOptions(root) };
 
     await writeBuildEntries(ctx);
     const entry = await readFile(join(root, SERVER_ENTRY), "utf8");
@@ -130,10 +142,7 @@ describe("writeBuildEntries", () => {
 
   it("starts Hum directly when no custom server entry exists", async () => {
     const root = tempProject();
-    const ctx = {
-      options: resolveHumOptions(root, { outDir: "dist/hum" }),
-      project: { routes: [], islands: [] },
-    };
+    const ctx = { options: resolveHumOptions(root, { outDir: "dist/hum" }) };
 
     await writeBuildEntries(ctx);
     const entry = await readFile(join(root, SERVER_ENTRY), "utf8");

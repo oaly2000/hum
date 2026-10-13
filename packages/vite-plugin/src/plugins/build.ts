@@ -2,13 +2,13 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import type { ProdManifest } from "@humjs/core";
-import { crawlProject } from "@humjs/core/discovery";
+import { islandNameOfFile } from "@humjs/core/routing";
 import { build, type Plugin } from "vite";
 
 import {
   CLIENT_RUNTIME_ENTRY,
+  ISLANDS_ENTRY,
   makeBuildId,
-  projectSummary,
   SERVER_ENTRY,
   SERVER_ENTRY_NAME,
   type HumContext,
@@ -33,16 +33,19 @@ function outDirs(options: ResolvedHumOptions) {
 }
 
 /**
- * Turns Vite's client manifest into the manifest `ProdBuildCache` reads at
+ * Turns Vite's client manifest into the manifest `BuildCache` reads at
  * startup: one hashed asset per island, plus the client runtime entry.
  *
- * Asset paths are stored relative to the output directory, with the URL the
- * directory is served from kept separately. The runtime locates the output
- * directory next to the server bundle, so renaming or moving it on the deploy
- * machine cannot break the client asset URLs.
+ * The islands come from the manifest itself rather than from a directory scan,
+ * so every island chunk the bundler emitted is registered, and an island can
+ * neither be missed nor reported with a chunk that does not exist. Asset paths
+ * are stored relative to the output directory, with the URL the directory is
+ * served from kept separately. The runtime locates the output directory next to
+ * the server bundle, so renaming or moving it on the deploy machine cannot
+ * break the client asset URLs.
  */
-async function writeProdManifest(ctx: HumContext): Promise<void> {
-  const { options, project } = ctx;
+async function writeProdManifest(ctx: HumContext): Promise<ProdManifest> {
+  const options = ctx.options;
   const clientOut = outDirs(options).client;
 
   const clientManifest = JSON.parse(
@@ -61,10 +64,10 @@ async function writeProdManifest(ctx: HumContext): Promise<void> {
 
   const prefix = "client/";
   const islands: ProdManifest["islands"] = {};
-  for (const spec of project.islands) {
-    const entry = clientManifest[spec.file];
-    if (entry === undefined) continue;
-    islands[spec.name] = {
+  for (const [file, entry] of Object.entries(clientManifest)) {
+    const name = islandNameOfFile(file, options);
+    if (name === null) continue;
+    islands[name] = {
       file: prefix + entry.file,
       css: (entry.css ?? []).map((css) => prefix + css),
     };
@@ -83,14 +86,18 @@ async function writeProdManifest(ctx: HumContext): Promise<void> {
     JSON.stringify(manifest, null, 2),
     "utf8",
   );
+
+  return manifest;
 }
 
 /**
  * Build plugin: makes a plain `vite build` produce a complete Hum build.
  *
- * The client environment gets the client runtime plus one chunk per island as
- * inputs; once it is written, the production manifest is derived from Vite's
- * own manifest and the SSR bundle is built in a second, independent pass.
+ * Both environments discover their own files: the routes come from the
+ * `virtual:hum/routes` glob, and the islands entry makes the client build emit
+ * one chunk per island. Once the client half is written, the production
+ * manifest is derived from Vite's own manifest and the SSR bundle is built in a
+ * second, independent pass.
  */
 export function humBuild(ctx: HumContext): Plugin {
   let isSsr = false;
@@ -104,17 +111,6 @@ export function humBuild(ctx: HumContext): Plugin {
       const options = ctx.options;
       const dirs = outDirs(options);
 
-      // Route and island discovery for the server happens in the bundler, via
-      // `virtual:hum/routes`. The client build cannot use a glob for its entry
-      // points, so it still needs the file list up front.
-      const crawled = await crawlProject({
-        root: options.root,
-        routesDir: options.routesDir,
-        islandsDir: options.islandsDir,
-      });
-      ctx.project.routes = crawled.routes;
-      ctx.project.islands = crawled.islands;
-      if (options.verbose) this.info(projectSummary(ctx.project));
       await writeBuildEntries(ctx);
 
       isSsr = env.isSsrBuild === true;
@@ -131,9 +127,6 @@ export function humBuild(ctx: HumContext): Plugin {
         };
       }
 
-      const input: Record<string, string> = { runtime: CLIENT_RUNTIME_ENTRY };
-      for (const spec of ctx.project.islands) input[spec.name] = spec.file;
-
       return {
         appType: "custom",
         build: {
@@ -144,10 +137,11 @@ export function humBuild(ctx: HumContext): Plugin {
           // imported by the server-inlined boot script, which lives outside the
           // bundle. Rolldown drops an entry export that nothing in the bundle
           // consumes, so `preserveEntrySignatures` keeps the entry's own
-          // exports in the emitted chunk. In Vite 8 the input map and these
-          // Rolldown options both live under `rolldownOptions`.
+          // exports — and, for the islands entry, the lazy imports its glob
+          // result holds — in the emitted chunks. In Vite 8 the input map and
+          // these Rolldown options both live under `rolldownOptions`.
           rolldownOptions: {
-            input,
+            input: { runtime: CLIENT_RUNTIME_ENTRY, islands: ISLANDS_ENTRY },
             preserveEntrySignatures: "exports-only",
           },
         },
@@ -163,7 +157,14 @@ export function humBuild(ctx: HumContext): Plugin {
       const options = ctx.options;
       const dirs = outDirs(options);
 
-      await writeProdManifest(ctx);
+      const prodManifest = await writeProdManifest(ctx);
+      if (options.verbose) {
+        // The routes are resolved by the bundler now, so only the islands are
+        // known here.
+        this.info(
+          `hum: ${Object.keys(prodManifest.islands).length} island chunk(s)`,
+        );
+      }
 
       await build({
         root: options.root,

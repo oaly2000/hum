@@ -1,4 +1,3 @@
-import { pathToFileURL } from "node:url";
 import { type Env, Hono, type MiddlewareHandler, type Schema } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 
@@ -14,7 +13,6 @@ import {
   resolveConfig,
   type ResolvedConfig,
 } from "./config.js";
-import { crawlProject } from "./discovery/fs_crawl.js";
 import { ModuleLoader } from "./loader.js";
 import {
   type RequestContext,
@@ -181,12 +179,18 @@ export async function mountHum<
   app: Hono<E, S, P>,
   config: HumConfig,
 ): Promise<MountedHumApp<E, S, P>> {
-  const manifest: HumManifest = config.manifest ??
-    await crawlToManifest(config);
+  // Plain JavaScript callers get told what TypeScript already enforces.
+  const manifest: HumManifest | undefined = config.manifest;
+  if (manifest === undefined) throw new TypeError(MANIFEST_REQUIRED);
 
   const root = config.root ?? process.cwd();
   const outDir = config.outDir ?? "_hum";
-  const prodManifest = await readProdManifest(manifestPath(root, outDir));
+  // An injected production manifest keeps the runtime off the file system
+  // entirely; only the Node entry points read the build output from disk.
+  const injected = config.prodManifest;
+  const prodManifest = injected === undefined
+    ? await readProdManifest(manifestPath(root, outDir))
+    : injected;
   const dev = config.dev ?? prodManifest === null;
 
   const resolved = resolveConfig({
@@ -205,11 +209,16 @@ export async function mountHum<
   );
   const loader = new ModuleLoader(dev);
 
-  if (!resolved.dev && prodManifest === null) {
+  // A manifest is only absent by accident: a dev run does not want one, and an
+  // injected value is the caller's decision. Everything else — including the
+  // inferred dev mode of a run that never asked for it — is reported instead of
+  // silently serving source URLs that no production build can answer.
+  if (prodManifest === null && injected === undefined && config.dev !== true) {
     resolved.logger.error(
       `hum: no build manifest found at ${manifestPath(root, outDir)}. ` +
         `Client islands and styles cannot be served; run the production ` +
-        `build, or point \`outDir\` at the deployed output directory.`,
+        `build, point \`outDir\` at the deployed output directory, or inject ` +
+        `\`prodManifest\` when the platform has no file system.`,
     );
   }
 
@@ -350,34 +359,13 @@ function routeHandler(
   };
 }
 
-/** Fallback discovery used when the bundler did not supply a manifest. */
-async function crawlToManifest(config: HumConfig): Promise<HumManifest> {
-  const root = config.root ?? process.cwd();
-  const crawled = await crawlProject({
-    root,
-    routesDir: config.routesDir,
-    islandsDir: config.islandsDir,
-    logger: config.logger,
-  });
-
-  return {
-    routes: crawled.routes.map((spec) => ({
-      ...spec,
-      // The path is only known at runtime; Vite must not try to resolve it.
-      // This branch only runs on a crawl, which always records the path.
-      load: () =>
-        import(/* @vite-ignore */ pathToFileURL(spec.absPath!).href) as Promise<
-          Record<string, unknown>
-        >,
-    })),
-    islands: crawled.islands.map((spec) => ({
-      ...spec,
-      // The path is only known at runtime; Vite must not try to resolve it.
-      // This branch only runs on a crawl, which always records the path.
-      load: () =>
-        import(/* @vite-ignore */ pathToFileURL(spec.absPath!).href) as Promise<
-          Record<string, unknown>
-        >,
-    })),
-  };
-}
+/**
+ * Hum does not look for routes and islands by itself: only a bundler can turn a
+ * project's files into modules — resolving imports, transforming JSX, splitting
+ * chunks — so the manifest is its product, and the runtime never reads the file
+ * system behind its back to reconstruct one.
+ */
+const MANIFEST_REQUIRED =
+  "hum: `manifest` is required. The Vite plugin supplies the one that " +
+  "`virtual:hum/routes` resolves; when mounting Hum yourself, build it with " +
+  "`specsFromGlob` from `@humjs/core/routing`.";

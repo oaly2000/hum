@@ -13,7 +13,7 @@ function file(
   kind: RouteFileSpec["kind"],
   urlPath: string,
 ): RouteFileSpec {
-  return { file: `routes/${path}`, absPath: `/app/routes/${path}`, kind, urlPath };
+  return { file: `routes/${path}`, kind, urlPath };
 }
 
 const routes: RouteFileSpec[] = [

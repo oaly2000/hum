@@ -1,24 +1,25 @@
 import { resolve } from "node:path";
 
-import type { IslandSpec, RouteFileSpec } from "@humjs/core";
-
-/** Route and island files discovered in the project. */
-export interface HumProject {
-  routes: RouteFileSpec[];
-  islands: IslandSpec[];
-}
-
-/** Shared, mutable state the Hum plugins coordinate through. */
+/** Shared state the Hum plugins coordinate through. */
 export interface HumContext {
   /** Resolved once Vite merged its own config, so `root` is authoritative. */
   options: ResolvedHumOptions;
-  project: HumProject;
 }
 
-/** One line summary of the discovered project, used by the verbose log. */
-export function projectSummary(project: HumProject): string {
-  return `hum: ${project.routes.length} route file(s), ` +
-    `${project.islands.length} island(s)`;
+/** Counts of what Hum found, for the verbose log. */
+interface ProjectCounts {
+  routes: number;
+  islands: number;
+}
+
+/** One line summary of what Hum found, used by the verbose log. */
+export function projectSummary(counts: ProjectCounts): string {
+  return `hum: ${counts.routes} route file(s), ${counts.islands} island(s)`;
+}
+
+/** Source of an `import.meta.glob` call that enumerates `patterns`. */
+export function globCall(patterns: string[]): string {
+  return `import.meta.glob(${JSON.stringify(patterns)})`;
 }
 
 /** Options accepted by the `hum()` Vite plugin. */
@@ -41,7 +42,12 @@ export interface HumOptions {
    * @default "client/main.ts"
    */
   clientEntry?: string;
-  /** Log the routes and islands Hum discovered. @default false */
+  /**
+   * Log what Hum discovered: the routes and islands in development, and the
+   * island chunks a production build emitted (the bundler resolves the routes
+   * there, so their count is not known to the plugin).
+   * @default false
+   */
   verbose?: boolean;
 }
 
@@ -87,21 +93,17 @@ export const RESOLVED_USER_ENTRY_VIRTUAL_ID = "\0" + USER_ENTRY_VIRTUAL_ID;
 export const ROUTES_VIRTUAL_ID = "virtual:hum/routes";
 export const RESOLVED_ROUTES_VIRTUAL_ID = "\0" + ROUTES_VIRTUAL_ID;
 
-/**
- * Placeholder comment that marks where dev-only styles collected from the
- * module graph are injected into the document head.
- */
-export const DEV_STYLES_PLACEHOLDER = "hum:dev-styles";
-
 /** Directory (relative to the root) the generated build inputs live in. */
 export const GENERATED_DIR = ".hum";
-export const CLIENT_RUNTIME_ENTRY = ".hum/client-runtime.js";
-export const SERVER_ENTRY = ".hum/server-entry.js";
+export const CLIENT_RUNTIME_ENTRY = `${GENERATED_DIR}/client-runtime.js`;
+/**
+ * Client build input that exists only so the bundler emits one chunk per
+ * island. Nothing imports it: the browser loads those chunks by URL from the
+ * server rendered markup.
+ */
+export const ISLANDS_ENTRY = `${GENERATED_DIR}/islands.js`;
+export const SERVER_ENTRY = `${GENERATED_DIR}/server-entry.js`;
 export const SERVER_ENTRY_NAME = "server";
-
-export interface BuildIdInfo {
-  buildId: string;
-}
 
 /** Stable, short id of a build, derived from the current time. */
 export function makeBuildId(): string {

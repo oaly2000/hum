@@ -169,14 +169,12 @@ const manifest: HumManifest = {
       name: "Counter",
       exportName: "default",
       file: "islands/Counter.tsx",
-      absPath: "/app/islands/Counter.tsx",
       load: async () => ({ default: Counter }),
     },
   ],
   routes: [
     {
       file: "routes/_app.tsx",
-      absPath: "/app/routes/_app.tsx",
       kind: "app",
       urlPath: "/",
       load: async () => ({
@@ -186,14 +184,12 @@ const manifest: HumManifest = {
     },
     {
       file: "routes/_layout.tsx",
-      absPath: "/app/routes/_layout.tsx",
       kind: "layout",
       urlPath: "/",
       load: async () => ({ default: Layout }),
     },
     {
       file: "routes/_404.tsx",
-      absPath: "/app/routes/_404.tsx",
       kind: "notFound",
       urlPath: "/",
       load: async () => ({
@@ -202,7 +198,6 @@ const manifest: HumManifest = {
     },
     {
       file: "routes/_error.tsx",
-      absPath: "/app/routes/_error.tsx",
       kind: "error",
       urlPath: "/",
       load: async () => ({
@@ -211,7 +206,6 @@ const manifest: HumManifest = {
     },
     {
       file: "routes/index.tsx",
-      absPath: "/app/routes/index.tsx",
       kind: "route",
       urlPath: "/",
       load: async () => ({
@@ -221,7 +215,6 @@ const manifest: HumManifest = {
     },
     {
       file: "routes/form.tsx",
-      absPath: "/app/routes/form.tsx",
       kind: "route",
       urlPath: "/form",
       load: async () => ({
@@ -239,7 +232,6 @@ const manifest: HumManifest = {
     },
     {
       file: "routes/page-fn.tsx",
-      absPath: "/app/routes/page-fn.tsx",
       kind: "route",
       urlPath: "/page-fn",
       load: async () => ({
@@ -255,7 +247,6 @@ const manifest: HumManifest = {
     },
     {
       file: "routes/page-fallthrough.tsx",
-      absPath: "/app/routes/page-fallthrough.tsx",
       kind: "route",
       urlPath: "/page-fallthrough",
       load: async () => ({
@@ -269,14 +260,12 @@ const manifest: HumManifest = {
     },
     {
       file: "routes/boom.tsx",
-      absPath: "/app/routes/boom.tsx",
       kind: "route",
       urlPath: "/boom",
       load: async () => ({ default: Boom }),
     },
     {
       file: "routes/seo.tsx",
-      absPath: "/app/routes/seo.tsx",
       kind: "route",
       urlPath: "/seo",
       load: async () => ({
@@ -292,7 +281,6 @@ const manifest: HumManifest = {
     },
     {
       file: "routes/blogs/[id].tsx",
-      absPath: "/app/routes/blogs/[id].tsx",
       kind: "route",
       urlPath: "/blogs/[id]",
       load: async () => ({
@@ -304,14 +292,12 @@ const manifest: HumManifest = {
     },
     {
       file: "routes/partials.tsx",
-      absPath: "/app/routes/partials.tsx",
       kind: "route",
       urlPath: "/partials",
       load: async () => ({ default: PartialsPage }),
     },
     {
       file: "routes/streaming.tsx",
-      absPath: "/app/routes/streaming.tsx",
       kind: "route",
       urlPath: "/streaming",
       load: async () => ({
@@ -322,7 +308,6 @@ const manifest: HumManifest = {
     },
     {
       file: "routes/resource-failure.tsx",
-      absPath: "/app/routes/resource-failure.tsx",
       kind: "route",
       urlPath: "/resource-failure",
       load: async () => ({
@@ -335,7 +320,6 @@ const manifest: HumManifest = {
     },
     {
       file: "routes/resource-render-failure.tsx",
-      absPath: "/app/routes/resource-render-failure.tsx",
       kind: "route",
       urlPath: "/resource-render-failure",
       load: async () => ({
@@ -573,7 +557,6 @@ describe("not found and errors", () => {
         ...manifest.routes,
         {
           file: "routes/admin/_middleware.ts",
-          absPath: "/app/routes/admin/_middleware.ts",
           kind: "middleware",
           urlPath: "/admin",
           load: async () => ({
@@ -587,7 +570,6 @@ describe("not found and errors", () => {
         },
         {
           file: "routes/admin/_404.tsx",
-          absPath: "/app/routes/admin/_404.tsx",
           kind: "notFound",
           urlPath: "/admin",
           load: async () => ({
@@ -596,7 +578,6 @@ describe("not found and errors", () => {
         },
         {
           file: "routes/admin/index.tsx",
-          absPath: "/app/routes/admin/index.tsx",
           kind: "route",
           urlPath: "/admin",
           load: async () => ({
@@ -643,7 +624,6 @@ describe("not found and errors", () => {
         ...manifest.routes,
         {
           file: "routes/guarded.tsx",
-          absPath: "/app/routes/guarded.tsx",
           kind: "route",
           urlPath: "/guarded",
           load: async () => ({
@@ -717,7 +697,6 @@ describe("not found and errors", () => {
         ...manifest.routes,
         {
           file: "routes/private/_middleware.ts",
-          absPath: "/app/routes/private/_middleware.ts",
           kind: "middleware",
           urlPath: "/private",
           load: async () => ({
@@ -726,7 +705,6 @@ describe("not found and errors", () => {
         },
         {
           file: "routes/private/index.tsx",
-          absPath: "/app/routes/private/index.tsx",
           kind: "route",
           urlPath: "/private",
           load: async () => ({

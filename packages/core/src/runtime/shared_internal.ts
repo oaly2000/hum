@@ -1,4 +1,4 @@
-import type { Component, Options as PreactOptions, VNode } from "preact";
+import type { Component, VNode } from "preact";
 
 /**
  * Marker prefix used for all Hum markers. Server and client both build and
@@ -43,8 +43,6 @@ export const OptionsType = {
   ROOT: "__",
 } as const;
 
-export type OptionsKey = (typeof OptionsType)[keyof typeof OptionsType];
-
 /**
  * Hum manipulates rendered trees generically (wrapping vnodes, injecting
  * markers), which requires props to be unconstrained.
@@ -57,10 +55,6 @@ export interface InternalVNode extends VNode {
   __k?: InternalVNode[] | null;
 }
 
-export type InternalPreactOptions = PreactOptions & {
-  [key: string]: unknown;
-};
-
 /** How a partial replacement should be applied on the client. */
 export const PartialMode = {
   Replace: 0,
@@ -68,6 +62,7 @@ export const PartialMode = {
   Prepend: 2,
 } as const;
 export type PartialMode = (typeof PartialMode)[keyof typeof PartialMode];
+
 
 /**
  * Keys end up inside comment markers, which are split on `:`. Replace the
@@ -203,18 +198,6 @@ export function setActiveUrl(
     props["data-ancestor"] = "true";
     props["aria-current"] = "true";
   }
-}
-
-const ESCAPE_HTML: Record<string, string> = {
-  "&": "&amp;",
-  "<": "&lt;",
-  ">": "&gt;",
-  '"': "&quot;",
-  "'": "&#39;",
-};
-
-export function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (c) => ESCAPE_HTML[c]);
 }
 
 /**
