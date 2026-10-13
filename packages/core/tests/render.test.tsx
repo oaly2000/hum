@@ -9,6 +9,7 @@ import {
   createApp,
   createResource,
   define,
+  defineBuild,
   mountHum,
   page,
   Suspense as HumSuspense,
@@ -334,7 +335,9 @@ const manifest: HumManifest = {
   ],
 };
 
-const app = await createApp({ manifest, dev: true });
+// The build the app boots from, registered the way the generated module does.
+defineBuild({ ...manifest, prod: null });
+const app = await createApp({ dev: true });
 
 async function get(path: string): Promise<string> {
   const res = await app.request(`http://localhost${path}`);
@@ -586,10 +589,8 @@ describe("not found and errors", () => {
         },
       ],
     };
-    const mounted = await mountHum(new Hono(), {
-      manifest: guarded,
-      dev: true,
-    });
+    defineBuild({ ...guarded, prod: null });
+    const mounted = await mountHum(new Hono(), { dev: true });
 
     const page = await mounted.request("http://localhost/admin");
     expect(page.status).toBe(403);
@@ -634,10 +635,8 @@ describe("not found and errors", () => {
         },
       ],
     };
-    const mounted = await mountHum(new Hono(), {
-      manifest: withRouteMiddleware,
-      dev: true,
-    });
+    defineBuild({ ...withRouteMiddleware, prod: null });
+    const mounted = await mountHum(new Hono(), { dev: true });
 
     const res = await mounted.request("http://localhost/guarded");
     expect(res.status).toBe(200);
@@ -662,7 +661,8 @@ describe("not found and errors", () => {
       throw new Error("API failure");
     });
 
-    const mounted = await mountHum(honoApp, { manifest, dev: true });
+    defineBuild({ ...manifest, prod: null });
+    const mounted = await mountHum(honoApp, { dev: true });
 
     const apiError = await mounted.request("http://localhost/api/boom");
     expect(apiError.status).toBe(500);
@@ -713,10 +713,8 @@ describe("not found and errors", () => {
         },
       ],
     };
-    const mounted = await mountHum(honoApp, {
-      manifest: authManifest,
-      dev: true,
-    });
+    defineBuild({ ...authManifest, prod: null });
+    const mounted = await mountHum(honoApp, { dev: true });
 
     const publicPage = await mounted.request("http://localhost/");
     expect(publicPage.status).toBe(200);

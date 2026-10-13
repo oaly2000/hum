@@ -14,10 +14,9 @@ import {
   type HumContext,
   type ResolvedHumOptions,
 } from "../shared.js";
+import { humBuildInput } from "./build_input.js";
 import { writeBuildEntries } from "./islands.js";
 import { humRoutes } from "./routes.js";
-
-const MANIFEST_FILE = "manifest.json";
 
 interface ClientManifestEntry {
   file: string;
@@ -33,18 +32,21 @@ function outDirs(options: ResolvedHumOptions) {
 }
 
 /**
- * Turns Vite's client manifest into the manifest `BuildCache` reads at
- * startup: one hashed asset per island, plus the client runtime entry.
+ * Turns Vite's client manifest into the production assets the runtime serves
+ * from: one hashed asset per island, plus the client runtime entry.
  *
  * The islands come from the manifest itself rather than from a directory scan,
  * so every island chunk the bundler emitted is registered, and an island can
  * neither be missed nor reported with a chunk that does not exist. Asset paths
  * are stored relative to the output directory, with the URL the directory is
- * served from kept separately. The runtime locates the output directory next to
- * the server bundle, so renaming or moving it on the deploy machine cannot
- * break the client asset URLs.
+ * served from kept separately, so renaming or moving it on the deploy machine
+ * cannot break the client asset URLs.
+ *
+ * The result is inlined into the server bundle through `virtual:hum/build`
+ * instead of being written to a file, which is what keeps the runtime — and the
+ * deployed app — free of any file system lookup.
  */
-async function writeProdManifest(ctx: HumContext): Promise<ProdManifest> {
+async function prodManifest(ctx: HumContext): Promise<ProdManifest> {
   const options = ctx.options;
   const clientOut = outDirs(options).client;
 
@@ -73,21 +75,13 @@ async function writeProdManifest(ctx: HumContext): Promise<ProdManifest> {
     };
   }
 
-  const manifest: ProdManifest = {
+  return {
     buildId: makeBuildId(),
     assetsBase: `/${options.outDir.replace(/\\/g, "/")}`,
     clientEntry: prefix + runtime.file,
     islands,
     entryAssets: (runtime.css ?? []).map((css) => prefix + css),
   };
-
-  await writeFile(
-    join(options.root, options.outDir, MANIFEST_FILE),
-    JSON.stringify(manifest, null, 2),
-    "utf8",
-  );
-
-  return manifest;
 }
 
 /**
@@ -95,9 +89,10 @@ async function writeProdManifest(ctx: HumContext): Promise<ProdManifest> {
  *
  * Both environments discover their own files: the routes come from the
  * `virtual:hum/routes` glob, and the islands entry makes the client build emit
- * one chunk per island. Once the client half is written, the production
- * manifest is derived from Vite's own manifest and the SSR bundle is built in a
- * second, independent pass.
+ * one chunk per island. Once the client half is written, the production assets
+ * are derived from Vite's own manifest and carried into the SSR pass — the
+ * second, independent build — where `virtual:hum/build` inlines them into the
+ * server bundle.
  */
 export function humBuild(ctx: HumContext): Plugin {
   let isSsr = false;
@@ -157,23 +152,24 @@ export function humBuild(ctx: HumContext): Plugin {
       const options = ctx.options;
       const dirs = outDirs(options);
 
-      const prodManifest = await writeProdManifest(ctx);
+      // The client pass just wrote the assets, so the runtime's input is
+      // complete: `virtual:hum/build` inlines it into the server bundle below,
+      // which is why the deployed app has no manifest file to read.
+      ctx.prod = await prodManifest(ctx);
       if (options.verbose) {
         // The routes are resolved by the bundler now, so only the islands are
         // known here.
-        this.info(
-          `hum: ${Object.keys(prodManifest.islands).length} island chunk(s)`,
-        );
+        this.info(`hum: ${Object.keys(ctx.prod.islands).length} island chunk(s)`);
       }
 
       await build({
         root: options.root,
         // This pass provides its own plugin list instead of reusing the config
-        // file, which keeps it out of the plugin's other build hooks. The routes
-        // plugin is the exception: the generated server entry imports the
-        // manifest from its virtual module.
+        // file, which keeps it out of the plugin's other build hooks. The
+        // generated server entry imports the build from its virtual module, so
+        // the two plugins that resolve it are the exception.
         configFile: false,
-        plugins: [humRoutes(ctx)],
+        plugins: [humRoutes(ctx), humBuildInput(ctx)],
         logLevel: "warn",
         build: {
           outDir: dirs.server,

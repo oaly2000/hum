@@ -228,15 +228,15 @@ function sortedModules(
       load,
     ],
   );
-  // Glob key order is not guaranteed, and the manifest is part of the
-  // server/client contract, so sort it here.
+  // Glob key order is not guaranteed, and the specs are part of the
+  // server/client contract, so sort them here.
   return entries.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
 }
 
 /**
- * Builds the manifest Hum serves from the results of the `import.meta.glob`
- * calls of {@link globPatterns}, using the same naming rules as the file system
- * crawler.
+ * Builds the route and island specs {@link defineBuild} registers from the
+ * results of the `import.meta.glob` calls of {@link globPatterns}, using the
+ * same naming rules as the file system crawler.
  */
 export function specsFromGlob(options: SpecsFromGlobOptions): HumManifest {
   const routesDir = normalizeDir(options.routesDir, "routes");

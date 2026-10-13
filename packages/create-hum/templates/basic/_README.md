@@ -15,12 +15,12 @@ directory can move or even be renamed — it locates itself next to the server
 bundle — as long as its internal structure is kept and `server/server.js` is the
 entry point.
 
-Hum renders the client asset URLs the build manifest recorded (under `/_hum/`
-by default) but does not serve them itself: `server.ts` answers those requests
-with `@hono/node-server/serve-static`, and `HUM_OUT_DIR` points it at a renamed
-or relocated output directory. Delegate them to a reverse proxy or a CDN in
-production. Only `_hum/client/` is public — `_hum/server/` and
-`_hum/manifest.json` stay unreachable. Node.js 20 or newer is still required.
+Hum renders the client asset URLs the build recorded (under `/_hum/` by
+default) but does not serve them itself: `server.ts` answers those requests with
+`@hono/node-server/serve-static`, and `HUM_OUT_DIR` points it at a renamed or
+relocated output directory. Delegate them to a reverse proxy or a CDN in
+production. Only `_hum/client/` is public — `_hum/server/` stays unreachable.
+Node.js 20 or newer is still required.
 
 ## Hono server
 

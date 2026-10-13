@@ -7,11 +7,11 @@ import { Hono } from "hono";
 import { h } from "preact";
 import { describe, expect, it } from "vitest";
 
-import type { ProdManifest } from "../src/build_cache.js";
-import { mountHum } from "../src/mod.js";
+import type { ProdManifest } from "../src/build.js";
+import { defineBuild, mountHum } from "../src/mod.js";
 import type { HumManifest } from "../src/types.js";
 
-/** A path that holds no project, so any disk read of it fails. */
+/** A path that holds no project, so any disk read of it would fail. */
 const EMPTY_ROOT = join(tmpdir(), "hum-no-such-project");
 
 function Counter() {
@@ -52,13 +52,12 @@ const prod: ProdManifest = {
   entryAssets: ["client/assets/entry.css"],
 };
 
-describe("an injected production manifest", () => {
-  it("serves the built assets without reading the output directory", async () => {
+describe("a build that carries its production assets", () => {
+  it("serves them without reading the output directory", async () => {
+    defineBuild({ ...manifest, prod });
     const mounted = await mountHum(new Hono(), {
-      manifest,
-      prodManifest: prod,
-      // Nothing may be read from here: the injected manifest is the only
-      // source, which is what lets a platform without a file system run.
+      // Nothing may be read from here: the build is the only source, which is
+      // what lets a platform without a file system run.
       root: EMPTY_ROOT,
     });
 
@@ -67,27 +66,44 @@ describe("an injected production manifest", () => {
     expect(html).toContain('from "/_hum/client/assets/runtime.js"');
     expect(html).toContain('"/_hum/client/assets/Counter.js"');
     expect(html).toContain('"/_hum/client/assets/entry.css"');
-    // Dev would address the island by the path of its source file.
+    // Running from source would address the island by its source file path.
     expect(html).not.toContain("/islands/Counter.tsx");
   });
 
-  it("treats an injected null as no production build", async () => {
+  it("keeps the build it was mounted with", async () => {
+    defineBuild({ ...manifest, prod });
+    const first = await mountHum(new Hono(), { root: EMPTY_ROOT });
+
+    // A second build is registered before another app is mounted; the first one
+    // keeps serving the assets it was mounted with.
+    defineBuild({ ...manifest, prod: null });
+    const second = await mountHum(new Hono(), { root: EMPTY_ROOT, dev: true });
+
+    expect(await (await first.request("http://localhost/")).text()).toContain(
+      'from "/_hum/client/assets/runtime.js"',
+    );
+    expect(await (await second.request("http://localhost/")).text()).toContain(
+      '"/islands/Counter.tsx"',
+    );
+  });
+});
+
+describe("a build without production assets", () => {
+  it("runs from source", async () => {
+    defineBuild({ ...manifest, prod: null });
     const mounted = await mountHum(new Hono(), {
-      manifest,
-      prodManifest: null,
       root: EMPTY_ROOT,
+      dev: true,
     });
 
     const html = await (await mounted.request("http://localhost/")).text();
     expect(html).toContain('"/islands/Counter.tsx"');
   });
-});
 
-describe("a build manifest that is not there", () => {
   it("is reported instead of silently falling back to dev", async () => {
     const errors: string[] = [];
+    defineBuild({ ...manifest, prod: null });
     const mounted = await mountHum(new Hono(), {
-      manifest,
       root: EMPTY_ROOT,
       logger: {
         info() {},
@@ -97,7 +113,7 @@ describe("a build manifest that is not there", () => {
       },
     });
 
-    expect(errors.join("\n")).toContain("no build manifest found");
+    expect(errors.join("\n")).toContain("carries no production assets");
 
     // Hum still answers, in the dev configuration it inferred.
     const response = await mounted.request("http://localhost/");
@@ -106,38 +122,37 @@ describe("a build manifest that is not there", () => {
   });
 });
 
-describe("the runtime entry", () => {
-  it("never imports the file system statically", async () => {
-    // A platform without a file system has to be able to import Hum, so
-    // `node:fs` may not be a static import of anything the runtime pulls in.
-    // `readProdManifest` imports it on demand for exactly that reason, and the
-    // route and island manifests arrive through configuration.
-    const src = fileURLToPath(new URL("../src", import.meta.url));
-    const staticImport = /^[ \t]*import[\s\S]*?from[ \t]*"(node:fs[^"]*|node:url)"/m;
-    const importers: string[] = [];
+describe("mounting without a build", () => {
+  it("reports what is missing instead of serving an empty app", async () => {
+    // The registration lives on `globalThis` so a bundler's own copy of the
+    // framework sees it; dropping it puts the runtime back where a project that
+    // never imported its build module starts.
+    delete (globalThis as unknown as Record<symbol, unknown>)[
+      Symbol.for("hum.build")
+    ];
 
-    for (const file of await sourceFiles(src)) {
-      const source = await readFile(file, "utf8");
-      if (staticImport.test(source)) {
-        importers.push(relative(src, file).replace(/\\/g, "/"));
-      }
-    }
-
-    expect(importers).toEqual([]);
+    await expect(mountHum(new Hono(), { dev: true })).rejects.toThrow(
+      /no build registered/,
+    );
   });
+});
 
-  it("keeps the on-demand file system read in one place", async () => {
+describe("the runtime entry", () => {
+  it("never touches the file system", async () => {
+    // A platform without a file system has to be able to run Hum, so `node:fs`
+    // may not appear anywhere in the runtime: the build arrives through
+    // `defineBuild`, and even the URL an asset is served from comes from it.
     const src = fileURLToPath(new URL("../src", import.meta.url));
     const readers: string[] = [];
 
     for (const file of await sourceFiles(src)) {
       const source = await readFile(file, "utf8");
-      if (/node:fs/.test(source)) {
+      if (/node:(fs|url)/.test(source)) {
         readers.push(relative(src, file).replace(/\\/g, "/"));
       }
     }
 
-    expect(readers).toEqual(["build_cache.ts"]);
+    expect(readers).toEqual([]);
   });
 });
 

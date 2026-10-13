@@ -38,23 +38,24 @@ the example where applicable.
   server and the generated production server entry both consume; the islands
   entry (`.hum/islands.js`, written by `writeBuildEntries`) is a build input
   whose glob makes the client build emit one chunk per island. The Vite plugin
-  therefore never scans a directory: the production manifest maps island names
-  to chunks by reading Vite's own manifest. Nothing discovers files at runtime
-  either — Hum has no file system discovery at all, which is why `manifest` is
-  required configuration. Everything shares the file naming rules in
+  therefore never scans a directory: the production assets map island names to
+  chunks by reading Vite's own manifest. Nothing discovers files at runtime
+  either — Hum has no file system discovery at all, which is why the build the
+  bundler produced is registered through `defineBuild` instead of passed as
+  configuration. Everything shares the file naming rules in
   `packages/core/src/routing/route_files.ts` — in particular
   `islandNameOfFile` names an island from its path, which is what keeps the
-  bundler's manifest and the glob result in agreement. `route_files.test.ts`
+  bundler's chunk map and the glob result in agreement. `route_files.test.ts`
   spells out which files a fixture project contributes, so a change to
   `globPatterns` has to be reflected there.
-- The runtime never reads the build output. `mountHum` receives the routes
-  (`manifest`) and the production manifest (`prodManifest`) as configuration:
-  the generated entry reads `manifest.json` and injects it, and
-  `readProdManifest` imports `node:fs/promises` on demand so a platform without
-  one can still import Hum. Keep it that way:
-  `packages/core/tests/runtime_entry.test.ts` asserts that no module has a
-  static `node:fs` or `node:url` import, and that `build_cache.ts` is the only
-  one mentioning the file system at all.
+- The runtime never reads the build output, and it never touches the file
+  system: `virtual:hum/build` — generated for development and for the production
+  server alike — calls `defineBuild` with the routes, the islands and the client
+  assets, and `mountHum` boots from what it finds there. The registration lives
+  on `globalThis` because a bundler's dev pipeline runs its own copy of the
+  framework's modules. Keep it that way:
+  `packages/core/tests/runtime_entry.test.ts` asserts that no module mentions
+  `node:fs` or `node:url` at all.
 - Route handlers use Hono's `Context`. `page(data, options)` associates business
   data and an optional response status with the current request through
   request-local context; view data is passed under the `data` prop.
@@ -86,16 +87,17 @@ the example where applicable.
 - Production server builds bundle npm dependencies into relocatable ESM chunks.
   Preserve relative output structure and verify the built `_hum/` tree runs from
   a different directory, and under a different directory name, without
-  `node_modules`. The server entry finds the output directory next to its own
-  bundle, while the client asset URL comes from `assetsBase` in the build
-  manifest, so neither may be derived from the directory name at runtime.
-- Hum renders asset URLs from the build manifest but never serves the output it
-  wrote. Answering `/_hum/client/*` is the application's job (see
+  `node_modules`. The server entry locates nothing on disk — the build is
+  inlined into the bundle — and the client asset URL comes from `assetsBase` in
+  that build, so neither may be derived from the directory name at runtime.
+- Hum renders asset URLs from its build but never serves the output it wrote.
+  Answering `/_hum/client/*` is the application's job (see
   `packages/docs/server.ts` and the scaffold, which use
   `@hono/node-server/serve-static` plus `HUM_OUT_DIR`), normally delegated to a
   reverse proxy, a CDN, or a platform asset binding. Keep only `client/` public:
-  the server bundle and `manifest.json` must stay unreachable over HTTP, and
-  `tools/test-standalone-deploy.mjs` asserts both directions.
+  the server bundle must stay unreachable over HTTP, and
+  `tools/test-standalone-deploy.mjs` asserts both directions — including that no
+  build manifest file ships.
 
 ## Development and Validation
 

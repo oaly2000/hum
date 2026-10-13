@@ -1,11 +1,13 @@
 import { h, Fragment } from "preact";
 import { expect, it } from "vitest";
 
-import { createApp } from "../src/mod.js";
+import { createApp, defineBuild } from "../src/mod.js";
 import type { HumManifest } from "../src/types.js";
 
 function app(manifest: HumManifest) {
-  return createApp({ manifest, dev: true });
+  // The bundler registers the build it produced; the app boots from it.
+  defineBuild({ ...manifest, prod: null });
+  return createApp({ dev: true });
 }
 
 it("renders a plain page through the default shell", async () => {

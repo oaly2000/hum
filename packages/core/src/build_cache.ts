@@ -1,61 +1,9 @@
-import { join } from "node:path";
-
+import type { HumBuild } from "./build.js";
 import { setBuildId } from "./runtime/shared_internal.js";
-import type { HumManifest, Island, Logger } from "./types.js";
+import type { Island, Logger } from "./types.js";
 
 /** URL the dev server serves the client runtime from. */
 export const CLIENT_ENTRY_DEV = "/_hum/runtime.js";
-
-/** Name of the manifest the production build writes into the out dir. */
-export const MANIFEST_FILE = "manifest.json";
-
-export interface ProdIslandEntry {
-  /** Island chunk path, relative to the output directory. */
-  file: string;
-  /** Island stylesheet paths, relative to the output directory. */
-  css?: string[];
-}
-
-export interface ProdManifest {
-  buildId: string;
-  /**
-   * URL the output directory is served from, e.g. `/_hum`. The assets are
-   * addressed through it, while the directory itself is located next to the
-   * server bundle, so the built app keeps working when the output directory is
-   * renamed or moved on the deploy machine.
-   */
-  assetsBase: string;
-  /** Client runtime chunk path, relative to the output directory. */
-  clientEntry: string;
-  islands: Record<string, ProdIslandEntry>;
-  /** Client entry stylesheet paths, relative to the output directory. */
-  entryAssets?: string[];
-}
-
-export function manifestPath(root: string, outDir: string): string {
-  return join(root, outDir, MANIFEST_FILE);
-}
-
-/**
- * Reads the production manifest, or `null` when the app runs in dev.
- *
- * The file system is imported on demand so that `node:fs` stays out of the
- * static module graph: a platform without one can import Hum, and a caller that
- * injects `prodManifest` — or a bundler that supplies the manifest — never
- * resolves it at all. Every failure, including a missing `node:fs`, reads as
- * "no production build", which is the dev configuration.
- */
-export async function readProdManifest(
-  path: string,
-): Promise<ProdManifest | null> {
-  try {
-    const { readFile } = await import("node:fs/promises");
-    const raw = await readFile(path, "utf8");
-    return JSON.parse(raw) as ProdManifest;
-  } catch {
-    return null;
-  }
-}
 
 /**
  * Maps island components to their client side module URLs, and keeps the
@@ -76,7 +24,6 @@ export class BuildCache {
   entryAssets: string[] = [];
   buildId = "dev";
   readonly dev: boolean;
-  #prod: ProdManifest | null = null;
   /** URL prefix the production output directory is served from. */
   #assetsBase = "";
 
@@ -86,19 +33,15 @@ export class BuildCache {
   }
 
   /** Loads every island module and (re)builds the registries. */
-  async load(
-    manifest: HumManifest,
-    prod: ProdManifest | null,
-    logger?: Logger,
-  ): Promise<void> {
-    this.#prod = prod;
+  async load(build: HumBuild, logger?: Logger): Promise<void> {
+    const prod = this.dev ? null : build.prod;
     this.islands.clear();
     this.islandRegistry.clear();
-    this.#assetsBase = this.dev || prod === null
+    this.#assetsBase = prod === null
       ? ""
       : (prod.assetsBase ?? "").replace(/\/+$/, "");
 
-    for (const spec of manifest.islands) {
+    for (const spec of build.islands) {
       let component: unknown;
       try {
         const mod = await spec.load();
@@ -120,9 +63,9 @@ export class BuildCache {
         continue;
       }
 
-      // In dev the modules are served straight from Vite, so a leftover
-      // production manifest must never win over the dev URLs.
-      const prodInfo = this.dev ? undefined : prod?.islands[spec.name];
+      // In dev the modules are served straight from Vite, so the assets of a
+      // build must never win over the dev URLs.
+      const prodInfo = prod?.islands[spec.name];
       const island: Island = {
         name: spec.name,
         exportName: spec.exportName,
@@ -157,9 +100,5 @@ export class BuildCache {
 
   getIsland(name: string): Island | undefined {
     return this.islands.get(name);
-  }
-
-  get prodManifest(): ProdManifest | null {
-    return this.#prod;
   }
 }

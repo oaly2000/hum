@@ -1,9 +1,16 @@
+import type { ProdManifest } from "@humjs/core";
 import { resolve } from "node:path";
 
 /** Shared state the Hum plugins coordinate through. */
 export interface HumContext {
   /** Resolved once Vite merged its own config, so `root` is authoritative. */
   options: ResolvedHumOptions;
+  /**
+   * Client assets of the production build, set once the client pass wrote them.
+   * The build module inlines them for the server pass, which is why the runtime
+   * has no manifest file to read.
+   */
+  prod?: ProdManifest | null;
 }
 
 /** Counts of what Hum found, for the verbose log. */
@@ -87,11 +94,20 @@ export const USER_ENTRY_VIRTUAL_ID = "virtual:hum/client-entry";
 export const RESOLVED_USER_ENTRY_VIRTUAL_ID = "\0" + USER_ENTRY_VIRTUAL_ID;
 
 /**
- * Virtual module that exposes the route and island manifest. It is built on
+ * Virtual module that exposes the route and island specs. It is built on
  * `import.meta.glob`, so the bundler resolves the file list itself.
  */
 export const ROUTES_VIRTUAL_ID = "virtual:hum/routes";
 export const RESOLVED_ROUTES_VIRTUAL_ID = "\0" + ROUTES_VIRTUAL_ID;
+
+/**
+ * Virtual module that registers the build Hum runs from: the route and island
+ * specs plus the production assets. Importing it is what gives the runtime its
+ * input, so it is generated for development and for the production server
+ * alike.
+ */
+export const BUILD_VIRTUAL_ID = "virtual:hum/build";
+export const RESOLVED_BUILD_VIRTUAL_ID = "\0" + BUILD_VIRTUAL_ID;
 
 /** Directory (relative to the root) the generated build inputs live in. */
 export const GENERATED_DIR = ".hum";

@@ -14,6 +14,9 @@ export type {
   MountedHumApp,
 } from "./app.js";
 
+export { defineBuild } from "./build.js";
+export type { HumBuild, ProdIslandEntry, ProdManifest } from "./build.js";
+
 export { HttpError, RouteLoadError } from "./error.js";
 
 export { createDefine, define } from "./define.js";
@@ -65,9 +68,4 @@ export {
   type SuspenseProps,
 } from "./resource.js";
 
-export {
-  BuildCache,
-  manifestPath,
-  type ProdManifest,
-  readProdManifest,
-} from "./build_cache.js";
+export { BuildCache } from "./build_cache.js";

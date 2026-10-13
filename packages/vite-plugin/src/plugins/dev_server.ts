@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import {
   createApp,
   type HumApp,
-  type HumManifest,
+  type HumBuild,
   type HumVariables,
   mountHum,
 } from "@humjs/core";
@@ -13,10 +13,10 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Plugin, ViteDevServer } from "vite";
 
 import {
+  BUILD_VIRTUAL_ID,
   projectSummary,
   projectUrlPath,
   RESOLVED_USER_ENTRY_VIRTUAL_ID,
-  ROUTES_VIRTUAL_ID,
   RUNTIME_URL,
   USER_ENTRY_VIRTUAL_ID,
 } from "../shared.js";
@@ -34,24 +34,25 @@ function isRequestApp(value: unknown): value is RequestApp {
 }
 
 /**
- * Reads the route and island manifest of the running project.
+ * Loads the build of the running project, which registers it with the runtime.
  *
  * The virtual module owns discovery: Vite resolves its `import.meta.glob` calls
  * against the file system and invalidates the module when a route or island
- * file is added or removed, so no directory scan is needed here. The manifest's
- * lazily imported modules are served through this dev server, which is what
+ * file is added or removed, so no directory scan is needed here. Importing the
+ * build module also hands Hum its input, which is what `mountHum` boots from;
+ * its lazily imported modules are served through this dev server, which is what
  * keeps HMR working.
  */
-async function loadManifest(server: ViteDevServer): Promise<HumManifest> {
-  const module = await server.ssrLoadModule(ROUTES_VIRTUAL_ID) as {
-    manifest?: HumManifest;
+async function loadBuild(server: ViteDevServer): Promise<HumBuild> {
+  const module = await server.ssrLoadModule(BUILD_VIRTUAL_ID) as {
+    build?: HumBuild;
   };
-  if (module.manifest === undefined) {
+  if (module.build === undefined) {
     throw new TypeError(
-      `hum: "${ROUTES_VIRTUAL_ID}" did not export a manifest.`,
+      `hum: "${BUILD_VIRTUAL_ID}" did not export a build.`,
     );
   }
-  return module.manifest;
+  return module.build;
 }
 
 /**
@@ -65,11 +66,12 @@ export function humDevServer(ctx: HumContext): Plugin {
   let app: Promise<RequestApp> | null = null;
 
   async function buildApp(server: ViteDevServer): Promise<RequestApp> {
-    const manifest = await loadManifest(server);
+    // Importing the build module registers it, so mounting needs nothing else.
+    const build = await loadBuild(server);
     if (ctx.options.verbose) {
       server.config.logger.info(projectSummary({
-        routes: manifest.routes.length,
-        islands: manifest.islands.length,
+        routes: build.routes.length,
+        islands: build.islands.length,
       }));
     }
 
@@ -80,7 +82,6 @@ export function humDevServer(ctx: HumContext): Plugin {
       outDir: ctx.options.outDir,
       basePath: ctx.options.basePath,
       dev: true,
-      manifest,
     };
 
     const serverEntry = resolve(ctx.options.root, "server.ts");

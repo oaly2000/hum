@@ -29,7 +29,7 @@ function configure(app: Hono) {
 function serveClientAssets(app: Hono) {
   /**
    * URL prefix the client assets are published under, matching `assetsBase` in
-   * the build manifest.
+   * the build.
    */
   const assetsBase = "/_hum";
   const clientRoot = resolve(process.env.HUM_OUT_DIR ?? "./_hum", "client");

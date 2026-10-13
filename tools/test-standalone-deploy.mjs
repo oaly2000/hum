@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { cp, mkdtemp, readdir, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join, relative, resolve, sep } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 
@@ -151,28 +151,35 @@ try {
     assert.equal(response.status, 200, `client asset should be served: ${asset}`);
   }
 
-  // Islands are lazy chunks the app addresses through the build manifest rather
-  // than through its markup, so every island — and every stylesheet the build
-  // recorded for it — has to be served too.
-  const buildManifest = JSON.parse(
-    await readFile(join(runtimeRoot, outDir, "manifest.json"), "utf8"),
+  // The runtime carries its build inside the server bundle — there is no
+  // manifest file for the deployed app to read.
+  assert.equal(
+    await exists(join(runtimeRoot, outDir, "manifest.json")),
+    false,
+    "the deployment must not carry a build manifest file",
   );
-  const islandAssets = Object.values(buildManifest.islands).flatMap(
-    (island) => [island.file, ...(island.css ?? [])],
-  );
+
+  // Islands are lazy chunks the app addresses through the build rather than
+  // through its markup, so every asset the client build emitted — including the
+  // stylesheets recorded for an island — has to be served too.
+  const clientRoot = join(runtimeRoot, outDir, "client");
+  const assetsBase = "/_hum";
+  const islandAssets = (await listFiles(clientRoot))
+    .map((file) => relative(clientRoot, file).split(sep).join("/"))
+    .filter((file) => file.endsWith(".js") || file.endsWith(".css"));
   assert.ok(
     islandAssets.length > 0,
-    "the build manifest should map at least one island",
+    "the client build should have emitted assets",
   );
   for (const asset of islandAssets) {
-    const url = `${buildManifest.assetsBase}/${asset}`;
+    const url = `${assetsBase}/client/${asset}`;
     const response = await fetch(`${origin}${url}`);
-    assert.equal(response.status, 200, `island asset should be served: ${url}`);
+    assert.equal(response.status, 200, `client asset should be served: ${url}`);
   }
 
   // Only the client half of the output directory is public: the server bundle
-  // and the build manifest must never be reachable over HTTP.
-  for (const path of ["/_hum/server/server.js", "/_hum/manifest.json"]) {
+  // must never be reachable over HTTP.
+  for (const path of ["/_hum/server/server.js"]) {
     const response = await fetch(`${origin}${path}`);
     assert.equal(response.status, 404, `${path} must not be served`);
   }

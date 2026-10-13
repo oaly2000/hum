@@ -1,15 +1,7 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-
 import { describe, expect, it } from "vitest";
 
-import {
-  BuildCache,
-  manifestPath,
-  type ProdManifest,
-  readProdManifest,
-} from "../src/build_cache.js";
+import type { ProdManifest } from "../src/build.js";
+import { BuildCache } from "../src/build_cache.js";
 import type { HumManifest } from "../src/types.js";
 
 // Paths are relative to the output directory; `assetsBase` carries the URL the
@@ -40,9 +32,9 @@ const manifest: HumManifest = {
 };
 
 describe("BuildCache", () => {
-  it("uses the production manifest when it is not in dev mode", async () => {
+  it("uses the production assets when it is not in dev mode", async () => {
     const cache = new BuildCache(false);
-    await cache.load(manifest, prod);
+    await cache.load({ ...manifest, prod });
 
     expect(cache.clientEntry).toBe("/_hum/client/assets/runtime.js");
     expect(cache.entryAssets).toEqual(["/_hum/client/assets/entry.css"]);
@@ -55,14 +47,11 @@ describe("BuildCache", () => {
     ]);
   });
 
-  it("addresses the assets through the manifest URL, not the output directory name", async () => {
+  it("addresses the assets through the recorded URL, not the output directory name", async () => {
     // The output directory can be renamed or moved on the deploy machine, so
-    // only the URL stored in the manifest may reach the client.
+    // only the URL the build recorded may reach the client.
     const cache = new BuildCache(false);
-    await cache.load(
-      manifest,
-      { ...prod, assetsBase: "/wwwroot/" },
-    );
+    await cache.load({ ...manifest, prod: { ...prod, assetsBase: "/wwwroot/" } });
 
     expect(cache.clientEntry).toBe("/wwwroot/client/assets/runtime.js");
     expect(cache.getIsland("Counter")?.clientUrl).toBe(
@@ -70,39 +59,15 @@ describe("BuildCache", () => {
     );
   });
 
-  it("ignores a stale production manifest in dev mode", async () => {
-    // A leftover `_hum/manifest.json` from an earlier build must not make the
-    // dev server point at hashed assets that no longer exist.
+  it("ignores the production assets in dev mode", async () => {
+    // The modules are served straight from Vite in dev, so a build that carries
+    // assets must not make it point at hashed chunks that no longer exist.
     const cache = new BuildCache(true);
-    await cache.load(manifest, prod);
+    await cache.load({ ...manifest, prod });
 
     expect(cache.clientEntry).not.toBe(prod.clientEntry);
     expect(cache.buildId).toBe("dev");
     expect(cache.entryAssets).toEqual([]);
     expect(cache.getIsland("Counter")?.clientUrl).toBe("/islands/Counter.tsx");
-  });
-});
-
-describe("readProdManifest", () => {
-  it("locates and reads what the build wrote", async () => {
-    const root = await mkdtemp(join(tmpdir(), "hum-prod-"));
-    try {
-      const path = manifestPath(root, "_hum");
-      await mkdir(join(root, "_hum"), { recursive: true });
-      await writeFile(path, JSON.stringify(prod));
-
-      expect(await readProdManifest(path)).toEqual(prod);
-    } finally {
-      await rm(root, { recursive: true, force: true });
-    }
-  });
-
-  it("reports no production build when the file is missing", async () => {
-    const root = await mkdtemp(join(tmpdir(), "hum-prod-"));
-    try {
-      expect(await readProdManifest(manifestPath(root, "_hum"))).toBeNull();
-    } finally {
-      await rm(root, { recursive: true, force: true });
-    }
   });
 });

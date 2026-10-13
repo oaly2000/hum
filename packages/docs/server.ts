@@ -6,7 +6,7 @@ import { Hono } from "hono";
 
 /**
  * URL prefix the client assets are published under, matching `assetsBase` in
- * the build manifest.
+ * the build.
  */
 const assetsBase = "/_hum";
 

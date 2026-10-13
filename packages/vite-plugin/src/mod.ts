@@ -1,5 +1,6 @@
 import type { Plugin } from "vite";
 
+import { humBuildInput } from "./plugins/build_input.js";
 import { humBuild } from "./plugins/build.js";
 import { humClientEntry } from "./plugins/client_entry.js";
 import { humDevServer } from "./plugins/dev_server.js";
@@ -37,6 +38,7 @@ export function hum(userOptions: HumOptions = {}): Plugin[] {
       },
     },
     humRoutes(ctx),
+    humBuildInput(ctx),
     humIslands(),
     humClientEntry(ctx),
     humDevServer(ctx),

@@ -133,6 +133,10 @@ describe("writeBuildEntries", () => {
     );
     expect(entry).toContain("await mountHum(app, humConfig);");
     expect(entry).toContain('import { serve } from "@hono/node-server";');
+    // The build is the entry's input: importing the generated module registers
+    // the routes, the islands and the client assets with the runtime, so
+    // mounting needs no configuration of its own.
+    expect(entry).toContain('import "virtual:hum/build";');
     expect(entry).toContain(
       "{ fetch: app.fetch, port, hostname, overrideGlobalObjects: false }",
     );
@@ -147,19 +151,16 @@ describe("writeBuildEntries", () => {
     await writeBuildEntries(ctx);
     const entry = await readFile(join(root, SERVER_ENTRY), "utf8");
 
-    // The output directory is located next to the server bundle so a renamed
-    // or moved deployment keeps working; the depth comes from the configured
-    // `outDir`, the actual name from the deployed directory.
-    expect(entry).toContain(
-      'const buildDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");',
-    );
-    expect(entry).toContain('const root = resolve(buildDir, "..", "..");');
-    expect(entry).toContain(
-      'const outDir = relative(root, buildDir).split(sep).join("/");',
-    );
-    expect(entry).toContain("  root,\n  routesDir:");
-    expect(entry).toContain("  outDir,\n  dev: false,");
+    // Routes, islands and client assets all travel inside the build module, so
+    // the entry locates nothing on disk: it stays free of the paths of the
+    // machine that produced it, and a renamed or moved deployment keeps
+    // working.
+    expect(entry).toContain('import "virtual:hum/build";');
+    expect(entry).toContain("  routesDir:");
+    expect(entry).toContain("  dev: false,");
     expect(entry).not.toContain(root.replace(/\\/g, "/"));
+    expect(entry).not.toContain("node:path");
+    expect(entry).not.toContain("node:url");
     expect(entry).toContain("const app = await createApp(humConfig);");
     expect(entry).toContain('import { serve } from "@hono/node-server";');
     expect(entry).not.toContain("startServer");
