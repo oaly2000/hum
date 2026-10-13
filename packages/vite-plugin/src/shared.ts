@@ -15,6 +15,12 @@ export interface HumContext {
   project: HumProject;
 }
 
+/** One line summary of the discovered project, used by the verbose log. */
+export function projectSummary(project: HumProject): string {
+  return `hum: ${project.routes.length} route file(s), ` +
+    `${project.islands.length} island(s)`;
+}
+
 /** Options accepted by the `hum()` Vite plugin. */
 export interface HumOptions {
   /** Project root. Defaults to the Vite root. */
@@ -73,6 +79,13 @@ export const RUNTIME_URL = "/_hum/runtime.js";
 /** Virtual module that imports the user client entry (if any) and the runtime. */
 export const USER_ENTRY_VIRTUAL_ID = "virtual:hum/client-entry";
 export const RESOLVED_USER_ENTRY_VIRTUAL_ID = "\0" + USER_ENTRY_VIRTUAL_ID;
+
+/**
+ * Virtual module that exposes the route and island manifest. It is built on
+ * `import.meta.glob`, so the bundler resolves the file list itself.
+ */
+export const ROUTES_VIRTUAL_ID = "virtual:hum/routes";
+export const RESOLVED_ROUTES_VIRTUAL_ID = "\0" + ROUTES_VIRTUAL_ID;
 
 /**
  * Placeholder comment that marks where dev-only styles collected from the

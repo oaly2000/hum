@@ -8,12 +8,14 @@ import { build, type Plugin } from "vite";
 import {
   CLIENT_RUNTIME_ENTRY,
   makeBuildId,
+  projectSummary,
   SERVER_ENTRY,
   SERVER_ENTRY_NAME,
   type HumContext,
   type ResolvedHumOptions,
 } from "../shared.js";
 import { writeBuildEntries } from "./islands.js";
+import { humRoutes } from "./routes.js";
 
 const MANIFEST_FILE = "manifest.json";
 
@@ -102,6 +104,9 @@ export function humBuild(ctx: HumContext): Plugin {
       const options = ctx.options;
       const dirs = outDirs(options);
 
+      // Route and island discovery for the server happens in the bundler, via
+      // `virtual:hum/routes`. The client build cannot use a glob for its entry
+      // points, so it still needs the file list up front.
       const crawled = await crawlProject({
         root: options.root,
         routesDir: options.routesDir,
@@ -109,6 +114,7 @@ export function humBuild(ctx: HumContext): Plugin {
       });
       ctx.project.routes = crawled.routes;
       ctx.project.islands = crawled.islands;
+      if (options.verbose) this.info(projectSummary(ctx.project));
       await writeBuildEntries(ctx);
 
       isSsr = env.isSsrBuild === true;
@@ -161,9 +167,12 @@ export function humBuild(ctx: HumContext): Plugin {
 
       await build({
         root: options.root,
-        // The server bundle needs no Hum plugins, which also keeps this pass
-        // out of the plugin's own build hooks.
+        // This pass provides its own plugin list instead of reusing the config
+        // file, which keeps it out of the plugin's other build hooks. The routes
+        // plugin is the exception: the generated server entry imports the
+        // manifest from its virtual module.
         configFile: false,
+        plugins: [humRoutes(ctx)],
         logLevel: "warn",
         build: {
           outDir: dirs.server,

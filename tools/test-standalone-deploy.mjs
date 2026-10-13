@@ -84,7 +84,14 @@ try {
     [join(runtimeRoot, outDir, "server", "server.js")],
     {
       cwd: runtimeRoot,
-      env: { ...process.env, PORT: String(port) },
+      // Hum does not serve its own output, so the deployment tells the app
+      // where the renamed directory ended up; its own static middleware
+      // answers the client asset requests from there.
+      env: {
+        ...process.env,
+        PORT: String(port),
+        HUM_OUT_DIR: join(runtimeRoot, outDir),
+      },
       stdio: ["ignore", "pipe", "pipe"],
     },
   );
@@ -128,7 +135,8 @@ try {
   assert.match(css.headers.get("content-type") ?? "", /text\/css/);
 
   // Every client asset the rendered page points at must be reachable even
-  // though the output directory was renamed on disk.
+  // though the output directory was renamed on disk: the app's own static
+  // middleware serves them from the directory it was told about.
   const clientAssets = [
     ...new Set(
       [...homeHtml.matchAll(/\/_hum\/[A-Za-z0-9._/-]+/g)].map((m) => m[0]),
@@ -143,13 +151,21 @@ try {
     assert.equal(response.status, 200, `client asset should be served: ${asset}`);
   }
 
+  // Only the client half of the output directory is public: the server bundle
+  // and the build manifest must never be reachable over HTTP.
+  for (const path of ["/_hum/server/server.js", "/_hum/manifest.json"]) {
+    const response = await fetch(`${origin}${path}`);
+    assert.equal(response.status, 404, `${path} must not be served`);
+  }
+
   const missing = await fetch(`${origin}/this-route-does-not-exist`);
   assert.equal(missing.status, 404);
   assert.match(await missing.text(), /404/);
 
   console.log(
     "Scaffold and standalone deployment passed: a renamed output directory " +
-      "runs without node_modules or source package.json.",
+      "runs without node_modules or source package.json, serves its client " +
+      "assets, and keeps the server bundle private.",
   );
 } catch (error) {
   if (serverOutput.length > 0) {

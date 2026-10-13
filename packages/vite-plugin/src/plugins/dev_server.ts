@@ -8,14 +8,15 @@ import {
   type HumVariables,
   mountHum,
 } from "@humjs/core";
-import { crawlProject } from "@humjs/core/discovery";
 import { Hono } from "hono";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Plugin, ViteDevServer } from "vite";
 
 import {
+  projectSummary,
   projectUrlPath,
   RESOLVED_USER_ENTRY_VIRTUAL_ID,
+  ROUTES_VIRTUAL_ID,
   RUNTIME_URL,
   USER_ENTRY_VIRTUAL_ID,
 } from "../shared.js";
@@ -33,6 +34,27 @@ function isRequestApp(value: unknown): value is RequestApp {
 }
 
 /**
+ * Reads the route and island manifest of the running project.
+ *
+ * The virtual module owns discovery: Vite resolves its `import.meta.glob` calls
+ * against the file system and invalidates the module when a route or island
+ * file is added or removed, so no directory scan is needed here. The manifest's
+ * lazily imported modules are served through this dev server, which is what
+ * keeps HMR working.
+ */
+async function loadManifest(server: ViteDevServer): Promise<HumManifest> {
+  const module = await server.ssrLoadModule(ROUTES_VIRTUAL_ID) as {
+    manifest?: HumManifest;
+  };
+  if (module.manifest === undefined) {
+    throw new TypeError(
+      `hum: "${ROUTES_VIRTUAL_ID}" did not export a manifest.`,
+    );
+  }
+  return module.manifest;
+}
+
+/**
  * Mounts the Hum SSR handler into the Vite dev server.
  *
  * Vite owns every request it can answer itself (island modules, assets, HMR);
@@ -43,29 +65,12 @@ export function humDevServer(ctx: HumContext): Plugin {
   let app: Promise<RequestApp> | null = null;
 
   async function buildApp(server: ViteDevServer): Promise<RequestApp> {
-    const crawled = await crawlProject({
-      root: ctx.options.root,
-      routesDir: ctx.options.routesDir,
-      islandsDir: ctx.options.islandsDir,
-    });
-    ctx.project.routes = crawled.routes;
-    ctx.project.islands = crawled.islands;
-
-    const loader = (absPath: string) => () =>
-      server.ssrLoadModule(
-        projectUrlPath(ctx.options.root, absPath),
-      ) as Promise<Record<string, unknown>>;
-
-    const manifest: HumManifest = {
-      routes: crawled.routes.map((spec) => ({
-        ...spec,
-        load: loader(spec.absPath),
-      })),
-      islands: crawled.islands.map((spec) => ({
-        ...spec,
-        load: loader(spec.absPath),
-      })),
-    };
+    const manifest = await loadManifest(server);
+    ctx.project.routes = manifest.routes;
+    ctx.project.islands = manifest.islands;
+    if (ctx.options.verbose) {
+      server.config.logger.info(projectSummary(ctx.project));
+    }
 
     const humConfig = {
       root: ctx.options.root,

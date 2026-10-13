@@ -145,8 +145,12 @@ export type RouteKind =
 export interface RouteFileSpec {
   /** Path relative to the project root, using `/` separators. */
   file: string;
-  /** Absolute path on disk. */
-  absPath: string;
+  /**
+   * Absolute path on disk. Only the file system crawler fills this in;
+   * bundler driven discovery resolves its modules through `import.meta.glob`,
+   * which needs no path. Nothing at runtime reads it.
+   */
+  absPath?: string;
   kind: RouteKind;
   /**
    * URL path derived from the file path, still containing `[param]`,
@@ -162,8 +166,12 @@ export interface IslandSpec {
   exportName: string;
   /** Path relative to the project root, used for the client asset URL. */
   file: string;
-  /** Absolute path on disk. */
-  absPath: string;
+  /**
+   * Absolute path on disk. Only the file system crawler fills this in;
+   * bundler driven discovery resolves its modules through `import.meta.glob`,
+   * which needs no path. Nothing at runtime reads it.
+   */
+  absPath?: string;
 }
 
 /**

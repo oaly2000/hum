@@ -35,7 +35,6 @@ import {
   resolveRoutes,
   unmatchedRoute,
 } from "./routing/fs_routes.js";
-import { staticAssetHandler } from "./static.js";
 import type {
   HumContext,
   HumManifest,
@@ -214,10 +213,6 @@ export async function mountHum<
     );
   }
 
-  // Serve the production build output. In dev Vite handles these requests
-  // before the Hum handler, so this branch stays inert.
-  app.use(`${resolved.assetsBase}/*`, staticAssetHandler(resolved));
-
   const internals: HumInternals = {
     config: resolved,
     manifest,
@@ -369,16 +364,18 @@ async function crawlToManifest(config: HumConfig): Promise<HumManifest> {
     routes: crawled.routes.map((spec) => ({
       ...spec,
       // The path is only known at runtime; Vite must not try to resolve it.
+      // This branch only runs on a crawl, which always records the path.
       load: () =>
-        import(/* @vite-ignore */ pathToFileURL(spec.absPath).href) as Promise<
+        import(/* @vite-ignore */ pathToFileURL(spec.absPath!).href) as Promise<
           Record<string, unknown>
         >,
     })),
     islands: crawled.islands.map((spec) => ({
       ...spec,
       // The path is only known at runtime; Vite must not try to resolve it.
+      // This branch only runs on a crawl, which always records the path.
       load: () =>
-        import(/* @vite-ignore */ pathToFileURL(spec.absPath).href) as Promise<
+        import(/* @vite-ignore */ pathToFileURL(spec.absPath!).href) as Promise<
           Record<string, unknown>
         >,
     })),

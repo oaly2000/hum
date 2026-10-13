@@ -13,8 +13,14 @@ The production server bundle includes its npm dependencies, so the runtime
 deployment does not need the project's `node_modules`. The generated `_hum/`
 directory can move or even be renamed — it locates itself next to the server
 bundle — as long as its internal structure is kept and `server/server.js` is the
-entry point. Client assets stay reachable under `/_hum/`, the URL recorded in
-the build manifest. Node.js 20 or newer is still required.
+entry point.
+
+Hum renders the client asset URLs the build manifest recorded (under `/_hum/`
+by default) but does not serve them itself: `server.ts` answers those requests
+with `@hono/node-server/serve-static`, and `HUM_OUT_DIR` points it at a renamed
+or relocated output directory. Delegate them to a reverse proxy or a CDN in
+production. Only `_hum/client/` is public — `_hum/server/` and
+`_hum/manifest.json` stay unreachable. Node.js 20 or newer is still required.
 
 ## Hono server
 

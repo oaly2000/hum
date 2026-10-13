@@ -1,8 +1,19 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 
-import type { IslandSpec, Logger, RouteFileSpec, RouteKind } from "../types.js";
+import type { IslandSpec, Logger, RouteFileSpec } from "../types.js";
 import { urlPathOf } from "../routing/path_to_pattern.js";
+import {
+  classify,
+  islandNameOf,
+  isModuleFile,
+  stripExtension,
+} from "../routing/route_files.js";
+
+// The file naming rules live in `@humjs/core/routing` so that the bundler
+// driven discovery (`specsFromGlob`) and this crawler cannot drift apart. The
+// name is re-exported here because `@humjs/core/discovery` published it.
+export { islandNameOf };
 
 export interface CrawlOptions {
   /** Project root, absolute. */
@@ -17,48 +28,6 @@ export interface CrawlOptions {
 export interface CrawledProject {
   routes: RouteFileSpec[];
   islands: IslandSpec[];
-}
-
-const EXTENSIONS = [".tsx", ".jsx", ".ts", ".js"];
-
-function isModuleFile(name: string): boolean {
-  if (name.endsWith(".d.ts")) return false;
-  if (name.startsWith(".") || name.startsWith("-")) return false;
-  return EXTENSIONS.some((ext) => name.endsWith(ext));
-}
-
-function stripExtension(name: string): string {
-  for (const ext of EXTENSIONS) {
-    if (name.endsWith(ext)) return name.slice(0, -ext.length);
-  }
-  return name;
-}
-
-function classify(basename: string): RouteKind {
-  switch (basename) {
-    case "_app":
-      return "app";
-    case "_layout":
-      return "layout";
-    case "_middleware":
-      return "middleware";
-    case "_404":
-      return "notFound";
-    case "_error":
-    case "_500":
-      return "error";
-    default:
-      return "route";
-  }
-}
-
-/** Turns an island file path into a marker safe identifier. */
-export function islandNameOf(relPathNoExt: string): string {
-  const name = relPathNoExt.split("/").join("_").replace(
-    /[^A-Za-z0-9_$]/g,
-    "_",
-  );
-  return /^[0-9]/.test(name) ? "_" + name : name;
 }
 
 /**

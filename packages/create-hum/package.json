@@ -17,7 +17,8 @@
     "README.md"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "node ../../tools/clean-dist.mjs && tsc -p tsconfig.json",
+    "clean": "node ../../tools/clean-dist.mjs",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

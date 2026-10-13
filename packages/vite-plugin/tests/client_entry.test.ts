@@ -120,7 +120,10 @@ describe("writeBuildEntries", () => {
         join(root, "server.ts").replace(/\\/g, "/") + '")',
     );
     expect(entry).toContain("await mountHum(app, humConfig);");
-    expect(entry).toContain("serve(app);");
+    expect(entry).toContain('import { serve } from "@hono/node-server";');
+    expect(entry).toContain(
+      "{ fetch: app.fetch, port, hostname, overrideGlobalObjects: false }",
+    );
     expect(entry).not.toContain("startServer");
     rmSync(root, { recursive: true, force: true });
   });
@@ -148,7 +151,8 @@ describe("writeBuildEntries", () => {
     expect(entry).toContain("  root,\n  routesDir:");
     expect(entry).toContain("  outDir,\n  dev: false,");
     expect(entry).not.toContain(root.replace(/\\/g, "/"));
-    expect(entry).toContain("serve(humApp);");
+    expect(entry).toContain("const app = await createApp(humConfig);");
+    expect(entry).toContain('import { serve } from "@hono/node-server";');
     expect(entry).not.toContain("startServer");
     rmSync(root, { recursive: true, force: true });
   });

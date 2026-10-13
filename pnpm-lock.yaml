@@ -29,9 +29,6 @@ importers:
 
   packages/core:
     dependencies:
-      '@hono/node-server':
-        specifier: ^2.1.4
-        version: 2.1.4(hono@4.13.13)
       '@preact/signals':
         specifier: ^2.11.3
         version: 2.11.3(preact@11.0.1)
