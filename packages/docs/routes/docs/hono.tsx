@@ -35,7 +35,7 @@ export default function HonoGuide(_props: RouteProps) {
       <h1 class="text-3xl font-black tracking-tight sm:text-4xl">
         Hono and Hum middleware
       </h1>
-      <p class="mt-5 text-lg leading-8 text-[#657168]">
+      <p class="mt-5 text-lg leading-8 text-muted">
         Hum mounts its file routes onto the Hono app exported by{" "}
         <code>server.ts</code>. Both middleware systems run in the same request
         pipeline, but their scopes are different.
@@ -44,7 +44,7 @@ export default function HonoGuide(_props: RouteProps) {
       <h2 class="mt-12 text-xl font-extrabold tracking-tight sm:text-2xl">
         Hono middleware: app and URL scope
       </h2>
-      <p class="mt-3 leading-7 text-[#657168]">
+      <p class="mt-3 leading-7 text-muted">
         Register Hono middleware on the app before Hum is mounted. It runs for
         matching Hono API routes and Hum requests; a path pattern lets you
         select which requests it wraps. For example, app-wide middleware can
@@ -53,7 +53,7 @@ export default function HonoGuide(_props: RouteProps) {
         you have loaded carries its <code>x-powered-by</code>{" "}
         header, including the{" "}
         <a
-          class="font-semibold text-[#587d26] hover:underline"
+          class="font-semibold text-accent hover:underline"
           href="/api/health"
         >
           /api/health
@@ -65,7 +65,7 @@ export default function HonoGuide(_props: RouteProps) {
       <h2 class="mt-12 text-xl font-extrabold tracking-tight sm:text-2xl">
         Hum middleware: a directory-scoped mount point
       </h2>
-      <p class="mt-3 leading-7 text-[#657168]">
+      <p class="mt-3 leading-7 text-muted">
         A Hum <code>_middleware.ts</code>{" "}
         is a mount point for a Hono middleware, scoped by the directory it lives
         in: it applies to Hum file routes in that directory and descendants.
@@ -76,14 +76,14 @@ export default function HonoGuide(_props: RouteProps) {
         apply to Hono API routes declared in <code>server.ts</code>.
       </p>
       <CodeBlock code={humMiddlewareExample} />
-      <p class="mt-4 leading-7 text-[#657168]">
+      <p class="mt-4 leading-7 text-muted">
         This site has none, so the difference is easy to see: the header above
         is added by Hono middleware and appears on every response, while a{" "}
         <code>_middleware.ts</code> in <code>routes/docs/</code> would only run
         for the guide pages below it—never for <code>/api/health</code>.
       </p>
 
-      <div class="mt-6 rounded-2xl border border-[#e3eadb] bg-[#f4f8ec] p-5 leading-7 text-[#556450]">
+      <div class="mt-6 rounded-2xl border border-line bg-surface-2 p-5 leading-7 text-muted">
         Reach for <code>app.use()</code> in <code>server.ts</code> first: it is
         the general alternative and covers both Hum pages and Hono API routes by
         path pattern. Use <code>_middleware.ts</code>{" "}

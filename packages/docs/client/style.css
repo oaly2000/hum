@@ -1,5 +1,97 @@
 @import "tailwindcss";
 
+/*
+  The palette is a set of variables, so a theme is a different set of values
+  rather than a second copy of every class: `bg-fg`/`text-bg` even swap roles
+  between the two, which is what keeps a button readable in both. The `.dark`
+  class on `<html>` picks the dark set, and an inline script in `_app.tsx`
+  applies it before the first paint so the page never flashes the wrong theme.
+*/
+:root {
+  --hum-bg: #fbfcf8;
+  --hum-fg: #17211b;
+  --hum-fg-soft: #465348;
+  --hum-fg-hover: #2e4033;
+  --hum-muted: #657168;
+  --hum-faint: #b7c1b8;
+  --hum-line: #e3eadb;
+  --hum-surface: #ffffff;
+  --hum-surface-2: #f4f8ec;
+  --hum-accent: #587d26;
+  --hum-accent-strong: #45651c;
+  --hum-accent-bg: #eff8d6;
+  --hum-danger: #651c1c;
+  --hum-danger-bg: #f8ecec;
+  --hum-danger-line: #e8c8c8;
+  --hum-glow-1: #e5f8a9;
+  --hum-glow-2: #eaf8ce;
+}
+
+.dark {
+  --hum-bg: #0f1512;
+  --hum-fg: #e9eee9;
+  --hum-fg-soft: #c2ccc3;
+  --hum-fg-hover: #f4f8f3;
+  --hum-muted: #98a59b;
+  --hum-faint: #5f6d64;
+  --hum-line: #262f29;
+  --hum-surface: #151c18;
+  --hum-surface-2: #1a221d;
+  --hum-accent: #a8cf5e;
+  --hum-accent-strong: #c6e283;
+  --hum-accent-bg: #232f1c;
+  --hum-danger: #ffb3b3;
+  --hum-danger-bg: #2a1719;
+  --hum-danger-line: #4a2529;
+  --hum-glow-1: #2d3a1e;
+  --hum-glow-2: #1c2620;
+}
+
+/*
+  The brand colour and the code surface are the same in both themes: the lime
+  badge keeps its contrast against the label it sits on, and a code block stays
+  a code block.
+*/
+:root,
+.dark {
+  --hum-brand: #d8f36a;
+  --hum-brand-fg: #101813;
+  --hum-code: #101813;
+}
+
+/*
+  `inline` makes every utility reference the palette variable itself instead of
+  a second `--color-*` indirection, so the value the current theme set is the one
+  that is used. Tailwind cannot split a `var()` to apply an opacity modifier to
+  it, so the translucent shades the design needs are colours of their own.
+*/
+@theme inline {
+  --color-surface-70: color-mix(in srgb, var(--hum-surface) 70%, transparent);
+  --color-surface-80: color-mix(in srgb, var(--hum-surface) 80%, transparent);
+  --color-elevation: color-mix(in srgb, var(--hum-fg) 8%, transparent);
+
+  --color-bg: var(--hum-bg);
+  --color-fg: var(--hum-fg);
+  --color-fg-soft: var(--hum-fg-soft);
+  --color-fg-hover: var(--hum-fg-hover);
+  --color-muted: var(--hum-muted);
+  --color-faint: var(--hum-faint);
+  --color-line: var(--hum-line);
+  --color-surface: var(--hum-surface);
+  --color-surface-2: var(--hum-surface-2);
+  --color-accent: var(--hum-accent);
+  --color-accent-strong: var(--hum-accent-strong);
+  --color-accent-bg: var(--hum-accent-bg);
+  --color-danger: var(--hum-danger);
+  --color-danger-bg: var(--hum-danger-bg);
+  --color-danger-line: var(--hum-danger-line);
+  --color-brand: var(--hum-brand);
+  --color-brand-fg: var(--hum-brand-fg);
+  --color-code: var(--hum-code);
+}
+
+/* Code blocks sit on the code surface in both themes, so the highlight colours
+   only ever have to work on it. */
 .syntax-highlight .hljs-comment,
 .syntax-highlight .hljs-quote {
   color: #8b9c85;

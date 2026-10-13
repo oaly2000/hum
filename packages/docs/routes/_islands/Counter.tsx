@@ -18,7 +18,7 @@ export default function Counter({ start = 0 }: { start?: number }) {
         {count.value}
       </output>
       <button
-        class="grid size-11 place-items-center rounded-xl bg-[#d8f36a] text-xl font-bold text-[#17211b] transition hover:bg-[#e4fa91]"
+        class="grid size-11 place-items-center rounded-xl bg-brand text-xl font-bold text-brand-fg transition hover:bg-[#e4fa91]"
         type="button"
         onClick={() => count.value++}
         aria-label="Increase count"

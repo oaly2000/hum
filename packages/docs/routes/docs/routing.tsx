@@ -45,13 +45,13 @@ export default function RoutingGuide(_props: RouteProps) {
       <h1 class="text-3xl font-black tracking-tight sm:text-4xl">
         Routing and rendering
       </h1>
-      <p class="mt-5 text-lg leading-8 text-[#657168]">
+      <p class="mt-5 text-lg leading-8 text-muted">
         Hum discovers routes from files. Special files add document shells,
         layouts, middleware, error pages, and not-found pages to the route tree.
       </p>
 
       <h2 class="mt-12 text-xl font-extrabold tracking-tight sm:text-2xl">Route files</h2>
-      <p class="mt-3 leading-7 text-[#657168]">
+      <p class="mt-3 leading-7 text-muted">
         Route files become URLs from their relative paths. This is the tree of
         the site you are reading: the guide pages come from{" "}
         <code>docs/</code>, and the page you are on now is the optional segment{" "}
@@ -60,14 +60,14 @@ export default function RoutingGuide(_props: RouteProps) {
         segments.
       </p>
       <CodeBlock code={routeTreeExample} language="bash" />
-      <p class="mt-3 leading-7 text-[#657168]">
+      <p class="mt-3 leading-7 text-muted">
         Files in a route directory normally become routes. Put reusable view
         components in a nearby <code>_components/</code>{" "}
         directory to keep them out of route discovery while still importing them
         with a relative path, for example{" "}
         <code>import Author from "./_components/Author.js"</code>.
       </p>
-      <ul class="mt-4 list-disc space-y-2 pl-6 leading-7 text-[#657168]">
+      <ul class="mt-4 list-disc space-y-2 pl-6 leading-7 text-muted">
         <li>
           <code>[id].tsx</code> matches one dynamic path segment.
         </li>
@@ -85,7 +85,7 @@ export default function RoutingGuide(_props: RouteProps) {
       <h2 class="mt-12 text-xl font-extrabold tracking-tight sm:text-2xl">
         Layouts and special files
       </h2>
-      <p class="mt-3 leading-7 text-[#657168]">
+      <p class="mt-3 leading-7 text-muted">
         <code>_app.tsx</code> provides the outer document,
         <code>_layout.tsx</code> wraps routes in its directory,
         <code>_middleware.ts</code> mounts Hono middleware for routes below it,
@@ -95,7 +95,7 @@ export default function RoutingGuide(_props: RouteProps) {
         middleware, and error/not-found pages apply within their route branch.
       </p>
       <CodeBlock code={middlewareExample} />
-      <p class="mt-4 leading-7 text-[#657168]">
+      <p class="mt-4 leading-7 text-muted">
         Guarding an admin branch is the usual reason to add one, because the
         directory the file lives in is its scope. For app-wide or URL-prefix
         policy use <code>app.use()</code> in <code>server.ts</code> instead—the
@@ -103,7 +103,7 @@ export default function RoutingGuide(_props: RouteProps) {
         middleware it does run is Hono middleware in <code>server.ts</code>,
         covered in the{" "}
         <a
-          class="font-semibold text-[#587d26] hover:underline"
+          class="font-semibold text-accent hover:underline"
           href="/docs/hono"
         >
           next guide
@@ -113,7 +113,7 @@ export default function RoutingGuide(_props: RouteProps) {
       <h2 class="mt-12 text-xl font-extrabold tracking-tight sm:text-2xl">
         HTML first, islands by choice
       </h2>
-      <p class="mt-3 leading-7 text-[#657168]">
+      <p class="mt-3 leading-7 text-muted">
         Pages and components render to HTML on the server. A component becomes
         interactive when it is discovered under <code>islands/</code>{" "}
         or a route-local <code>_islands/</code>{" "}
@@ -123,10 +123,10 @@ export default function RoutingGuide(_props: RouteProps) {
       </p>
       <CodeBlock code={islandExample} />
 
-      <p class="mt-12 border-t border-[#e3eadb] pt-6 text-sm text-[#788279]">
+      <p class="mt-12 border-t border-line pt-6 text-sm text-muted">
         Next:{" "}
         <a
-          class="font-semibold text-[#587d26] hover:underline"
+          class="font-semibold text-accent hover:underline"
           href="/docs/hono"
         >
           Hono integration and deployment →

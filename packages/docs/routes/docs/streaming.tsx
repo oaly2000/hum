@@ -79,7 +79,7 @@ export default define.page<PageData>(({ data }) => (
 
 function ResourceDemo({ data }: { data: DemoData }) {
   return (
-    <p class="font-semibold text-[#45651c]" aria-live="polite">
+    <p class="font-semibold text-accent-strong" aria-live="polite">
       {data.message}
     </p>
   );
@@ -95,20 +95,20 @@ export default define.page<StreamingPageData>(({ data }) => {
       <h1 class="text-3xl font-black tracking-tight sm:text-4xl">
         Experimental streaming
       </h1>
-      <p class="mt-5 text-lg leading-8 text-[#657168]">
+      <p class="mt-5 text-lg leading-8 text-muted">
         Streaming SSR is an opt-in escape hatch for routes that benefit from
         sending the page shell before suspended content is ready. Routes without
         streaming enabled keep Hum’s normal complete-document rendering.
       </p>
 
-      <section class="mt-8 rounded-2xl border border-[#dce8c8] bg-[#f4f8ec] p-5">
+      <section class="mt-8 rounded-2xl border border-line bg-surface-2 p-5">
         <h2 class="text-lg font-extrabold">Live resource demo</h2>
-        <p class="mt-2 text-sm leading-6 text-[#657168]">
+        <p class="mt-2 text-sm leading-6 text-muted">
           This message is resolved by a server request started in this route’s
           handler. The page shell streams first; the resource arrives after a
           short delay.
         </p>
-        <div class="mt-4 rounded-xl bg-white px-4 py-3">
+        <div class="mt-4 rounded-xl bg-surface px-4 py-3">
           <Suspense
             resource={data.demo}
             fallback={<p role="status">Loading server data…</p>}
@@ -119,18 +119,18 @@ export default define.page<StreamingPageData>(({ data }) => {
         </div>
       </section>
 
-      <section class="mt-5 rounded-2xl border border-[#e8c8c8] bg-[#f8ecec] p-5">
+      <section class="mt-5 rounded-2xl border border-danger-line bg-danger-bg p-5">
         <h2 class="text-lg font-extrabold">Component render error demo</h2>
-        <p class="mt-2 text-sm leading-6 text-[#657168]">
+        <p class="mt-2 text-sm leading-6 text-muted">
           This resource resolves successfully, then its child deliberately
           throws while rendering. The boundary should show its error fallback.
         </p>
-        <div class="mt-4 rounded-xl bg-white px-4 py-3">
+        <div class="mt-4 rounded-xl bg-surface px-4 py-3">
           <Suspense
             resource={data.renderError}
             fallback={<p role="status">Loading server data…</p>}
             errorFallback={(error) => (
-              <p role="alert" class="font-semibold text-[#651c1c]">
+              <p role="alert" class="font-semibold text-danger">
                 Error caught: {String(error)}
               </p>
             )}
@@ -143,7 +143,7 @@ export default define.page<StreamingPageData>(({ data }) => {
       <h2 class="mt-12 text-xl font-extrabold tracking-tight sm:text-2xl">
         Enable it for one route
       </h2>
-      <p class="mt-3 leading-7 text-[#657168]">
+      <p class="mt-3 leading-7 text-muted">
         Set <code>streaming: true</code> in the route’s config, then use Hum’s
         {" "}
         <code>Suspense</code>{" "}
@@ -154,7 +154,7 @@ export default define.page<StreamingPageData>(({ data }) => {
 
       <CodeBlock code={resourceExample} language="typescript" />
 
-      <p class="mt-5 leading-7 text-[#657168]">
+      <p class="mt-5 leading-7 text-muted">
         The handler starts the request and passes a stable resource to the page.
         <code>profile.read()</code>{" "}
         returns the value when ready or suspends while pending. If it rejects,
@@ -166,7 +166,7 @@ export default define.page<StreamingPageData>(({ data }) => {
       <h2 class="mt-12 text-xl font-extrabold tracking-tight sm:text-2xl">
         Early-stage limitations
       </h2>
-      <ul class="mt-3 list-disc space-y-2 pl-6 leading-7 text-[#657168]">
+      <ul class="mt-3 list-disc space-y-2 pl-6 leading-7 text-muted">
         <li>
           This uses Preact’s early-stage Web Streams SSR implementation and is
           experimental.
@@ -194,10 +194,10 @@ export default define.page<StreamingPageData>(({ data }) => {
         </li>
       </ul>
 
-      <p class="mt-12 border-t border-[#e3eadb] pt-6 text-sm text-[#788279]">
+      <p class="mt-12 border-t border-line pt-6 text-sm text-muted">
         Next:{" "}
         <a
-          class="font-semibold text-[#587d26] hover:underline"
+          class="font-semibold text-accent hover:underline"
           href="/docs/partials"
         >
           Partial page updates →

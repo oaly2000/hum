@@ -60,7 +60,7 @@ export default function ReactivityPage() {
       <h1 class="text-3xl font-black tracking-tight sm:text-4xl">
         Page-level reactivity
       </h1>
-      <p class="mt-5 text-lg leading-8 text-[#657168]">
+      <p class="mt-5 text-lg leading-8 text-muted">
         Markup that comes alive in the browser without a component behind it is
         page-level reactivity. The unit is a facet: a signal or a handler bound to
         a single node of the page’s markup. A signal written as a child or as a
@@ -71,14 +71,14 @@ export default function ReactivityPage() {
       <h2 class="mt-12 text-xl font-extrabold tracking-tight sm:text-2xl">
         The same machinery as an island
       </h2>
-      <p class="mt-3 leading-7 text-[#657168]">
+      <p class="mt-3 leading-7 text-muted">
         An island is a marked DOM range, an index into a payload, and a Preact
         root rendered over that range. A facet is those three pieces with a
         smaller unit: one text node, or one element with its props and handlers.
         What you skip is declaring a component, and shipping a client module for
         it.
       </p>
-      <ul class="mt-4 list-disc space-y-2 pl-6 leading-7 text-[#657168]">
+      <ul class="mt-4 list-disc space-y-2 pl-6 leading-7 text-muted">
         <li>
           <code>hum:signal</code> brackets a text node,{" "}
           <code>data-hum-signal</code> names the props to rebind, and{" "}
@@ -102,14 +102,14 @@ export default function ReactivityPage() {
       <h2 class="mt-12 text-xl font-extrabold tracking-tight sm:text-2xl">
         Bind a signal
       </h2>
-      <p class="mt-3 leading-7 text-[#657168]">
+      <p class="mt-3 leading-7 text-muted">
         As a child it renders its value on the server and stays a live text node;
         as a prop the matching DOM property follows the signal afterwards.
         Booleans work the same way, so a checkbox or a <code>details</code>{" "}
         element reflects its signal by itself.
       </p>
       <CodeBlock code={checkoutExample} />
-      <p class="mt-4 leading-7 text-[#657168]">
+      <p class="mt-4 leading-7 text-muted">
         One <code>tickets</code>{" "}
         signal is behind the text, the field and both buttons, so a change from
         any of them updates the others. Creating it with the view is on purpose:
@@ -121,7 +121,7 @@ export default function ReactivityPage() {
       <h2 class="mt-12 text-xl font-extrabold tracking-tight sm:text-2xl">
         Handlers come from factories
       </h2>
-      <p class="mt-3 leading-7 text-[#657168]">
+      <p class="mt-3 leading-7 text-muted">
         A handler is rebuilt in the browser, so it travels as a factory name plus
         the arguments it was called with—a closure cannot be serialized and throws
         at render time. <code>@humjs/core/events</code> ships{" "}
@@ -130,7 +130,7 @@ export default function ReactivityPage() {
         of your own is a factory too.
       </p>
       <CodeBlock code={customFactoryExample} />
-      <p class="mt-4 leading-7 text-[#657168]">
+      <p class="mt-4 leading-7 text-muted">
         The <em>name</em> is what travels to the client, so keep it unique and
         stable, and import the module that defines the factory from the client
         entry or from an island—otherwise the browser has nothing to rebuild it
@@ -138,14 +138,14 @@ export default function ReactivityPage() {
         <code>Hum: the handler factory … is not registered on the client</code>.
       </p>
 
-      <section class="mt-12 rounded-3xl border border-[#e3eadb] bg-white p-6 sm:p-8">
-        <p class="text-sm font-bold uppercase tracking-[0.16em] text-[#759a37]">
+      <section class="mt-12 rounded-3xl border border-line bg-surface p-6 sm:p-8">
+        <p class="text-sm font-bold uppercase tracking-[0.16em] text-accent">
           Try it
         </p>
         <h2 class="mt-2 text-lg font-extrabold">
           A checkout made of facets
         </h2>
-        <p class="mt-2 leading-7 text-[#657168]">
+        <p class="mt-2 leading-7 text-muted">
           Every control below is a facet on this page’s own markup. The quantity
           and the gift-wrap flag are signals; the controls call handlers that the
           browser rebuilt from the payload, including the custom factory behind
@@ -158,7 +158,7 @@ export default function ReactivityPage() {
               type="button"
               aria-label="Remove one ticket"
               onClick={add(tickets, -1, { min: 1, max: MAX_TICKETS })}
-              class="grid size-11 place-items-center rounded-xl border border-[#dce3d8] text-xl font-bold transition hover:bg-[#f4f8ec]"
+              class="grid size-11 place-items-center rounded-xl border border-line text-xl font-bold transition hover:bg-surface-2"
             >
               −
             </button>
@@ -169,13 +169,13 @@ export default function ReactivityPage() {
               type="button"
               aria-label="Add one ticket"
               onClick={add(tickets, 1, { min: 1, max: MAX_TICKETS })}
-              class="grid size-11 place-items-center rounded-xl bg-[#d8f36a] text-xl font-bold text-[#17211b] transition hover:bg-[#e4fa91]"
+              class="grid size-11 place-items-center rounded-xl bg-brand text-xl font-bold text-brand-fg transition hover:bg-[#e4fa91]"
             >
               +
             </button>
           </div>
 
-          <label class="flex items-center gap-2 text-sm font-semibold text-[#465348]">
+          <label class="flex items-center gap-2 text-sm font-semibold text-fg-soft">
             Tickets
             <input
               type="number"
@@ -183,11 +183,11 @@ export default function ReactivityPage() {
               max={MAX_TICKETS}
               value={tickets}
               onInput={setFromProp(tickets, "value")}
-              class="w-24 rounded-xl border border-[#dce3d8] bg-[#fbfcf8] px-3 py-2 outline-none transition focus:border-[#91b94d] focus:ring-2 focus:ring-[#91b94d]/20"
+              class="w-24 rounded-xl border border-line bg-bg px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent"
             />
           </label>
 
-          <label class="flex items-center gap-2 text-sm font-semibold text-[#465348]">
+          <label class="flex items-center gap-2 text-sm font-semibold text-fg-soft">
             <input
               type="checkbox"
               checked={giftWrap}
@@ -203,17 +203,17 @@ export default function ReactivityPage() {
               tickets: 2,
               giftWrap: false,
             })}
-            class="rounded-xl border border-[#dce3d8] px-4 py-2 text-sm font-bold text-[#465348] transition hover:bg-[#f4f8ec]"
+            class="rounded-xl border border-line px-4 py-2 text-sm font-bold text-fg-soft transition hover:bg-surface-2"
           >
             Reset
           </button>
         </div>
       </section>
 
-      <p class="mt-12 border-t border-[#e3eadb] pt-6 text-sm text-[#788279]">
+      <p class="mt-12 border-t border-line pt-6 text-sm text-muted">
         Previous:{" "}
         <a
-          class="font-semibold text-[#587d26] hover:underline"
+          class="font-semibold text-accent hover:underline"
           href="/docs/partials"
         >
           Partial page updates →

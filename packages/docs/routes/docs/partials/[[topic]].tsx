@@ -119,7 +119,7 @@ export default function PartialsPage({
       <h1 class="text-3xl font-black tracking-tight sm:text-4xl">
         Partial page updates
       </h1>
-      <p class="mt-5 text-lg leading-8 text-[#657168]">
+      <p class="mt-5 text-lg leading-8 text-muted">
         Use partials to fetch a new page while replacing, appending, or
         prepending only named regions of the current document.
       </p>
@@ -127,7 +127,7 @@ export default function PartialsPage({
       <h2 class="mt-12 text-xl font-extrabold tracking-tight sm:text-2xl">
         Mark a region and opt in to client navigation
       </h2>
-      <p class="mt-3 leading-7 text-[#657168]">
+      <p class="mt-3 leading-7 text-muted">
         Wrap the content to update in a <code>Partial</code>{" "}
         with a stable, unique name. Add{" "}
         <strong class="font-bold">data-hum-client-nav</strong>{" "}
@@ -136,7 +136,7 @@ export default function PartialsPage({
         replacing the surrounding shell.
       </p>
       <CodeBlock code={partialExample} />
-      <p class="mt-4 leading-7 text-[#657168]">
+      <p class="mt-4 leading-7 text-muted">
         Keep the partial name consistent between responses. A normal full-page
         navigation still works when client navigation is not enabled.
       </p>
@@ -144,7 +144,7 @@ export default function PartialsPage({
       <h2 class="mt-12 text-xl font-extrabold tracking-tight sm:text-2xl">
         Links and forms
       </h2>
-      <p class="mt-3 leading-7 text-[#657168]">
+      <p class="mt-3 leading-7 text-muted">
         Links inside an opted-in region navigate without a full reload. GET and
         POST forms are also supported; other form methods use normal browser
         submission. Add <code>data-hum-partial</code>{" "}
@@ -152,7 +152,7 @@ export default function PartialsPage({
         used for the visible navigation or form action.
       </p>
       <CodeBlock code={linkExample} />
-      <div class="mt-5 rounded-2xl border border-[#e3eadb] bg-[#f4f8ec] p-5 leading-7 text-[#556450]">
+      <div class="mt-5 rounded-2xl border border-line bg-surface-2 p-5 leading-7 text-muted">
         For a smaller opt-in area, put{" "}
         <strong class="font-bold">data-hum-client-nav</strong>{" "}
         only on the wrapper containing the links/forms that should use partial
@@ -163,7 +163,7 @@ export default function PartialsPage({
       <h2 class="mt-12 text-xl font-extrabold tracking-tight sm:text-2xl">
         Choose how new content is applied
       </h2>
-      <p class="mt-3 leading-7 text-[#657168]">
+      <p class="mt-3 leading-7 text-muted">
         The default mode replaces the region’s contents. Use append or prepend
         for feeds and lists; the existing DOM children are retained and new
         content is added at the selected edge. The second demo below does both:
@@ -186,18 +186,18 @@ export default function PartialsPage({
         />
       </div>
       <CodeBlock code={loadMoreExample} />
-      <p class="mt-4 leading-7 text-[#657168]">
+      <p class="mt-4 leading-7 text-muted">
         If a response does not contain any partial regions, Hum falls back to a
         full navigation. The URL and browser history stay in sync, and Back /
         Forward restores the prior page state.
       </p>
 
-      <section class="mt-12 rounded-3xl border border-[#e3eadb] bg-white p-6 sm:p-8">
-        <p class="text-sm font-bold uppercase tracking-[0.16em] text-[#759a37]">
+      <section class="mt-12 rounded-3xl border border-line bg-surface p-6 sm:p-8">
+        <p class="text-sm font-bold uppercase tracking-[0.16em] text-accent">
           Try it
         </p>
         <h2 class="mt-2 text-lg font-extrabold">Update one region</h2>
-        <p class="mt-2 leading-7 text-[#657168]">
+        <p class="mt-2 leading-7 text-muted">
           These links change the URL and replace only the matching partial. The
           surrounding panel stays in place.
         </p>
@@ -215,11 +215,11 @@ export default function PartialsPage({
           {batch === undefined
             ? (
               <Partial name="topic">
-                <div class="mt-4 min-h-24 rounded-2xl bg-[#f1f6e9] p-5">
-                  <p class="text-xs font-bold uppercase tracking-[0.16em] text-[#759a37]">
+                <div class="mt-4 min-h-24 rounded-2xl bg-surface-2 p-5">
+                  <p class="text-xs font-bold uppercase tracking-[0.16em] text-accent">
                     Current topic
                   </p>
-                  <p class="mt-2 font-semibold text-[#34432f]">
+                  <p class="mt-2 font-semibold text-fg-soft">
                     {topics[topic] ?? "That topic is not available."}
                   </p>
                 </div>
@@ -229,12 +229,12 @@ export default function PartialsPage({
         </div>
       </section>
 
-      <section class="mt-8 rounded-3xl border border-[#e3eadb] bg-white p-6 sm:p-8">
-        <p class="text-sm font-bold uppercase tracking-[0.16em] text-[#759a37]">
+      <section class="mt-8 rounded-3xl border border-line bg-surface p-6 sm:p-8">
+        <p class="text-sm font-bold uppercase tracking-[0.16em] text-accent">
           Append mode demo
         </p>
         <h2 class="mt-2 text-lg font-extrabold">Load more items</h2>
-        <p class="mt-2 leading-7 text-[#657168]">
+        <p class="mt-2 leading-7 text-muted">
           Submit the form to fetch the next two items. The list appends them;
           only the form area is replaced.
         </p>
@@ -251,9 +251,9 @@ export default function PartialsPage({
                   return (
                     <li
                       key={itemNumber}
-                      class="flex items-start gap-3 rounded-2xl bg-[#f4f8ec] p-4 text-sm leading-6 text-[#465348]"
+                      class="flex items-start gap-3 rounded-2xl bg-surface-2 p-4 text-sm leading-6 text-fg-soft"
                     >
-                      <span class="grid size-7 shrink-0 place-items-center rounded-full bg-white text-xs font-bold text-[#638b27]">
+                      <span class="grid size-7 shrink-0 place-items-center rounded-full bg-surface text-xs font-bold text-accent">
                         {itemNumber}
                       </span>
                       {item}
@@ -275,14 +275,14 @@ export default function PartialsPage({
                     />
                     <button
                       type="submit"
-                      class="rounded-xl bg-[#17211b] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#2e4033]"
+                      class="rounded-xl bg-code px-5 py-3 text-sm font-bold text-white transition hover:bg-fg-hover"
                     >
                       Load more
                     </button>
                   </form>
                 )
                 : (
-                  <p class="rounded-xl bg-[#eff8d6] px-4 py-3 text-sm font-semibold text-[#45651c]">
+                  <p class="rounded-xl bg-accent-bg px-4 py-3 text-sm font-semibold text-accent-strong">
                     You’ve reached the end of the list.
                   </p>
                 )}
@@ -291,10 +291,10 @@ export default function PartialsPage({
         </div>
       </section>
 
-      <p class="mt-12 border-t border-[#e3eadb] pt-6 text-sm text-[#788279]">
+      <p class="mt-12 border-t border-line pt-6 text-sm text-muted">
         Previous:{" "}
         <a
-          class="font-semibold text-[#587d26] hover:underline"
+          class="font-semibold text-accent hover:underline"
           href="/docs/handlers"
         >
           Route handlers →
@@ -309,7 +309,7 @@ function TopicLink({ topic, label }: { topic: string; label: string }) {
     <a
       href={`/docs/partials/${topic}`}
       data-hum-partial={`/docs/partials?topic=${topic}`}
-      class="rounded-full border border-[#dce3d8] px-4 py-2 text-sm font-semibold text-[#59645b] transition hover:border-[#9cba69] hover:bg-white hover:text-[#45651c] aria-[current]:text-[#45651c] aria-[current]:border-[#9cba69] aria-[current]:bg-white"
+      class="rounded-full border border-line px-4 py-2 text-sm font-semibold text-muted transition hover:border-accent hover:bg-surface hover:text-accent-strong aria-[current]:text-accent-strong aria-[current]:border-accent aria-[current]:bg-surface"
     >
       {label}
     </a>
@@ -323,9 +323,9 @@ function ModeCard(
   },
 ) {
   return (
-    <div class="rounded-2xl border border-[#e7ecdf] bg-white p-4">
-      <code class="font-bold text-[#587d26]">{mode}</code>
-      <p class="mt-2 text-sm leading-6 text-[#657168]">{description}</p>
+    <div class="rounded-2xl border border-line bg-surface p-4">
+      <code class="font-bold text-accent">{mode}</code>
+      <p class="mt-2 text-sm leading-6 text-muted">{description}</p>
     </div>
   );
 }

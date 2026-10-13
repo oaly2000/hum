@@ -53,8 +53,8 @@ export function CodeBlock(
   },
 ) {
   return (
-    <div class="docs-code-block mt-5 overflow-hidden rounded-2xl bg-[#17211b]">
-      <div class="border-b border-white/10 px-5 py-2.5 text-xs font-semibold tracking-wide text-[#a9b8a4] sm:px-6">
+    <div class="docs-code-block mt-5 overflow-hidden rounded-2xl bg-code">
+      <div class="border-b border-white/10 px-5 py-2.5 text-xs font-semibold tracking-wide text-faint sm:px-6">
         {languageLabels[language]}
       </div>
       <pre class="overflow-x-auto p-5 text-sm leading-6 text-[#e7f1e4] sm:p-6">
