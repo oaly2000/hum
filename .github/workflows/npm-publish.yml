@@ -1,0 +1,67 @@
+name: Publish npm packages
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: Install npm CLI with trusted publishing support
+        run: npm install --global npm@latest
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:pkgs
+
+      - name: Pack workspace packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/npm-packages"
+          for package_dir in packages/core packages/vite-plugin packages/create-hum; do
+            pnpm --dir "$package_dir" pack \
+              --pack-destination "$RUNNER_TEMP/npm-packages"
+          done
+
+      - name: Publish packages with npm Trusted Publishing
+        shell: bash
+        run: |
+          set -euo pipefail
+          publish_package() {
+            local package_dir="$1"
+            local name version basename tarball
+            name="$(node -p "require('./${package_dir}/package.json').name")"
+            version="$(node -p "require('./${package_dir}/package.json').version")"
+            basename="${name#@}"
+            basename="${basename//\//-}"
+            tarball="$RUNNER_TEMP/npm-packages/${basename}-${version}.tgz"
+
+            if npm view "${name}@${version}" version \
+              --registry=https://registry.npmjs.org >/dev/null 2>&1; then
+              echo "::notice::${name}@${version} is already published; skipping"
+              return
+            fi
+
+            npm publish "$tarball" --access public \
+              --registry=https://registry.npmjs.org
+          }
+
+          publish_package packages/core
+          publish_package packages/vite-plugin
+          publish_package packages/create-hum

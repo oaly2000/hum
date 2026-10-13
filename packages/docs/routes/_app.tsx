@@ -1,5 +1,5 @@
 import type { ComponentChildren } from "preact";
-import { define } from "@hum/core";
+import { define } from "@humjs/core";
 
 export const head = (
   <>

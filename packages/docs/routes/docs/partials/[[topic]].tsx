@@ -1,4 +1,4 @@
-import { define, page, Partial, type RouteProps } from "@hum/core";
+import { define, page, Partial, type RouteProps } from "@humjs/core";
 import { CodeBlock } from "../../_components/CodeBlock.js";
 
 export const head = define.head(<title>Partials — Hum Guides</title>);
@@ -37,7 +37,7 @@ export const handlers = define.handlers({
   },
 });
 
-const partialExample = `import { Partial } from "@hum/core";
+const partialExample = `import { Partial } from "@humjs/core";
 
 export default function SearchPage({ url }) {
   const query = url.searchParams.get("q") ?? "";

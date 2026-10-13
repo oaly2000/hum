@@ -1,4 +1,4 @@
-import type { RouteProps } from "@hum/core";
+import type { RouteProps } from "@humjs/core";
 
 export default function ErrorPage({ error, status }: RouteProps) {
   return (

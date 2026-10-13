@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 
-import type { IslandSpec, RouteFileSpec } from "@hum/core";
+import type { IslandSpec, RouteFileSpec } from "@humjs/core";
 
 /** Route and island files discovered in the project. */
 export interface HumProject {
@@ -64,8 +64,8 @@ export function resolveHumOptions(
   };
 }
 
-/** Bare specifier of the client runtime shipped by `@hum/core`. */
-export const CORE_RUNTIME_ID = "@hum/core/runtime";
+/** Bare specifier of the client runtime shipped by `@humjs/core`. */
+export const CORE_RUNTIME_ID = "@humjs/core/runtime";
 
 /** Virtual module id of the client runtime entry. */
 export const RUNTIME_VIRTUAL_ID = "virtual:hum/runtime";

@@ -3,6 +3,10 @@
   "version": "0.0.1",
   "type": "module",
   "description": "Scaffolds a new Hum project",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/oaly2000/hum.git"
+  },
   "license": "MIT",
   "bin": {
     "create-hum": "./dist/index.js"

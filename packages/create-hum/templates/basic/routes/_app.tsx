@@ -1,5 +1,5 @@
 import type { ComponentChildren } from "preact";
-import { define } from "@hum/core";
+import { define } from "@humjs/core";
 
 /** Application wide head tags. Pages override them by tag. */
 export const head = define.head(

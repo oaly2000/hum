@@ -18,7 +18,7 @@ describe("Hum Vite dev server", () => {
     );
     await writeFile(
       join(routesRoot, "streaming.tsx"),
-      `import { createResource, define, page, type Resource } from "@hum/core";
+      `import { createResource, define, page, type Resource } from "@humjs/core";
 import { Suspense } from "preact/compat";
 
 type PageData = { value: Resource<string> };

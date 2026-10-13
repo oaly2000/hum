@@ -1,4 +1,4 @@
-import { define, type Handlers, page, type RouteProps } from "@hum/core";
+import { define, type Handlers, page, type RouteProps } from "@humjs/core";
 
 interface BlogPageData {
   post: { id: string; title: string };

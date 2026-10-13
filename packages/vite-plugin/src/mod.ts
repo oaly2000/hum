@@ -12,7 +12,7 @@ import { resolveHumOptions, type HumContext, type HumOptions } from "./shared.js
  * ```ts
  * // vite.config.ts
  * import { defineConfig } from "vite";
- * import { hum } from "@hum/vite-plugin";
+ * import { hum } from "@humjs/vite-plugin";
  *
  * export default defineConfig({ plugins: [hum()] });
  * ```

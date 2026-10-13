@@ -1,4 +1,4 @@
-import { define, type RouteProps } from "@hum/core";
+import { define, type RouteProps } from "@humjs/core";
 import { CodeBlock } from "../_components/CodeBlock.js";
 
 export const head = define.head(
@@ -12,7 +12,7 @@ app.use("*", async (c, next) => {
 });`;
 
 const humMiddlewareExample = `// routes/admin/_middleware.ts
-import { define } from "@hum/core";
+import { define } from "@humjs/core";
 
 export default define.middleware(async (c, next) => {
   // Runs only for Hum routes in this directory and its descendants.

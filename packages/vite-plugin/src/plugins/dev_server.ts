@@ -7,8 +7,8 @@ import {
   type HumManifest,
   type HumVariables,
   mountHum,
-} from "@hum/core";
-import { crawlProject } from "@hum/core/discovery";
+} from "@humjs/core";
+import { crawlProject } from "@humjs/core/discovery";
 import { Hono } from "hono";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Plugin, ViteDevServer } from "vite";

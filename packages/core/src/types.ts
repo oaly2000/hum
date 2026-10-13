@@ -32,7 +32,7 @@ export type PageFn = (
  * The argument is the **raw Hono `Context`** — it is never extended or mutated,
  * so every part of Hono's API (`c.req`, `c.text`, `c.redirect`, ...) stays
  * available and untouched. To render this route file's own page component, import
- * {@link page} from `@hum/core`; to answer directly, return a `Response`.
+ * {@link page} from `@humjs/core`; to answer directly, return a `Response`.
  *
  * Return a `Response` to answer the request directly. Return nothing (or with no
  * handler) to fall through to the default view.

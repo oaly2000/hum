@@ -10,7 +10,7 @@ export interface RequestContext {
 
 // Stored on `globalThis` rather than as a plain module-level singleton: in dev
 // the vite-plugin (Node module registry) and the route modules (vite SSR module
-// registry) each load @hum/core separately, so two `request_context` module
+// registry) each load @humjs/core separately, so two `request_context` module
 // evaluations would otherwise produce two independent `AsyncLocalStorage`
 // instances. `runWithRequestContext` and the imported `page` must share one.
 const globalRef = globalThis as unknown as {
@@ -35,11 +35,11 @@ export function runWithRequestContext<T>(
 
 /**
  * Renders the page component of the route currently being handled. Import it
- * from `@hum/core` and call it inside a `handlers` function — no need to thread
+ * from `@humjs/core` and call it inside a `handlers` function — no need to thread
  * it through arguments.
  *
  * ```tsx
- * import { page } from "@hum/core";
+ * import { page } from "@humjs/core";
  * export const handlers = {
  *   GET: (c) => page({ id: c.req.param("id") }),
  * };

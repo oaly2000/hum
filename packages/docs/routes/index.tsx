@@ -1,6 +1,6 @@
 import Counter from "./_islands/Counter.js";
 import { SyntaxCode } from "./_components/CodeBlock.js";
-import { define } from "@hum/core";
+import { define } from "@humjs/core";
 
 export const head = (
   <>

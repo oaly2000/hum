@@ -1,5 +1,5 @@
 /**
- * Node.js server helpers. `@hum/core/server` is the entry production server
+ * Node.js server helpers. `@humjs/core/server` is the entry production server
  * bundles use; it depends on `@hono/node-server`.
  */
 import {

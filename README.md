@@ -97,7 +97,7 @@ file with `page(data)`. When no `handlers` is defined, the default-exported view
 is rendered.
 
 ```tsx
-import { define, page, type Handlers } from "@hum/core";
+import { define, page, type Handlers } from "@humjs/core";
 
 export const handlers: Handlers = {
   GET: async (c) => {
@@ -124,7 +124,7 @@ down to the matched route; it also wraps that route's handlers.
 
 ```ts
 // routes/admin/_middleware.ts
-import { define } from "@hum/core";
+import { define } from "@humjs/core";
 
 export default define.middleware(async (c, next) => {
   const session = await getSession(c.req.raw);
@@ -162,7 +162,7 @@ import {
   page,
   Suspense, // a wrapper around Preact's Suspense component and error boundary
   type Resource,
-} from "@hum/core";
+} from "@humjs/core";
 
 type PageData = { profile: Resource<{ name: string }> };
 

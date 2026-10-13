@@ -1,5 +1,5 @@
 import type { ComponentChildren } from "preact";
-import type { RouteProps } from "@hum/core";
+import type { RouteProps } from "@humjs/core";
 
 export default function DocsLayout({
   children,

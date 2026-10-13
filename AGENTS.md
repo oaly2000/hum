@@ -11,10 +11,10 @@ and ship client JavaScript only for explicitly registered islands.
 
 ## Package Map
 
-- `packages/core` (`@hum/core`): file-route discovery and matching, Hono request
+- `packages/core` (`@humjs/core`): file-route discovery and matching, Hono request
   handling, SSR, island markers/props, client runtime, and shared framework
   types.
-- `packages/vite-plugin` (`@hum/vite-plugin`): Vite integration, development
+- `packages/vite-plugin` (`@humjs/vite-plugin`): Vite integration, development
   SSR/HMR, island/client entry generation, asset and CSS handling, and
   production client/server builds.
 - `packages/create-hum` (`create-hum`): project scaffolder and its templates in

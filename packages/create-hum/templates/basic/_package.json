@@ -10,8 +10,8 @@
   },
   "dependencies": {
     "@hono/node-server": "^2.1.4",
-    "@hum/core": "^0.0.1",
-    "@hum/vite-plugin": "^0.0.1",
+    "@humjs/core": "^0.0.1",
+    "@humjs/vite-plugin": "^0.0.1",
     "@preact/signals": "^2.11.3",
     "hono": "^4.13.13",
     "preact": "^11.0.1"

@@ -26,10 +26,10 @@ importers:
       '@hono/node-server':
         specifier: ^2.1.4
         version: 2.1.4(hono@4.13.13)
-      '@hum/core':
+      '@humjs/core':
         specifier: workspace:*
         version: link:../core
-      '@hum/vite-plugin':
+      '@humjs/vite-plugin':
         specifier: workspace:*
         version: link:../vite-plugin
       '@preact/signals':
@@ -90,7 +90,7 @@ importers:
       '@hono/node-server':
         specifier: ^2.1.4
         version: 2.1.4(hono@4.13.13)
-      '@hum/core':
+      '@humjs/core':
         specifier: workspace:*
         version: link:../core
       hono:

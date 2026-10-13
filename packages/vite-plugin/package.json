@@ -1,8 +1,12 @@
 {
-  "name": "@hum/vite-plugin",
+  "name": "@humjs/vite-plugin",
   "version": "0.0.1",
   "type": "module",
   "description": "Hum Vite plugin: island bundling, SSR dev server and production build",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/oaly2000/hum.git"
+  },
   "license": "MIT",
   "exports": {
     ".": {
@@ -19,7 +23,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^2.1.4",
-    "@hum/core": "workspace:*",
+    "@humjs/core": "workspace:*",
     "hono": "^4.13.13",
     "tinyglobby": "^0.2.17"
   },

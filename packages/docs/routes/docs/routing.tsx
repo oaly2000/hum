@@ -1,4 +1,4 @@
-import { define, type RouteProps } from "@hum/core";
+import { define, type RouteProps } from "@humjs/core";
 import { CodeBlock } from "../_components/CodeBlock.js";
 
 export const head = define.head(<title>Routing — Hum Guides</title>);
@@ -24,7 +24,7 @@ export default function Article() {
   return <Editor initialText="Draft" />;
 }`;
 
-const middlewareExample = `import type { HumContext } from "@hum/core";
+const middlewareExample = `import type { HumContext } from "@humjs/core";
 
 export default async function auth(c: HumContext, next: () => Promise<void>) {
   const session = await getSession(c.req.raw);

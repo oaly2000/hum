@@ -1,8 +1,8 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import type { ProdManifest } from "@hum/core";
-import { crawlProject } from "@hum/core/discovery";
+import type { ProdManifest } from "@humjs/core";
+import { crawlProject } from "@humjs/core/discovery";
 import { build, type Plugin } from "vite";
 
 import {

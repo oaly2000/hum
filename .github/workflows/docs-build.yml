@@ -1,21 +1,14 @@
 name: Docs build
 
-# Builds the documentation site and publishes the production output on its own
-# branch, so `main` stays source-only and deployments can pull a ready-made
-# artifact. The branch root is the deployable directory: `manifest.json`,
-# `client/`, and `server/server.js` (run it with `node server/server.js`).
+# Runs when a release is published: builds the documentation site and publishes
+# the production output on its own branch, so `main` stays source-only and
+# deployments can pull a ready-made artifact. The branch root is the deployable
+# directory: `manifest.json`, `client/`, and `server/server.js` (run it with
+# `node server/server.js`).
 on:
-  push:
-    branches: [main]
-    paths:
-      - "packages/core/**"
-      - "packages/vite-plugin/**"
-      - "packages/docs/**"
-      - "package.json"
-      - "pnpm-lock.yaml"
-      - "pnpm-workspace.yaml"
-      - "tsconfig.base.json"
-      - ".github/workflows/docs-build.yml"
+  release:
+    types: [published]
+  # Lets a maintainer rebuild the site from `main` by hand.
   workflow_dispatch:
 
 permissions:

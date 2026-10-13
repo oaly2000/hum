@@ -4,7 +4,7 @@ import {
   page,
   type Resource,
   Suspense,
-} from "@hum/core";
+} from "@humjs/core";
 import { CodeBlock } from "../_components/CodeBlock.js";
 
 export const config = define.config({ streaming: true });
@@ -36,7 +36,7 @@ export const head = define.head(
 );
 
 const resourceExample =
-  `import { createResource, define, page, Suspense, type Resource } from "@hum/core";
+  `import { createResource, define, page, Suspense, type Resource } from "@humjs/core";
 
 type Profile = { name: string };
 type PageData = { profile: Resource<Profile> };

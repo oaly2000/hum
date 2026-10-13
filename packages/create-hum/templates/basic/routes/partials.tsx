@@ -1,4 +1,4 @@
-import { define, Partial, type RouteProps } from "@hum/core";
+import { define, Partial, type RouteProps } from "@humjs/core";
 
 const TOPICS: Record<string, string> = {
   "": "Pick a topic from the list.",

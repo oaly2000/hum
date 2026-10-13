@@ -18,7 +18,7 @@ import type {
  * make the exports of a route file type checked:
  *
  * ```ts
- * import { define, page } from "@hum/core";
+ * import { define, page } from "@humjs/core";
  *
  * export const handlers = define.handlers({
  *   GET: async (c) => page({ post: await load(c.req.param("id")) }),

@@ -85,7 +85,7 @@ export function head({ params }: RouteProps) {
 将渲染默认导出的视图。
 
 ```tsx
-import { define, page, type Handlers } from "@hum/core";
+import { define, page, type Handlers } from "@humjs/core";
 
 export const handlers: Handlers = {
   GET: async (c) => {
@@ -111,7 +111,7 @@ Hum 的 `_middleware.ts` 只对其所在目录及后代中的 Hum 文件路由�
 
 ```ts
 // routes/admin/_middleware.ts
-import { define } from "@hum/core";
+import { define } from "@humjs/core";
 
 export default define.middleware(async (c, next) => {
   const session = await getSession(c.req.raw);
@@ -142,7 +142,7 @@ import {
   page,
   Suspense, // 这是对preact的Suspense组件和错误边界的封装
   type Resource,
-} from "@hum/core";
+} from "@humjs/core";
 
 type PageData = { profile: Resource<{ name: string }> };
 

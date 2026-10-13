@@ -10,8 +10,8 @@
   },
   "dependencies": {
     "@hono/node-server": "^2.1.4",
-    "@hum/core": "workspace:*",
-    "@hum/vite-plugin": "workspace:*",
+    "@humjs/core": "workspace:*",
+    "@humjs/vite-plugin": "workspace:*",
     "@preact/signals": "^2.11.3",
     "highlight.js": "^11.12.0",
     "hono": "^4.13.13",

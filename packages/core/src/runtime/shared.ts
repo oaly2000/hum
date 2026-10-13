@@ -20,7 +20,7 @@ export interface PartialProps {
 /**
  * Flag marking a component as Hum's `Partial`. Detecting partials by this flag
  * (instead of reference equality) lets the server render hooks recognise a
- * `Partial` even when `@hum/core` has been loaded more than once — for example
+ * `Partial` even when `@humjs/core` has been loaded more than once — for example
  * in dev, where the vite-plugin and the route modules each import their own copy.
  */
 export const PARTIAL_FLAG = "__humPartial";

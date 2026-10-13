@@ -1,4 +1,4 @@
-import { define, page, Partial, type RouteProps } from "@hum/core";
+import { define, page, Partial, type RouteProps } from "@humjs/core";
 import { CodeBlock } from "../_components/CodeBlock.js";
 
 type HandlerPageData = { notice: string };
@@ -17,7 +17,7 @@ export const handlers = define.handlers({
   },
 });
 
-const handlerExample = `import { define, page } from "@hum/core";
+const handlerExample = `import { define, page } from "@humjs/core";
 
 export const handlers = define.handlers({
   GET: async (c) => {
@@ -64,7 +64,7 @@ export default define.page<HandlerPageData>(({ data }: HandlerPageProps) => {
         object keyed by HTTP method. Import{" "}
         <code class="rounded bg-white px-1.5 py-0.5 text-sm">page</code> from
         {" "}
-        <code class="rounded bg-white px-1.5 py-0.5 text-sm">@hum/core</code>
+        <code class="rounded bg-white px-1.5 py-0.5 text-sm">@humjs/core</code>
         {" "}
         to render the same file’s default component. The handler receives the
         unmodified Hono context.

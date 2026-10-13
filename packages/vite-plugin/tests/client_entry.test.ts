@@ -59,7 +59,7 @@ describe("humClientEntry plugin", () => {
       RESOLVED_USER_ENTRY_VIRTUAL_ID,
     ) as string;
     expect(code).toContain("main.ts");
-    expect(code).toContain('export * from "@hum/core/runtime"');
+    expect(code).toContain('export * from "@humjs/core/runtime"');
     rmSync(root, { recursive: true, force: true });
   });
 
@@ -74,7 +74,7 @@ describe("humClientEntry plugin", () => {
       RESOLVED_USER_ENTRY_VIRTUAL_ID,
     ) as string;
     expect(code).not.toContain("main.ts");
-    expect(code).toContain('export * from "@hum/core/runtime"');
+    expect(code).toContain('export * from "@humjs/core/runtime"');
     rmSync(root, { recursive: true, force: true });
   });
 });
