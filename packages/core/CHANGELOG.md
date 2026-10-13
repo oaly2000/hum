@@ -1,5 +1,11 @@
 # @humjs/core
 
+## 0.4.0
+
+### Minor Changes
+
+- Separate browser-safe helpers from the framework and client runtime entry points, and keep streamed Suspense content intact across response chunks.
+
 ## 0.3.0
 
 ### Minor Changes

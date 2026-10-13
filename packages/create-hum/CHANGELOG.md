@@ -1,5 +1,11 @@
 # create-hum
 
+## 0.0.7
+
+### Patch Changes
+
+- Separate browser-safe helpers from the framework and client runtime entry points, and keep streamed Suspense content intact across response chunks.
+
 ## 0.0.6
 
 ### Patch Changes

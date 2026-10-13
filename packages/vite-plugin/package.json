@@ -1,6 +1,6 @@
 {
   "name": "@humjs/vite-plugin",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "description": "Hum Vite plugin: island bundling, SSR dev server and production build",
   "repository": {
