@@ -118,9 +118,14 @@ export default define.page<{ post: { title: string } }>(({ data }) => (
 
 ### Middleware
 
-A Hum `_middleware.ts` only applies to Hum file routes in its directory and
-below. Parent middleware is inherited and the chain runs from the routes root
-down to the matched route; it also wraps that route's handlers.
+`_middleware.ts` is a directory-scoped mount point for Hono middleware: the
+default export is a [Hono middleware](https://hono.dev/docs/guides/middleware),
+and the directory the file lives in decides where it runs. It applies to Hum
+file routes in that directory and below, parent middleware is inherited, and the
+chain runs from the routes root down to the matched route, wrapping the route's
+`handlers` and its default view. It also wraps the `_404` render for unmatched
+paths under its directory, so a branch guard covers typos in that branch too. It
+does not apply to Hono API routes declared in `server.ts`.
 
 ```ts
 // routes/admin/_middleware.ts
@@ -129,12 +134,32 @@ import { define } from "@humjs/core";
 export default define.middleware(async (c, next) => {
   const session = await getSession(c.req.raw);
   if (!session) {
-    c.res = c.redirect("/login"); // short-circuit
-    return;
+    return c.redirect("/login"); // returning a Response short-circuits
   }
   c.set("user", session.user);
   await next();
 });
+```
+
+For app-wide or URL-prefix policy, register Hono middleware with `app.use()` in
+`server.ts` instead. That is the general alternative: it wraps both Hum pages and
+Hono API routes, and a path pattern selects what it applies to. Reach for
+`_middleware.ts` only when the policy belongs to a branch of Hum's route tree,
+such as a URL-transparent `(group)/` directory, which a Hono path pattern cannot
+express.
+
+```ts
+// server.ts
+const app = new Hono();
+
+app.use("/api/*", cors());
+app.use("*", async (c, next) => {
+  const start = performance.now();
+  await next();
+  c.header("x-response-time", `${(performance.now() - start).toFixed(1)}ms`);
+});
+
+export default app;
 ```
 
 Hum is built on Hono, and the Vite plugin registers Hum after `server.ts`.
@@ -147,6 +172,73 @@ See the
 [Fresh documentation](https://usefresh.dev/docs/advanced/partials) directly. You
 can also compare Hum's [documentation](https://hum.runasp.net/docs/partials) and
 its [source](./packages/docs/routes/docs/partials/[[topic]].tsx).
+
+The opt-in attribute is `data-hum-client-nav`; setting it to `"false"` switches
+client navigation off for that subtree.
+
+### Page-level reactivity
+
+A page-level facet is a signal or a handler bound to a single node of the page's
+markup. A signal written into the markup is bound in the browser without a
+component of your own: render it as a child and it stays a live text node, pass it
+as a prop and the matching DOM property follows it, and point a handler at it to
+write back.
+The server renders the value into that response—so it may come from the
+request—and the client revives its own copy from the payload. State that has to
+survive a re-render, hooks, and anything else a component instance owns is still
+island work.
+
+```tsx
+import { signal } from "@preact/signals";
+import { add, setFromProp } from "@humjs/core/events";
+
+export default function Checkout() {
+  const tickets = signal(2);
+
+  return (
+    <form>
+      <button type="button" onClick={add(tickets, -1, { min: 1, max: 8 })}>−</button>
+      <output>{tickets}</output>
+      <button type="button" onClick={add(tickets, 1, { min: 1, max: 8 })}>+</button>
+      <input type="number" value={tickets} onInput={setFromProp(tickets, "value")} />
+    </form>
+  );
+}
+```
+
+A handler is rebuilt in the browser, so it travels as a factory name plus the
+arguments it was called with; a closure cannot be serialized and throws at render
+time. `@humjs/core/events` ships `add(signal, delta, options)`,
+`setValue(signal, value)`, `toggle(signal)` and `setFromProp(signal, key)`; a
+handler of your own is a factory created with `defineFactory(name, fn)`.
+
+```ts
+// client/factories.ts — imported by client/main.ts as well, so the browser has it
+import { defineFactory } from "@humjs/core/events";
+import type { Signal } from "@preact/signals";
+
+/** Resets both options at once; each built-in factory drives one signal. */
+export const resetOrder = defineFactory(
+  "resetOrder",
+  (
+    tickets: Signal<number>,
+    giftWrap: Signal<boolean>,
+    defaults: { tickets: number; giftWrap: boolean },
+  ) =>
+    () => {
+      tickets.value = defaults.tickets;
+      giftWrap.value = defaults.giftWrap;
+    },
+);
+```
+
+The name is what travels to the client, so keep it unique and stable. Import the
+module that defines the factory from the client entry or from an island—otherwise
+the page throws
+`Hum: the handler factory "…" is not registered on the client`.
+
+See Hum's [documentation](https://hum.runasp.net/docs/facets) and its
+[source](./packages/docs/routes/docs/facets.tsx).
 
 ### Streaming
 

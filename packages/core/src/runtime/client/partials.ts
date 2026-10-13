@@ -13,7 +13,7 @@ import {
   copyOldChildren,
   createRootFragment,
   CUSTOM_PARSER,
-  type DeserializedProps,
+  type Payload,
   domToVNode,
   ISLAND_REGISTRY,
   isCommentNode,
@@ -24,7 +24,7 @@ import {
 } from "./reviver.js";
 
 /** Opt-in attribute for links and forms that should update a partial region. */
-export const PARTIAL_ATTR = "f-partial";
+export const PARTIAL_ATTR = "data-hum-partial";
 
 /** Id of the JSON script that carries island info for a partial response. */
 export const PARTIAL_STATE_ID = "__HUM_STATE__";
@@ -255,11 +255,11 @@ export async function applyPartials(res: Response): Promise<void> {
   const text = await res.text();
   const doc = new DOMParser().parseFromString(text, "text/html");
 
-  let allProps: DeserializedProps = [];
+  let payload: Payload = [];
   const stateScript = doc.querySelector(`#${PARTIAL_STATE_ID}`);
   if (stateScript !== null && stateScript.textContent !== null) {
     const json = JSON.parse(stateScript.textContent) as PartialStateJson;
-    allProps = parse<DeserializedProps>(json.props, CUSTOM_PARSER);
+    payload = parse<Payload>(json.props, CUSTOM_PARSER);
     await Promise.all(
       json.islands.map(async (island) => {
         const mod = await import(/* @vite-ignore */ island.url) as Record<
@@ -278,7 +278,7 @@ export async function applyPartials(res: Response): Promise<void> {
   applyHead(doc);
 
   const ctx: PartialReviveCtx = { foundPartials: 0 };
-  if (doc.body !== null) revivePartials(ctx, allProps, doc.body);
+  if (doc.body !== null) revivePartials(ctx, payload, doc.body);
 
   if (ctx.foundPartials === 0) {
     throw new NoPartialsError(
@@ -339,7 +339,7 @@ function applyHead(doc: Document): void {
 
 function revivePartials(
   ctx: PartialReviveCtx,
-  allProps: DeserializedProps,
+  payload: Payload,
   node: Element,
 ): void {
   let startNode: Comment | null = null;
@@ -384,7 +384,7 @@ function revivePartials(
             children: null,
           } as never) as unknown as VNode<Record<string, unknown>>;
 
-          domToVNode(allProps, [root], [Marker.Partial], container, endMarker);
+          domToVNode(payload, [root], [Marker.Partial], container, endMarker);
 
           const instance = ACTIVE_PARTIALS.get(name);
           if (instance === undefined) {
@@ -398,7 +398,7 @@ function revivePartials(
         }
       }
     } else if (depth === 0 && isElementNode(sib)) {
-      revivePartials(ctx, allProps, sib);
+      revivePartials(ctx, payload, sib);
     }
 
     sib = sib.nextSibling;

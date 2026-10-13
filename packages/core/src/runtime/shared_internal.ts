@@ -10,9 +10,22 @@ export const ISLAND_CLOSE = "/hum:island";
 export const SLOT_CLOSE = "/hum:slot";
 export const PARTIAL_CLOSE = "/hum:partial";
 export const KEY_CLOSE = "/hum:key";
+export const SIGNAL_CLOSE = "/hum:signal";
 
-export const CLIENT_NAV_ATTR = "f-client-nav";
+export const CLIENT_NAV_ATTR = "data-hum-client-nav";
 export const DATA_HUM_KEY = "data-hum-key";
+
+/**
+ * Attribute a page level element carries when one of its props is bound to a
+ * signal. Its value is a JSON map of `propName → payload index`.
+ */
+export const FACET_SIGNAL_ATTR = "data-hum-signal";
+/**
+ * Attribute a page level element carries when one of its props is a
+ * serializable event handler. Its value is a JSON map of `propName → payload
+ * index`.
+ */
+export const FACET_HANDLER_ATTR = "data-hum-handler";
 
 /**
  * Preact `options` hook names. `preact` exposes these as plain string keys on
@@ -90,9 +103,27 @@ export function keyMarker(key: string): string {
   return `${MARKER_PREFIX}key:${key}`;
 }
 
+/**
+ * Marker bracketing a page level signal rendered as a child
+ * (`<p>{count}</p>`). The index addresses the payload entry holding the
+ * signal.
+ */
+export function signalMarker(index: number): string {
+  return `${MARKER_PREFIX}signal:${index}`;
+}
+
 export interface ParsedMarker {
-  kind: "island" | "slot" | "partial" | "key" | "close-island" | "close-slot" |
-    "close-partial" | "close-key";
+  kind:
+    | "island"
+    | "slot"
+    | "partial"
+    | "key"
+    | "signal"
+    | "close-island"
+    | "close-slot"
+    | "close-partial"
+    | "close-key"
+    | "close-signal";
   parts: string[];
 }
 
@@ -102,11 +133,15 @@ export function parseMarker(comment: string): ParsedMarker | null {
   if (comment === SLOT_CLOSE) return { kind: "close-slot", parts: [] };
   if (comment === PARTIAL_CLOSE) return { kind: "close-partial", parts: [] };
   if (comment === KEY_CLOSE) return { kind: "close-key", parts: [] };
+  if (comment === SIGNAL_CLOSE) return { kind: "close-signal", parts: [] };
 
   if (!comment.startsWith(MARKER_PREFIX)) return null;
   const parts = comment.split(":");
   const kind = parts[1];
-  if (kind === "island" || kind === "slot" || kind === "partial" || kind === "key") {
+  if (
+    kind === "island" || kind === "slot" || kind === "partial" ||
+    kind === "key" || kind === "signal"
+  ) {
     return { kind, parts: parts.slice(2) };
   }
   return null;

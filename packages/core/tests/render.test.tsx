@@ -1,6 +1,6 @@
 import { type ComponentChildren, Fragment, h } from "preact";
 import { type Signal, signal } from "@preact/signals";
-import { Hono } from "hono";
+import { Hono, type Next } from "hono";
 import { basicAuth } from "hono/basic-auth";
 import { Suspense } from "preact/compat";
 import { describe, expect, it } from "vitest";
@@ -14,7 +14,7 @@ import {
   Suspense as HumSuspense,
 } from "../src/mod.js";
 import { Partial } from "../src/runtime/shared.js";
-import type { HumManifest, RouteProps } from "../src/types.js";
+import type { HumContext, HumManifest, RouteProps } from "../src/types.js";
 
 const START: Signal<number> = signal(3);
 
@@ -135,7 +135,7 @@ function PartialsPage() {
     { id: "partials" },
     h(
       "div",
-      { "f-client-nav": true },
+      { "data-hum-client-nav": true },
       h("a", { href: "/" }, "go home"),
     ),
     h(Partial, { name: "list" }, h("ul", null, h("li", null, "one"))),
@@ -566,6 +566,104 @@ describe("not found and errors", () => {
     expect(html).toContain('id="layout"');
   });
 
+  it("runs the directory _middleware for unmatched paths", async () => {
+    const guarded: HumManifest = {
+      ...manifest,
+      routes: [
+        ...manifest.routes,
+        {
+          file: "routes/admin/_middleware.ts",
+          absPath: "/app/routes/admin/_middleware.ts",
+          kind: "middleware",
+          urlPath: "/admin",
+          load: async () => ({
+            default: async (c: HumContext, next: Next) => {
+              if (c.req.header("x-admin") !== "yes") {
+                return c.text("admin guard", 403);
+              }
+              await next();
+            },
+          }),
+        },
+        {
+          file: "routes/admin/_404.tsx",
+          absPath: "/app/routes/admin/_404.tsx",
+          kind: "notFound",
+          urlPath: "/admin",
+          load: async () => ({
+            default: () => h("div", { id: "admin-404" }, "admin 404"),
+          }),
+        },
+        {
+          file: "routes/admin/index.tsx",
+          absPath: "/app/routes/admin/index.tsx",
+          kind: "route",
+          urlPath: "/admin",
+          load: async () => ({
+            default: () => h("div", { id: "admin-home" }, "admin home"),
+          }),
+        },
+      ],
+    };
+    const mounted = await mountHum(new Hono(), {
+      manifest: guarded,
+      dev: true,
+    });
+
+    const page = await mounted.request("http://localhost/admin");
+    expect(page.status).toBe(403);
+    expect(await page.text()).toBe("admin guard");
+
+    // The guard also covers unmatched paths below its directory.
+    const unmatched = await mounted.request("http://localhost/admin/typo");
+    expect(unmatched.status).toBe(403);
+    expect(await unmatched.text()).toBe("admin guard");
+
+    const allowed = await mounted.request("http://localhost/admin/typo", {
+      headers: { "x-admin": "yes" },
+    });
+    expect(allowed.status).toBe(404);
+    const allowedHtml = await allowed.text();
+    expect(allowedHtml).toContain('id="admin-404"');
+    expect(allowedHtml).toContain('id="layout"');
+
+    // Paths outside the guarded directory keep rendering the root 404 page.
+    const outside = await mounted.request("http://localhost/nope");
+    expect(outside.status).toBe(404);
+    expect(await outside.text()).toContain('id="not-found"');
+  });
+
+  it("ignores a middleware export from a route file", async () => {
+    // `_middleware.ts` is the only middleware mechanism: routing the chain
+    // through a route file's own exports made the scope story ambiguous. Route
+    // scoped request logic belongs in `handlers`.
+    const withRouteMiddleware: HumManifest = {
+      ...manifest,
+      routes: [
+        ...manifest.routes,
+        {
+          file: "routes/guarded.tsx",
+          absPath: "/app/routes/guarded.tsx",
+          kind: "route",
+          urlPath: "/guarded",
+          load: async () => ({
+            middleware: async (c: HumContext, _next: Next) =>
+              c.text("route middleware ran", 403),
+            default: () => h("div", { id: "guarded-page" }, "guarded"),
+          }),
+        },
+      ],
+    };
+    const mounted = await mountHum(new Hono(), {
+      manifest: withRouteMiddleware,
+      dev: true,
+    });
+
+    const res = await mounted.request("http://localhost/guarded");
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain('id="guarded-page"');
+  });
+
   it("renders the _error page with status 500", async () => {
     const res = await app.request("http://localhost/boom");
     expect(res.status).toBe(500);
@@ -682,7 +780,7 @@ describe("partials", () => {
     const html = await get("/partials");
     expect(html).toContain("<!--hum:partial:list:0:-->");
     expect(html).toContain("<!--/hum:partial-->");
-    expect(html).toContain('f-client-nav="true"');
+    expect(html).toContain('data-hum-client-nav="true"');
   });
 
   it("emits the partial state script for partial requests", async () => {

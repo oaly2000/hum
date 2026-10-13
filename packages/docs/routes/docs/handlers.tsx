@@ -17,36 +17,36 @@ export const handlers = define.handlers({
   },
 });
 
-const handlerExample = `import { define, page } from "@humjs/core";
+const handlerExample = `// The code behind the form at the bottom of this page.
+import { define, page, Partial } from "@humjs/core";
 
 export const handlers = define.handlers({
-  GET: async (c) => {
-    const post = await loadPost(c.req.param("id"));
-    return page({ post });
-  },
+  GET: () => page({ notice: "" }),
   POST: async (c) => {
     const form = await c.req.formData();
-    await savePost(form);
-    return c.redirect("/blog");
+    const name = String(form.get("name") ?? "").trim();
+    return page({
+      notice: name ? \`Welcome, \${name}!\` : "Please enter a name.",
+    });
   },
 });
 
-export default define.page<{ post: { title: string } }>(({ data }) => (
-  <article><h1>{data.post.title}</h1></article>
+export default define.page<{ notice: string }>(({ data }) => (
+  <form method="post" action="/docs/handlers" data-hum-client-nav>
+    <input name="name" required />
+    <Partial name="welcome">
+      {data.notice && <p>{data.notice}</p>}
+    </Partial>
+  </form>
 ));`;
 
-const directResponseExample = `export const handlers = {
-  GET: (c) => c.json({ status: "ok" }),
-  POST: (c) => c.text("Saved", 201),
-};`;
+const directResponseExample = `// server.ts of this site, reachable at /api/health
+app.get("/api/health", (c) => c.json({ status: "ok" }));`;
 
 export default define.page<HandlerPageData>(({ data }: HandlerPageProps) => {
   return (
     <article>
-      <p class="text-sm font-bold uppercase tracking-[0.16em] text-[#759a37]">
-        Guides / Requests
-      </p>
-      <h1 class="mt-3 text-4xl font-black tracking-tight sm:text-5xl">
+      <h1 class="text-3xl font-black tracking-tight sm:text-4xl">
         Route handlers
       </h1>
       <p class="mt-5 text-lg leading-8 text-[#657168]">
@@ -54,7 +54,7 @@ export default define.page<HandlerPageData>(({ data }: HandlerPageProps) => {
         directly or render this route’s page with data.
       </p>
 
-      <h2 class="mt-12 text-2xl font-extrabold tracking-tight">
+      <h2 class="mt-12 text-xl font-extrabold tracking-tight sm:text-2xl">
         Load data and render the page
       </h2>
       <p class="mt-3 leading-7 text-[#657168]">
@@ -84,7 +84,7 @@ export default define.page<HandlerPageData>(({ data }: HandlerPageProps) => {
         </li>
       </ul>
 
-      <h2 class="mt-12 text-2xl font-extrabold tracking-tight">
+      <h2 class="mt-12 text-xl font-extrabold tracking-tight sm:text-2xl">
         Return a response directly
       </h2>
       <p class="mt-3 leading-7 text-[#657168]">
@@ -95,6 +95,15 @@ export default define.page<HandlerPageData>(({ data }: HandlerPageProps) => {
       </p>
       <CodeBlock code={directResponseExample} language="typescript" />
       <p class="mt-4 leading-7 text-[#657168]">
+        That endpoint is live on this site:{" "}
+        <a
+          class="font-semibold text-[#587d26] hover:underline"
+          href="/api/health"
+        >
+          /api/health →
+        </a>
+      </p>
+      <p class="mt-4 leading-7 text-[#657168]">
         If the selected handler returns nothing, Hum falls through to the
         default page render. If a route declares handlers but does not handle a
         non-GET/HEAD method, Hum responds with{" "}
@@ -102,10 +111,10 @@ export default define.page<HandlerPageData>(({ data }: HandlerPageProps) => {
       </p>
 
       <section class="mt-12 rounded-3xl border border-[#e3eadb] bg-white p-6 sm:p-8">
-        <p class="text-sm font-bold uppercase tracking-[0.14em] text-[#759a37]">
+        <p class="text-sm font-bold uppercase tracking-[0.16em] text-[#759a37]">
           Try it
         </p>
-        <h2 class="mt-2 text-xl font-extrabold">
+        <h2 class="mt-2 text-lg font-extrabold">
           A form handled on the server
         </h2>
         <p class="mt-2 leading-7 text-[#657168]">
@@ -114,7 +123,7 @@ export default define.page<HandlerPageData>(({ data }: HandlerPageProps) => {
           with a message.
         </p>
         <form
-          f-client-nav
+          data-hum-client-nav
           method="post"
           action="/docs/handlers"
           class="mt-5 flex flex-col gap-3 sm:flex-row"

@@ -106,8 +106,12 @@ export default define.page<{ post: { title: string } }>(({ data }) => (
 
 ### 中间件
 
-Hum 的 `_middleware.ts` 只对其所在目录及后代中的 Hum 文件路由生效。父级中间件会被继承，
-执行链从 routes 根依次走向匹配的路由；它同时也会包裹该路由的 handlers。
+`_middleware.ts` 是目录作用域的 Hono 中间件挂载点：默认导出就是一个
+[Hono 中间件](https://hono.dev/docs/guides/middleware)，文件所在的目录决定它的作用范围。
+它对其所在目录及后代中的 Hum 文件路由生效，父级中间件会被继承，执行链从 routes 根依次
+走向匹配的路由，并包裹该路由的 `handlers` 与默认视图；该目录下未匹配的路径渲染 `_404`
+时同样会经过它，因此分支守卫也覆盖该分支内的错误路径。它不作用于 `server.ts` 中声明的
+Hono API 路由。
 
 ```ts
 // routes/admin/_middleware.ts
@@ -116,12 +120,30 @@ import { define } from "@humjs/core";
 export default define.middleware(async (c, next) => {
   const session = await getSession(c.req.raw);
   if (!session) {
-    c.res = c.redirect("/login"); // 短路
-    return;
+    return c.redirect("/login"); // 返回 Response 即短路
   }
   c.set("user", session.user);
   await next();
 });
+```
+
+应用级或按 URL 前缀的策略，请改在 `server.ts` 中用 `app.use()` 注册 Hono 中间件——这是
+通用替代方案：它同时包裹 Hum 页面与 Hono API 路由，并用路径模式选择作用对象。只有当策略
+属于 Hum 路由树的某个分支时才需要 `_middleware.ts`，例如 URL 上透明的 `(group)/` 目录，
+Hono 的路径模式无法表达它。
+
+```ts
+// server.ts
+const app = new Hono();
+
+app.use("/api/*", cors());
+app.use("*", async (c, next) => {
+  const start = performance.now();
+  await next();
+  c.header("x-response-time", `${(performance.now() - start).toFixed(1)}ms`);
+});
+
+export default app;
 ```
 
 Hum 本身就是基于Hono的，`vite` 插件将在 `server.ts` 之后注册Hum，因此，Hono 注册的 API 异常仍由应用的`onError` 处理，而 Hum 的异常会渲染 `_error.tsx`。
@@ -130,6 +152,57 @@ Hum 本身就是基于Hono的，`vite` 插件将在 `server.ts` 之后注册Hum�
 ### 客户端导航与 Partial
 
 可以直接参考 [Fresh 文档](https://usefresh.dev/docs/advanced/partials)。也可以对比Hum的[文档](https://hum.runasp.net/docs/partials)及其[源码](./packages/docs/routes/docs/partials/[[topic]].tsx)
+
+启用客户端导航的属性名是 `data-hum-client-nav`；把它设为 `"false"` 可以在该子树内关闭客户端导航。
+
+### 页面级响应式
+
+页面级 facet 指的是绑定在页面标记中单个节点上的 signal 或 handler。写在标记里的 signal，不需要自己写组件就能在浏览器中绑定：作为子节点渲染时它是一个活的文本节点，作为 prop 传入时对应的 DOM 属性会跟随 signal，再把 handler 指向它即可回写。服务端会把当前值渲染进这次响应（因此它可以来自请求），客户端则从 payload 复活自己的副本。需要跨渲染保留的状态、hooks，以及组件实例拥有的其他东西，仍然属于 island 的工作。
+
+```tsx
+import { signal } from "@preact/signals";
+import { add, setFromProp } from "@humjs/core/events";
+
+export default function Checkout() {
+  const tickets = signal(2);
+
+  return (
+    <form>
+      <button type="button" onClick={add(tickets, -1, { min: 1, max: 8 })}>−</button>
+      <output>{tickets}</output>
+      <button type="button" onClick={add(tickets, 1, { min: 1, max: 8 })}>+</button>
+      <input type="number" value={tickets} onInput={setFromProp(tickets, "value")} />
+    </form>
+  );
+}
+```
+
+handler 需要在浏览器中重建，因此它以「工厂名 + 调用参数」的形式传输；闭包无法被序列化，会在渲染时直接抛错。`@humjs/core/events` 提供 `add(signal, delta, options)`、`setValue(signal, value)`、`toggle(signal)` 和 `setFromProp(signal, key)`；自定义 handler 用 `defineFactory(name, fn)` 创建工厂。
+
+```ts
+// client/factories.ts —— 同时被 client/main.ts 导入，浏览器里才会有它
+import { defineFactory } from "@humjs/core/events";
+import type { Signal } from "@preact/signals";
+
+/** 一次重置两个选项；内置工厂各自只能驱动一个 signal。 */
+export const resetOrder = defineFactory(
+  "resetOrder",
+  (
+    tickets: Signal<number>,
+    giftWrap: Signal<boolean>,
+    defaults: { tickets: number; giftWrap: boolean },
+  ) =>
+    () => {
+      tickets.value = defaults.tickets;
+      giftWrap.value = defaults.giftWrap;
+    },
+);
+```
+
+传输到客户端的是工厂名，所以要保持唯一且稳定。请从客户端入口或某个 island 导入定义该工厂的模块，否则页面会抛出
+`Hum: the handler factory "…" is not registered on the client`。
+
+也可以参考 Hum 的[文档](https://hum.runasp.net/docs/facets)及其[源码](./packages/docs/routes/docs/facets.tsx)。
 
 ### Streaming
 

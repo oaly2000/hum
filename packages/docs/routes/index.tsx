@@ -12,11 +12,13 @@ export const head = (
   </>
 );
 
-const heroExample = `export default function Home() {
+const heroExample = `import Counter from "./_islands/Counter.js";
+
+export default function Home() {
   return (
     <main>
-      <h1>Hello, Hum!</h1>
-      <Counter start={0} />
+      <h1>HTML first. Interactive by choice.</h1>
+      <Counter start={3} />
     </main>
   );
 }`;

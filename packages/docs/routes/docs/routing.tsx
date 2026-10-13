@@ -1,48 +1,48 @@
 import { define, type RouteProps } from "@humjs/core";
 import { CodeBlock } from "../_components/CodeBlock.js";
 
-export const head = define.head(<title>Routing — Hum Guides</title>);
+export const head = define.head(
+  <title>Routing and rendering — Hum Guides</title>,
+);
 
 const routeTreeExample = `routes/
-  _app.tsx
-  _middleware.ts
-  _layout.tsx
-  index.tsx
-  blog/
-    [id].tsx
-    _layout.tsx
-    _404.tsx
-    _components/
-      Author.tsx
-    _islands/
-      Editor.tsx
+  _app.tsx          the document shell
+  _error.tsx        route errors
+  _404.tsx          unmatched paths
+  index.tsx         /
+  docs/
+    _layout.tsx     the guides sidebar
+    routing.tsx     /docs/routing
+    handlers.tsx    /docs/handlers
+    facets.tsx
+    streaming.tsx
+    partials/
+      [[topic]].tsx /docs/partials and /docs/partials/<topic>
+  _components/
+    CodeBlock.tsx   view component, not a route
+  _islands/
+    Counter.tsx     the island on the home page
 `;
 
-const islandExample = `import Editor from "./_islands/Editor.js";
+const islandExample = `// routes/index.tsx — the counter on the home page
+import Counter from "./_islands/Counter.js";
 
-export default function Article() {
-  return <Editor initialText="Draft" />;
-}`;
+<Counter start={3} />`;
 
-const middlewareExample = `import type { HumContext } from "@humjs/core";
+const middlewareExample = `import { define } from "@humjs/core";
 
-export default async function auth(c: HumContext, next: () => Promise<void>) {
+// routes/admin/_middleware.ts — a Hono middleware mounted for this directory
+export default define.middleware(async (c, next) => {
   const session = await getSession(c.req.raw);
-  if (!session) {
-    c.res = c.redirect("/login");
-    return;
-  }
+  if (!session) return c.redirect("/login");
   c.set("user", session.user);
   await next();
-}`;
+});`;
 
 export default function RoutingGuide(_props: RouteProps) {
   return (
     <article>
-      <p class="text-sm font-bold uppercase tracking-[0.16em] text-[#759a37]">
-        Guides / Structure
-      </p>
-      <h1 class="mt-3 text-4xl font-black tracking-tight sm:text-5xl">
+      <h1 class="text-3xl font-black tracking-tight sm:text-4xl">
         Routing and rendering
       </h1>
       <p class="mt-5 text-lg leading-8 text-[#657168]">
@@ -50,11 +50,14 @@ export default function RoutingGuide(_props: RouteProps) {
         layouts, middleware, error pages, and not-found pages to the route tree.
       </p>
 
-      <h2 class="mt-12 text-2xl font-extrabold tracking-tight">Route files</h2>
+      <h2 class="mt-12 text-xl font-extrabold tracking-tight sm:text-2xl">Route files</h2>
       <p class="mt-3 leading-7 text-[#657168]">
-        Route files become URLs from their relative paths. Parenthesized
-        directories are transparent groups; bracket syntax marks dynamic,
-        optional, and catch-all segments.
+        Route files become URLs from their relative paths. This is the tree of
+        the site you are reading: the guide pages come from{" "}
+        <code>docs/</code>, and the page you are on now is the optional segment{" "}
+        <code>docs/partials/[[topic]].tsx</code>. Parenthesized directories are
+        transparent groups; bracket syntax marks dynamic, optional, and catch-all
+        segments.
       </p>
       <CodeBlock code={routeTreeExample} language="bash" />
       <p class="mt-3 leading-7 text-[#657168]">
@@ -79,21 +82,35 @@ export default function RoutingGuide(_props: RouteProps) {
         </li>
       </ul>
 
-      <h2 class="mt-12 text-2xl font-extrabold tracking-tight">
+      <h2 class="mt-12 text-xl font-extrabold tracking-tight sm:text-2xl">
         Layouts and special files
       </h2>
       <p class="mt-3 leading-7 text-[#657168]">
         <code>_app.tsx</code> provides the outer document,
         <code>_layout.tsx</code> wraps routes in its directory,
-        <code>_middleware.ts</code> runs for routes below it,
+        <code>_middleware.ts</code> mounts Hono middleware for routes below it,
         <code>_error.tsx</code> renders route errors, and
         <code>_404.tsx</code>{" "}
         handles unmatched paths in its directory subtree. More-specific layouts,
         middleware, and error/not-found pages apply within their route branch.
       </p>
       <CodeBlock code={middlewareExample} />
+      <p class="mt-4 leading-7 text-[#657168]">
+        Guarding an admin branch is the usual reason to add one, because the
+        directory the file lives in is its scope. For app-wide or URL-prefix
+        policy use <code>app.use()</code> in <code>server.ts</code> instead—the
+        general alternative. This site has no <code>_middleware.ts</code>; the
+        middleware it does run is Hono middleware in <code>server.ts</code>,
+        covered in the{" "}
+        <a
+          class="font-semibold text-[#587d26] hover:underline"
+          href="/docs/hono"
+        >
+          next guide
+        </a>.
+      </p>
 
-      <h2 class="mt-12 text-2xl font-extrabold tracking-tight">
+      <h2 class="mt-12 text-xl font-extrabold tracking-tight sm:text-2xl">
         HTML first, islands by choice
       </h2>
       <p class="mt-3 leading-7 text-[#657168]">

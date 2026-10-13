@@ -77,7 +77,7 @@ function serializeInner(
       if (i < value.length - 1) str += ",";
     }
     str += "]";
-  } else if (typeof value === "object") {
+  } else if (typeof value === "object" || typeof value === "function") {
     if (custom !== undefined) {
       for (const k in custom) {
         const fn = custom[k];
@@ -89,6 +89,14 @@ function serializeInner(
         out[idx] = str;
         return idx;
       }
+    }
+
+    if (typeof value === "function") {
+      throw new Error(
+        "Hum: serializing functions is not supported. Island props and page " +
+          "level event handlers must be serializable data (or a signal / a " +
+          "factory from `@humjs/core/events`).",
+      );
     }
 
     if (value instanceof URL) {
@@ -131,11 +139,6 @@ function serializeInner(
       }
       str += "}";
     }
-  } else if (typeof value === "function") {
-    throw new Error(
-      "Hum: serializing functions is not supported. Island props must be " +
-        "serializable data (or a signal / JSX element).",
-    );
   }
 
   out[idx] = str;

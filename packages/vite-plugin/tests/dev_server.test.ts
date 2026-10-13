@@ -61,6 +61,16 @@ export default define.page<PageData>(({ data }) => (
       expect(api.status).toBe(200);
       expect(api.headers.get("x-powered-by")).toBe("Hum + Hono");
 
+      // The inline boot script imports `boot` from the dev runtime URL, so that
+      // URL has to serve the user client entry as well: factories a page uses
+      // from its own modules are registered by the client entry, and the payload
+      // cannot be revived in the browser without them.
+      const runtime = await fetch(`${origin}/_hum/runtime.js`);
+      const runtimeCode = await runtime.text();
+      expect(runtime.status, runtimeCode).toBe(200);
+      expect(runtimeCode).toContain("client/main.ts");
+      expect(runtimeCode).toContain("export * from");
+
       const streaming = await fetch(`${origin}/streaming`);
       expect(streaming.status).toBe(200);
       const reader = streaming.body!.getReader();

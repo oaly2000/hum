@@ -1,7 +1,13 @@
 import type { ComponentChildren, ComponentType } from "preact";
 import type { Context, Next } from "hono";
 
-/** Hono context used by Hum request handlers and middlewares. */
+/**
+ * Hono context used by Hum request handlers and middlewares.
+ *
+ * Middleware is mounted per directory: the default export of `_middleware.ts`
+ * applies to Hum file routes in that directory and below. Middleware registered
+ * on the Hono app in `server.ts` (`app.use()`) is the general alternative.
+ */
 export type HumContext = Context<any, any, any>;
 
 /** Options accepted as the second argument to {@link PageFn}. */
@@ -51,7 +57,14 @@ export interface Handlers {
   OPTIONS?: HumHandler;
 }
 
-/** A Hono style middleware, `await next()` to continue the chain. */
+/**
+ * A Hono middleware, `await next()` to continue the chain.
+ *
+ * As the default export of `_middleware.ts` it is mounted directory-scoped: the
+ * file's directory and everything below it is the scope. Registering middleware
+ * with `app.use()` in `server.ts` is the general alternative; reach for
+ * `_middleware.ts` when the policy belongs to a branch of the route tree.
+ */
 export type HumMiddleware = (
   c: HumContext,
   next: Next,
@@ -108,7 +121,6 @@ export interface RouteModule<State = Record<string, unknown>> {
   handlers?: Handlers;
   head?: HeadExport<State>;
   config?: RouteConfig;
-  middleware?: HumMiddleware | HumMiddleware[];
 }
 
 /** Everything an `_app` / `_layout` file can export. */

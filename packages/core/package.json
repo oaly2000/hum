@@ -28,6 +28,10 @@
     "./discovery": {
       "types": "./dist/discovery/mod.d.ts",
       "default": "./dist/discovery/mod.js"
+    },
+    "./events": {
+      "types": "./dist/runtime/events.d.ts",
+      "default": "./dist/runtime/events.js"
     }
   },
   "files": [

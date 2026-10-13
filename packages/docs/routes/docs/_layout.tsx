@@ -1,6 +1,20 @@
 import type { ComponentChildren } from "preact";
 import type { RouteProps } from "@humjs/core";
 
+/**
+ * Sidebar entries, in reading order, labelled with each guide's own title. The
+ * list is a column on wide screens and collapses behind one toggle on narrow
+ * ones, so the labels no longer have to fit a horizontal strip.
+ */
+const GUIDES = [
+  { href: "/docs/routing", label: "Routing and rendering" },
+  { href: "/docs/hono", label: "Hono and Hum middleware" },
+  { href: "/docs/handlers", label: "Route handlers" },
+  { href: "/docs/partials", label: "Partial page updates" },
+  { href: "/docs/facets", label: "Page-level reactivity" },
+  { href: "/docs/streaming", label: "Experimental streaming" },
+];
+
 export default function DocsLayout({
   children,
   url,
@@ -28,80 +42,41 @@ export default function DocsLayout({
           </a>
         </div>
       </header>
-      <div class="mx-auto grid max-w-7xl gap-10 px-5 py-10 sm:px-8 lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-16 lg:py-14">
+      <div class="mx-auto grid max-w-7xl gap-6 px-5 py-8 sm:px-8 lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-16 lg:py-14">
         <aside class="lg:sticky lg:top-8 lg:self-start">
-          <p class="mb-3 px-3 text-xs font-bold uppercase tracking-[0.16em] text-[#879185]">
+          {/*
+            Narrow screens keep the whole guide list behind one toggle. A
+            checkbox does that without shipping client script, and the list
+            follows it through `peer-checked`; from `lg` up the list is always
+            visible and the toggle is gone.
+          */}
+          <input id="docs-nav" type="checkbox" class="peer sr-only" />
+          <label
+            for="docs-nav"
+            class="flex cursor-pointer items-center justify-between gap-2 rounded-xl border border-[#e3eadb] bg-white px-3 py-2.5 text-sm font-semibold text-[#465348] transition peer-checked:border-[#9cba69] peer-checked:text-[#45651c] peer-focus-visible:ring-2 peer-focus-visible:ring-[#9cba69]/40 lg:hidden"
+          >
+            Guides
+            <span aria-hidden="true" class="text-[#879185]">▾</span>
+          </label>
+          <p class="mb-3 hidden px-3 text-xs font-bold uppercase tracking-[0.16em] text-[#879185] lg:block">
             Guides
           </p>
-          <nav class="flex gap-2 overflow-x-auto lg:flex-col">
-            <a
-              href="/docs/routing"
-              aria-current={currentPath === "/docs/routing"
-                ? "page"
-                : undefined}
-              class={[
-                "shrink-0 rounded-xl px-3 py-2.5 text-sm font-semibold transition",
-                currentPath === "/docs/routing"
-                  ? "bg-[#edf6d8] text-[#45651c]"
-                  : "text-[#657168] hover:bg-white hover:text-[#17211b]",
-              ].join(" ")}
-            >
-              Routing
-            </a>
-            <a
-              href="/docs/hono"
-              aria-current={currentPath === "/docs/hono" ? "page" : undefined}
-              class={[
-                "shrink-0 rounded-xl px-3 py-2.5 text-sm font-semibold transition",
-                currentPath === "/docs/hono"
-                  ? "bg-[#edf6d8] text-[#45651c]"
-                  : "text-[#657168] hover:bg-white hover:text-[#17211b]",
-              ].join(" ")}
-            >
-              Middleware
-            </a>
-            <a
-              href="/docs/handlers"
-              aria-current={currentPath === "/docs/handlers"
-                ? "page"
-                : undefined}
-              class={[
-                "shrink-0 rounded-xl px-3 py-2.5 text-sm font-semibold transition",
-                currentPath === "/docs/handlers"
-                  ? "bg-[#edf6d8] text-[#45651c]"
-                  : "text-[#657168] hover:bg-white hover:text-[#17211b]",
-              ].join(" ")}
-            >
-              Route handlers
-            </a>
-            <a
-              href="/docs/partials"
-              aria-current={currentPath === "/docs/partials"
-                ? "page"
-                : undefined}
-              class={[
-                "shrink-0 rounded-xl px-3 py-2.5 text-sm font-semibold transition",
-                currentPath === "/docs/partials"
-                  ? "bg-[#edf6d8] text-[#45651c]"
-                  : "text-[#657168] hover:bg-white hover:text-[#17211b]",
-              ].join(" ")}
-            >
-              Partials
-            </a>
-            <a
-              href="/docs/streaming"
-              aria-current={currentPath === "/docs/streaming"
-                ? "page"
-                : undefined}
-              class={[
-                "shrink-0 rounded-xl px-3 py-2.5 text-sm font-semibold transition",
-                currentPath === "/docs/streaming"
-                  ? "bg-[#edf6d8] text-[#45651c]"
-                  : "text-[#657168] hover:bg-white hover:text-[#17211b]",
-              ].join(" ")}
-            >
-              Streaming
-            </a>
+          <nav class="mt-2 hidden flex-col gap-2 peer-checked:flex lg:mt-0 lg:flex">
+            {GUIDES.map((guide) => (
+              <a
+                key={guide.href}
+                href={guide.href}
+                aria-current={currentPath === guide.href ? "page" : undefined}
+                class={[
+                  "rounded-xl px-3 py-2.5 text-sm font-semibold transition",
+                  currentPath === guide.href
+                    ? "bg-[#edf6d8] text-[#45651c]"
+                    : "text-[#657168] hover:bg-white hover:text-[#17211b]",
+                ].join(" ")}
+              >
+                {guide.label}
+              </a>
+            ))}
           </nav>
         </aside>
         <main class="min-w-0 max-w-3xl pb-16">

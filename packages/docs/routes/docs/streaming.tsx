@@ -36,33 +36,45 @@ export const head = define.head(
 );
 
 const resourceExample =
-  `import { createResource, define, page, Suspense, type Resource } from "@humjs/core";
+  `// routes/docs/streaming.tsx — the two demos above
+import { createResource, define, page, Suspense, type Resource } from "@humjs/core";
 
-type Profile = { name: string };
-type PageData = { profile: Resource<Profile> };
+type DemoData = { message: string };
+type PageData = { demo: Resource<DemoData>; renderError: Resource<void> };
 
-export const handlers = define.handlers({
-  GET: (c) => page({
-    profile: createResource(loadProfile(c.req.param("id"))),
-  }),
-});
-
-function ProfilePanel({ profile }: { profile: Profile }) {
-  return <p>{profile.name}</p>;
+async function loadDemoData(): Promise<DemoData> {
+  await new Promise((resolve) => setTimeout(resolve, 1200));
+  return { message: "The delayed server data has arrived." };
 }
 
 export const config = define.config({ streaming: true });
 
+export const handlers = define.handlers({
+  GET: () =>
+    page({
+      demo: createResource(loadDemoData()),
+      renderError: createResource(loadDemoData()),
+    }),
+});
+
 export default define.page<PageData>(({ data }) => (
-  <Suspense
-    resource={data.profile}
-    fallback={<p>Loading profile…</p>}
-    errorFallback={(error) => (
-      <p role="alert">Could not load: {String(error)}</p>
-    )}
-  >
-    {(profile) => <ProfilePanel profile={profile} />}
-  </Suspense>
+  <>
+    <Suspense
+      resource={data.demo}
+      fallback={<p role="status">Loading server data…</p>}
+      errorFallback={<p role="alert">Could not load server data.</p>}
+    >
+      {(demo) => <ResourceDemo data={demo} />}
+    </Suspense>
+
+    <Suspense
+      resource={data.renderError}
+      fallback={<p role="status">Loading server data…</p>}
+      errorFallback={(error) => <p role="alert">Error caught: {String(error)}</p>}
+    >
+      {() => <BrokenRenderDemo />}
+    </Suspense>
+  </>
 ));`;
 
 function ResourceDemo({ data }: { data: DemoData }) {
@@ -80,10 +92,7 @@ function BrokenRenderDemo(): never {
 export default define.page<StreamingPageData>(({ data }) => {
   return (
     <article>
-      <p class="text-sm font-bold uppercase tracking-[0.16em] text-[#759a37]">
-        Guides / Rendering
-      </p>
-      <h1 class="mt-3 text-4xl font-black tracking-tight sm:text-5xl">
+      <h1 class="text-3xl font-black tracking-tight sm:text-4xl">
         Experimental streaming
       </h1>
       <p class="mt-5 text-lg leading-8 text-[#657168]">
@@ -131,7 +140,7 @@ export default define.page<StreamingPageData>(({ data }) => {
         </div>
       </section>
 
-      <h2 class="mt-12 text-2xl font-extrabold tracking-tight">
+      <h2 class="mt-12 text-xl font-extrabold tracking-tight sm:text-2xl">
         Enable it for one route
       </h2>
       <p class="mt-3 leading-7 text-[#657168]">
@@ -140,7 +149,7 @@ export default define.page<StreamingPageData>(({ data }) => {
         <code>Suspense</code>{" "}
         with a resource. It shows the pending fallback first, renders the
         resource value when ready, or displays the error fallback if loading
-        fails.
+        fails. The code below is the whole route behind the demos above.
       </p>
 
       <CodeBlock code={resourceExample} language="typescript" />
@@ -154,7 +163,7 @@ export default define.page<StreamingPageData>(({ data }) => {
         resource once per request in the handler.
       </p>
 
-      <h2 class="mt-12 text-2xl font-extrabold tracking-tight">
+      <h2 class="mt-12 text-xl font-extrabold tracking-tight sm:text-2xl">
         Early-stage limitations
       </h2>
       <ul class="mt-3 list-disc space-y-2 pl-6 leading-7 text-[#657168]">

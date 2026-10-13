@@ -9,18 +9,17 @@ import type { HumContext, ResolvedHumOptions } from "../shared.js";
 import {
   CLIENT_RUNTIME_ENTRY,
   CORE_RUNTIME_ID,
-  RESOLVED_RUNTIME_VIRTUAL_ID,
-  RUNTIME_VIRTUAL_ID,
   SERVER_ENTRY,
 } from "../shared.js";
 
 /**
- * Discovers the routes and islands of the project and exposes the client
- * runtime as a module.
+ * Discovers the routes and islands of the project.
  *
- * In development every island file is served straight from Vite, so no extra
- * entry is needed: `BuildCache` points the boot script at `/islands/Foo.tsx`
- * and Vite transforms that request on the fly.
+ * In development the client runtime — including the optional user client entry
+ * — is served through the `hum:client-entry` virtual module, and every island
+ * file is served straight from Vite, so no extra entry is needed: `BuildCache`
+ * points the boot script at `/islands/Foo.tsx` and Vite transforms that request
+ * on the fly.
  */
 export function humIslands(ctx: HumContext): Plugin {
   return {
@@ -41,18 +40,6 @@ export function humIslands(ctx: HumContext): Plugin {
             `${ctx.project.islands.length} island(s)`,
         );
       }
-    },
-
-    resolveId(id) {
-      if (id === RUNTIME_VIRTUAL_ID) return RESOLVED_RUNTIME_VIRTUAL_ID;
-      return null;
-    },
-
-    load(id) {
-      if (id === RESOLVED_RUNTIME_VIRTUAL_ID) {
-        return `export { boot } from ${JSON.stringify(CORE_RUNTIME_ID)};`;
-      }
-      return null;
     },
 
     // The client runtime modules expose `boot`/`revive`/`applyPartials` that the

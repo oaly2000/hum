@@ -15,7 +15,6 @@ import type { Plugin, ViteDevServer } from "vite";
 
 import {
   projectUrlPath,
-  RESOLVED_RUNTIME_VIRTUAL_ID,
   RESOLVED_USER_ENTRY_VIRTUAL_ID,
   RUNTIME_URL,
   USER_ENTRY_VIRTUAL_ID,
@@ -126,8 +125,13 @@ export function humDevServer(ctx: HumContext): Plugin {
                 req.url === RUNTIME_URL ||
                 req.url?.startsWith(RUNTIME_URL + "?")
               ) {
+                // The boot script imports `boot` from here, so this URL has to
+                // serve the user client entry wired to the runtime: that entry
+                // imports `client/main.ts` (global styles, factory modules) and
+                // re-exports the runtime. Serving the runtime alone would leave
+                // factories the page relies on unregistered in the browser.
                 const result = await server.transformRequest(
-                  RESOLVED_RUNTIME_VIRTUAL_ID,
+                  RESOLVED_USER_ENTRY_VIRTUAL_ID,
                 );
                 res.statusCode = 200;
                 res.setHeader("Content-Type", "text/javascript; charset=utf-8");
@@ -296,10 +300,14 @@ async function collectCss(server: ViteDevServer): Promise<string[]> {
         /__vite__css\s+=\s+("(?:\\\\|\\"|[^"])*")/,
       );
       if (match !== null) {
+        // Tag the style with the id Vite's client uses for the module, so that
+        // when the module itself is loaded (the boot script pulls in the user
+        // client entry) `updateStyle` adopts this element instead of injecting
+        // a second copy into the page.
         out.push(
-          `<style type="text/css" vite-module-id="${hashCode(current)}">${
-            JSON.parse(match[1])
-          }</style>`,
+          `<style type="text/css" data-vite-dev-id="${
+            escapeAttr(mod.id ?? current)
+          }">${JSON.parse(match[1])}</style>`,
         );
       }
     }
@@ -313,11 +321,6 @@ async function collectCss(server: ViteDevServer): Promise<string[]> {
   return out;
 }
 
-function hashCode(moduleId: string): number {
-  let hash = 0;
-  for (let i = 0; i < moduleId.length; i++) {
-    hash = (hash << 5) - hash + moduleId.charCodeAt(i);
-    hash |= 0;
-  }
-  return hash;
+function escapeAttr(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
 }

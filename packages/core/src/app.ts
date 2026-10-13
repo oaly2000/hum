@@ -106,9 +106,10 @@ function pickHandler(
 }
 
 /**
- * Runs the middleware a route module exports. Mirrors Hono's semantics:
- * returning a `Response` short circuits, and a middleware that never calls
- * `next()` continues the chain so that simple middlewares stay ergonomic.
+ * Runs a directory-scoped middleware chain, ending in `terminal`. The
+ * middlewares are Hono middlewares, so Hono's semantics apply, with one
+ * ergonomic extension: returning a `Response` short circuits, and a middleware
+ * that never calls `next()` continues the chain.
  */
 async function runRouteMiddleware(
   list: HumMiddleware[],
@@ -140,11 +141,31 @@ async function runRouteMiddleware(
   return await dispatch(0);
 }
 
-function middlewareArray(
-  middleware: HumMiddleware | HumMiddleware[] | undefined,
-): HumMiddleware[] {
-  if (middleware === undefined) return [];
-  return Array.isArray(middleware) ? middleware : [middleware];
+/**
+ * Loads the `_middleware.ts` files scoped to a route's directory, root first.
+ * Modules that do not export a middleware are skipped with a warning.
+ */
+async function loadMiddleware(
+  route: ResolvedRoute,
+  internals: HumInternals,
+): Promise<HumMiddleware[]> {
+  const list: HumMiddleware[] = [];
+  for (const spec of route.middlewares) {
+    const middlewareModule = await internals.loader.load(spec);
+    const middleware = (middlewareModule.default ??
+      middlewareModule.middleware) as HumMiddleware | undefined;
+
+    if (typeof middleware !== "function") {
+      internals.config.logger.warn(
+        `hum: ${spec.file} does not export a middleware as its default ` +
+          `export. Skipping it.`,
+      );
+      continue;
+    }
+    list.push(middleware);
+  }
+
+  return list;
 }
 
 /**
@@ -228,21 +249,23 @@ export async function mountHum<
 
   app.notFound(async (c) => {
     const url = new URL(c.req.url);
+    const context = c as HumContext;
     const found = findNotFound(notFound, url.pathname);
     const dir = found === undefined
       ? ""
       : dirOf(found.file.file, resolved.routesDir);
 
+    const route = unmatchedRoute(
+      manifest.routes,
+      resolved.routesDir,
+      dir,
+      url.pathname,
+    );
     const input: RouteRenderInput = {
       config: resolved,
       buildCache,
       loader,
-      route: unmatchedRoute(
-        manifest.routes,
-        resolved.routesDir,
-        dir,
-        url.pathname,
-      ),
+      route,
       url,
       params: {},
       state: c.var as Record<string, unknown>,
@@ -251,15 +274,14 @@ export async function mountHum<
 
     try {
       await internals.refresh();
-      return htmlResponse(
-        c as HumContext,
-        await renderNotFound(input, url.pathname),
-      );
+      // The middleware of the directory the `_404` page belongs to wraps the
+      // render too, so a branch guard also covers unmatched paths under it.
+      const middleware = await loadMiddleware(route, internals);
+      const terminal = async (): Promise<Response> =>
+        htmlResponse(context, await renderNotFound(input, url.pathname));
+      return await runRouteMiddleware(middleware, context, terminal);
     } catch (err) {
-      return htmlResponse(
-        c as HumContext,
-        await renderError(input, err),
-      );
+      return htmlResponse(context, await renderError(input, err));
     }
   });
 
@@ -297,23 +319,7 @@ function routeHandler(
     try {
       await internals.refresh();
       const mod = (await internals.loader.load(route.file)) as RouteModule;
-      const routeMiddleware: HumMiddleware[] = [];
-      for (const spec of route.middlewares) {
-        const middlewareModule = await internals.loader.load(spec);
-        const middleware = (middlewareModule.default ??
-          middlewareModule.middleware) as HumMiddleware | undefined;
-
-        if (typeof middleware !== "function") {
-          internals.config.logger.warn(
-            `hum: ${spec.file} does not export a middleware as its default ` +
-              `export. Skipping it.`,
-          );
-          continue;
-        }
-        routeMiddleware.push(middleware);
-      }
-
-      routeMiddleware.push(...middlewareArray(mod.middleware));
+      const routeMiddleware = await loadMiddleware(route, internals);
       const terminal = async (): Promise<Response> => {
         const handler = pickHandler(mod.handlers, method);
         if (handler !== undefined) {

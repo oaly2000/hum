@@ -67,10 +67,6 @@ export function resolveHumOptions(
 /** Bare specifier of the client runtime shipped by `@humjs/core`. */
 export const CORE_RUNTIME_ID = "@humjs/core/runtime";
 
-/** Virtual module id of the client runtime entry. */
-export const RUNTIME_VIRTUAL_ID = "virtual:hum/runtime";
-export const RESOLVED_RUNTIME_VIRTUAL_ID = "\0" + RUNTIME_VIRTUAL_ID;
-
 /** URL the dev server serves the client runtime from. */
 export const RUNTIME_URL = "/_hum/runtime.js";
 

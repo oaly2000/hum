@@ -1,7 +1,9 @@
 import { define, page, Partial, type RouteProps } from "@humjs/core";
 import { CodeBlock } from "../../_components/CodeBlock.js";
 
-export const head = define.head(<title>Partials — Hum Guides</title>);
+export const head = define.head(
+  <title>Partial page updates — Hum Guides</title>,
+);
 
 const LOAD_MORE_ITEMS = [
   "Append new content without replacing what is already on screen.",
@@ -37,31 +39,57 @@ export const handlers = define.handlers({
   },
 });
 
-const partialExample = `import { Partial } from "@humjs/core";
+const partialExample = `// routes/docs/partials/[[topic]].tsx — the first demo on this page
+import { Partial } from "@humjs/core";
 
-export default function SearchPage({ url }) {
-  const query = url.searchParams.get("q") ?? "";
+export default function PartialsPage({ url }) {
+  const topic = url.searchParams.get("topic") ?? "start";
 
   return (
-    <div f-client-nav>
-      <form action="/search" method="get">
-        <input name="q" />
-        <button>Search</button>
-      </form>
+    <div data-hum-client-nav>
+      <a href="/docs/partials/handlers" data-hum-partial="/docs/partials?topic=handlers">
+        Handlers
+      </a>
 
-      <Partial name="results">
-        <SearchResults query={query} />
+      <Partial name="topic">
+        <p>{topics[topic]}</p>
       </Partial>
     </div>
   );
 }`;
 
-const linkExample = `<div f-client-nav>
-  <a href="/catalog?page=1">Previous</a>
-  <a href="/catalog?page=2">Next</a>
+const linkExample = `// the link navigates to /docs/partials/handlers, but the fetch
+// that updates the "topic" region asks for /docs/partials?topic=handlers
+<a href="/docs/partials/handlers" data-hum-partial="/docs/partials?topic=handlers">
+  Handlers
+</a>`;
 
-  <Partial name="items">
-    <ProductList page={page} />
+const loadMoreExample = `// handlers: what the "Load more" form below submits to
+export const handlers = define.handlers({
+  GET: () => page({ hasMore: true }),
+  POST: async (c) => {
+    const form = await c.req.formData();
+    const batch = Number(form.get("batch"));
+    const start = batch * LOAD_MORE_BATCH_SIZE;
+
+    return page({
+      batch,
+      hasMore: start + LOAD_MORE_BATCH_SIZE < LOAD_MORE_ITEMS.length,
+    });
+  },
+});
+
+// one region appends the new items, the other replaces the form
+<div data-hum-client-nav>
+  <Partial name="load-more-items" mode={batch === undefined ? "replace" : "append"}>
+    {itemsForBatch.map((item) => <li>{item}</li>)}
+  </Partial>
+
+  <Partial name="load-more-control">
+    <form method="post" action="/docs/partials">
+      <input type="hidden" name="batch" value={nextBatch} />
+      <button>Load more</button>
+    </form>
   </Partial>
 </div>`;
 
@@ -88,10 +116,7 @@ export default function PartialsPage({
 
   return (
     <article>
-      <p class="text-sm font-bold uppercase tracking-[0.16em] text-[#759a37]">
-        Guides / Navigation
-      </p>
-      <h1 class="mt-3 text-4xl font-black tracking-tight sm:text-5xl">
+      <h1 class="text-3xl font-black tracking-tight sm:text-4xl">
         Partial page updates
       </h1>
       <p class="mt-5 text-lg leading-8 text-[#657168]">
@@ -99,13 +124,13 @@ export default function PartialsPage({
         prepending only named regions of the current document.
       </p>
 
-      <h2 class="mt-12 text-2xl font-extrabold tracking-tight">
+      <h2 class="mt-12 text-xl font-extrabold tracking-tight sm:text-2xl">
         Mark a region and opt in to client navigation
       </h2>
       <p class="mt-3 leading-7 text-[#657168]">
         Wrap the content to update in a <code>Partial</code>{" "}
         with a stable, unique name. Add{" "}
-        <strong class="font-bold">f-client-nav</strong>{" "}
+        <strong class="font-bold">data-hum-client-nav</strong>{" "}
         to an ancestor to intercept same-origin links and GET/POST forms inside
         it. Matching partials from the fetched page are applied without
         replacing the surrounding shell.
@@ -116,32 +141,35 @@ export default function PartialsPage({
         navigation still works when client navigation is not enabled.
       </p>
 
-      <h2 class="mt-12 text-2xl font-extrabold tracking-tight">
+      <h2 class="mt-12 text-xl font-extrabold tracking-tight sm:text-2xl">
         Links and forms
       </h2>
       <p class="mt-3 leading-7 text-[#657168]">
         Links inside an opted-in region navigate without a full reload. GET and
         POST forms are also supported; other form methods use normal browser
-        submission. Add <code>f-partial</code>{" "}
+        submission. Add <code>data-hum-partial</code>{" "}
         to a link or form when you want to fetch a different URL than the one
         used for the visible navigation or form action.
       </p>
       <CodeBlock code={linkExample} />
       <div class="mt-5 rounded-2xl border border-[#e3eadb] bg-[#f4f8ec] p-5 leading-7 text-[#556450]">
         For a smaller opt-in area, put{" "}
-        <strong class="font-bold">f-client-nav</strong>{" "}
+        <strong class="font-bold">data-hum-client-nav</strong>{" "}
         only on the wrapper containing the links/forms that should use partial
-        navigation. Set <code>f-client-nav={"{false}"}</code>{" "}
+        navigation. Set <code>data-hum-client-nav={"{false}"}</code>{" "}
         to opt out inside an enabled ancestor.
       </div>
 
-      <h2 class="mt-12 text-2xl font-extrabold tracking-tight">
+      <h2 class="mt-12 text-xl font-extrabold tracking-tight sm:text-2xl">
         Choose how new content is applied
       </h2>
       <p class="mt-3 leading-7 text-[#657168]">
         The default mode replaces the region’s contents. Use append or prepend
         for feeds and lists; the existing DOM children are retained and new
-        content is added at the selected edge.
+        content is added at the selected edge. The second demo below does both:
+        the list region appends the next batch while the region holding the form
+        is replaced, so the button can move from “Load more” to the end of the
+        list.
       </p>
       <div class="mt-5 grid gap-3 sm:grid-cols-3">
         <ModeCard
@@ -157,37 +185,7 @@ export default function PartialsPage({
           description="Add the fetched content before existing children."
         />
       </div>
-      <CodeBlock
-        code={`<Partial name="messages" mode="append">
-  <MessageList messages={newMessages} />
-</Partial>`}
-      />
-      <p class="mt-4 leading-7 text-[#657168]">
-        A “load more” interaction can submit a form, render only the next batch
-        in an append partial, and replace a separate partial containing the form
-        button.
-      </p>
-      <CodeBlock
-        code={`export const handlers = define.handlers({
-  POST: async (c) => {
-    const form = await c.req.formData();
-    const batch = Number(form.get("batch"));
-    return page({ batch });
-  },
-});
-
-<div f-client-nav>
-  <Partial name="items" mode={batch ? "append" : "replace"}>
-    <ItemList items={itemsForBatch} />
-  </Partial>
-  <Partial name="load-more">
-    <form method="post" action="/items">
-      <input type="hidden" name="batch" value={nextBatch} />
-      <button>Load more</button>
-    </form>
-  </Partial>
-</div>`}
-      />
+      <CodeBlock code={loadMoreExample} />
       <p class="mt-4 leading-7 text-[#657168]">
         If a response does not contain any partial regions, Hum falls back to a
         full navigation. The URL and browser history stay in sync, and Back /
@@ -195,17 +193,17 @@ export default function PartialsPage({
       </p>
 
       <section class="mt-12 rounded-3xl border border-[#e3eadb] bg-white p-6 sm:p-8">
-        <p class="text-sm font-bold uppercase tracking-[0.14em] text-[#759a37]">
+        <p class="text-sm font-bold uppercase tracking-[0.16em] text-[#759a37]">
           Try it
         </p>
-        <h2 class="mt-2 text-xl font-extrabold">Update one region</h2>
+        <h2 class="mt-2 text-lg font-extrabold">Update one region</h2>
         <p class="mt-2 leading-7 text-[#657168]">
           These links change the URL and replace only the matching partial. The
           surrounding panel stays in place.
         </p>
         <div class="mt-5">
           <nav
-            f-client-nav
+            data-hum-client-nav
             aria-label="Choose a topic"
             class="flex flex-wrap gap-2"
           >
@@ -218,7 +216,7 @@ export default function PartialsPage({
             ? (
               <Partial name="topic">
                 <div class="mt-4 min-h-24 rounded-2xl bg-[#f1f6e9] p-5">
-                  <p class="text-xs font-bold uppercase tracking-[0.14em] text-[#759a37]">
+                  <p class="text-xs font-bold uppercase tracking-[0.16em] text-[#759a37]">
                     Current topic
                   </p>
                   <p class="mt-2 font-semibold text-[#34432f]">
@@ -232,15 +230,15 @@ export default function PartialsPage({
       </section>
 
       <section class="mt-8 rounded-3xl border border-[#e3eadb] bg-white p-6 sm:p-8">
-        <p class="text-sm font-bold uppercase tracking-[0.14em] text-[#759a37]">
+        <p class="text-sm font-bold uppercase tracking-[0.16em] text-[#759a37]">
           Append mode demo
         </p>
-        <h2 class="mt-2 text-xl font-extrabold">Load more items</h2>
+        <h2 class="mt-2 text-lg font-extrabold">Load more items</h2>
         <p class="mt-2 leading-7 text-[#657168]">
           Submit the form to fetch the next two items. The list appends them;
           only the form area is replaced.
         </p>
-        <div f-client-nav class="mt-5">
+        <div data-hum-client-nav class="mt-5">
           <ol class="space-y-3">
             <Partial
               name="load-more-items"
@@ -310,7 +308,7 @@ function TopicLink({ topic, label }: { topic: string; label: string }) {
   return (
     <a
       href={`/docs/partials/${topic}`}
-      f-partial={`/docs/partials?topic=${topic}`}
+      data-hum-partial={`/docs/partials?topic=${topic}`}
       class="rounded-full border border-[#dce3d8] px-4 py-2 text-sm font-semibold text-[#59645b] transition hover:border-[#9cba69] hover:bg-white hover:text-[#45651c] aria-[current]:text-[#45651c] aria-[current]:border-[#9cba69] aria-[current]:bg-white"
     >
       {label}

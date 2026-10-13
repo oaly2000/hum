@@ -10,7 +10,7 @@ import {
   HEAD_PLACEHOLDER_PREFIX,
   type RenderState,
   SCRIPTS_PLACEHOLDER_PREFIX,
-  serializeIslandProps,
+  serializePayload,
   withRenderState,
 } from "./preact_hooks.js";
 
@@ -168,7 +168,7 @@ export function renderScripts(state: RenderState): string {
         url: withBase(state.basePath, island.clientUrl),
         exportName: island.exportName,
       })),
-      props: serializeIslandProps(state),
+      props: serializePayload(state),
     };
     return renderToString(
       h("script", {
@@ -196,7 +196,7 @@ export function renderScripts(state: RenderState): string {
   }
 
   const clientEntry = withBase(state.basePath, state.buildCache.clientEntry);
-  const props = escapeScript(JSON.stringify(serializeIslandProps(state)));
+  const props = escapeScript(JSON.stringify(serializePayload(state)));
   const content = `import { boot } from "${clientEntry}";${
     imports.join("")
   }boot({${entries.join(",")}},${props});`;
