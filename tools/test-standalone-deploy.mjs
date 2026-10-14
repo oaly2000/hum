@@ -36,9 +36,11 @@ try {
   );
   assert.match(scaffoldServer, /export default app/);
   assert.match(scaffoldServer, /app\.get\("\/api\/health"/);
-  // The scaffold serves the build's public tree, which is what the checks below
-  // fetch the client assets from once the directory has been renamed.
+  // The scaffold serves the sibling public directory, including after the
+  // output directory has been renamed.
   assert.match(scaffoldServer, /"public"/);
+  assert.doesNotMatch(scaffoldServer, /HUM_OUT_DIR/);
+  assert.match(scaffoldServer, /dirname\(fileURLToPath\(import\.meta\.url\)\)/);
   assert.equal(
     (await readFile(join(scaffoldRoot, "package.json"), "utf8")).includes(
       "{{name}}",
@@ -95,13 +97,9 @@ try {
     [entryPath],
     {
       cwd: runtimeRoot,
-      // Hum does not serve its own output, so the deployment tells the app
-      // where the renamed directory ended up; its own static middleware
-      // answers the client asset requests from there.
       env: {
         ...process.env,
         PORT: String(port),
-        HUM_OUT_DIR: join(runtimeRoot, outDir),
       },
       stdio: ["ignore", "pipe", "pipe"],
     },

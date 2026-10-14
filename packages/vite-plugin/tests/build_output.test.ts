@@ -89,7 +89,8 @@ describe("the production build layout", () => {
 
       const assets = (await readdir(join(root, outDir, "public", "_hum")))
         .sort();
-      expect(assets).toEqual(["assets", "favicon.svg", "robots.txt"]);
+      expect(assets).toEqual(["assets"]);
+      expect(await exists(join(root, outDir, "robots.txt"))).toBe(false);
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -103,6 +104,8 @@ describe("the production build layout", () => {
       expect(await readFile(join(root, outDir, "public", "robots.txt"), "utf8"))
         .toContain("User-agent");
       expect(await exists(join(root, outDir, "public", "favicon.svg"))).toBe(true);
+      expect(await exists(join(root, outDir, "public", "_hum", "robots.txt")))
+        .toBe(false);
     } finally {
       await rm(root, { recursive: true, force: true });
     }

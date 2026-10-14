@@ -25,10 +25,12 @@ dist/
 
 Hum renders the client asset URLs the build recorded (under `/_hum/`, next to
 the server entry) but does not serve them itself: `server.ts` answers the
-requests for `public/` with `@hono/node-server/serve-static`, and `HUM_OUT_DIR`
-points it at a renamed or relocated output directory. Delegate them to a reverse
-proxy or a CDN in production. Only `public/` is public — the server entry sits
-next to it and stays unreachable. Node.js 20 or newer is still required.
+requests for the sibling `public/` directory with
+`@hono/node-server/serve-static`. The path is resolved relative to the server
+entry, so a renamed or relocated output directory needs no extra configuration.
+Delegate static files to a reverse proxy or a CDN in production. Only `public/`
+is public — the server entry sits next to it and stays unreachable. Node.js 20 or
+newer is still required.
 
 ## Hono server
 

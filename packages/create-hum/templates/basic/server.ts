@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
@@ -24,15 +25,14 @@ function configure(app: Hono) {
  * Answers the requests for the build's `public/` directory: Hum's client assets
  * under `/_hum`, plus whatever the project put in its own `public/` directory.
  * A reverse proxy or a CDN normally handles them; this keeps `npm start`
- * runnable on its own. Point `HUM_OUT_DIR` at the deployed directory when it
- * was renamed or moved.
+ * runnable on its own.
  */
 function serveClientAssets(app: Hono) {
-  const publicRoot = resolve(process.env.HUM_OUT_DIR ?? "./dist", "public");
+  const publicRoot = resolve(dirname(fileURLToPath(import.meta.url)), "public");
 
   // Dev serves the project's public files through Vite, so this only matters
-  // once the output directory exists. The server bundle lives next to `public/`
-  // rather than inside it, so it can never be reached over HTTP.
+  // once the public directory exists. The server bundle lives next to
+  // `public/` rather than inside it, so it can never be reached over HTTP.
   if (!existsSync(publicRoot)) return;
 
   app.use("*", serveStatic({ root: publicRoot }));

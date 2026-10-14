@@ -190,6 +190,9 @@ export function humBuild(ctx: HumContext): Plugin {
 
       return {
         appType: "custom",
+        // Public files are copied once during assembly, beside the server
+        // entry. Vite's automatic copy would also place them in .hum-client.
+        publicDir: false,
         build: {
           // The client output is assembled into `<outDir>/public/_hum` once the
           // pass is done, so this directory is an implementation detail.
@@ -239,6 +242,8 @@ export function humBuild(ctx: HumContext): Plugin {
         // the two plugins that resolve it are the exception.
         configFile: false,
         plugins: [humRoutes(ctx), humBuildInput(ctx)],
+        // The public tree was already assembled beside the server entry.
+        publicDir: false,
         logLevel: "warn",
         build: {
           // The build's public tree sits in the same directory, so this pass

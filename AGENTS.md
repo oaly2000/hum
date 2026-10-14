@@ -102,11 +102,12 @@ the example where applicable.
 - The output directory's `public/` tree is served from the deployment root: it is
   what the dev server answers for the project's `public/` directory and what a
   built app mounts `@hono/node-server/serve-static` for (see
-  `packages/docs/server.ts` and the scaffold, plus `HUM_OUT_DIR`), normally
-  delegated to a reverse proxy, a CDN, or a platform asset binding. Only that
-  tree is public: the server bundle sits next to it and must stay unreachable
-  over HTTP, which `tools/test-standalone-deploy.mjs` asserts in both
-  directions.
+  `packages/docs/server.ts` and the scaffold). The built app resolves this
+  directory as a sibling of its server entry, so renaming or moving the output
+  needs no runtime environment variable. Normally static requests are delegated
+  to a reverse proxy, a CDN, or a platform asset binding. Only that tree is
+  public: the server bundle sits next to it and must stay unreachable over HTTP,
+  which `tools/test-standalone-deploy.mjs` asserts in both directions.
 
 ## Development and Validation
 

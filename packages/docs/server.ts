@@ -1,18 +1,12 @@
 import { existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 
-/**
- * Directory the production build wrote into. It holds the server entry and a
- * `public/` tree; a reverse proxy or a CDN normally answers the requests for
- * the latter, and this keeps the built app runnable on its own. Point
- * `HUM_OUT_DIR` at the deployed directory when it was renamed or moved.
- */
-const outDir = resolve(process.env.HUM_OUT_DIR ?? "./dist");
-
-const publicRoot = resolve(outDir, "public");
+/** Public files are always next to the server entry, including after deployment. */
+const publicRoot = resolve(dirname(fileURLToPath(import.meta.url)), "public");
 
 const app = new Hono();
 
@@ -21,8 +15,9 @@ app.use("*", async (c, next) => {
   await next();
 });
 
-// Dev serves the project's `public/` directory through Vite, so this only
-// matters once the output directory exists. The whole public tree is served —
+// Dev serves the project's `public/` directory through Vite, so this resolves
+// to the project root there and to the output directory in a production build.
+// The whole public tree is served —
 // Hum's client assets under `/_hum` and the project's own files beside them —
 // while the server bundle itself stays outside it and unreachable.
 if (existsSync(publicRoot)) {
