@@ -3,9 +3,35 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const TEMPLATE_DIR = fileURLToPath(
-  new URL("../templates/basic", import.meta.url),
-);
+/** Templates shipped with the CLI, one directory each, next to its output. */
+const TEMPLATES_DIR = fileURLToPath(new URL("../templates", import.meta.url));
+
+/** Template a project is scaffolded from when none is named. */
+export const DEFAULT_TEMPLATE = "basic";
+
+/** Names of the templates that can be scaffolded, as they are on disk. */
+export async function listTemplates(): Promise<string[]> {
+  const entries = await readdir(TEMPLATES_DIR, { withFileTypes: true });
+  return entries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
+}
+
+/**
+ * Directory holding the named template. The name is looked up in the directory
+ * listing instead of being joined into a path, so a name such as `../basic` is
+ * reported as unknown rather than resolving outside the templates.
+ */
+export async function templatePath(name: string): Promise<string> {
+  const templates = await listTemplates();
+  if (!templates.includes(name)) {
+    throw new Error(
+      `unknown template "${name}" (available: ${templates.join(", ")})`,
+    );
+  }
+  return join(TEMPLATES_DIR, name);
+}
 
 /**
  * Template files whose name is only valid once they land in the new project
@@ -47,7 +73,7 @@ export async function isEmptyDir(dir: string): Promise<boolean> {
 export async function scaffold(
   target: string,
   name: string,
-  templateDir: string = TEMPLATE_DIR,
+  templateDir: string = join(TEMPLATES_DIR, DEFAULT_TEMPLATE),
 ): Promise<void> {
   for (const file of await walk(templateDir)) {
     const rel = file

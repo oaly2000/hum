@@ -4,14 +4,17 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { scaffold } from "../src/scaffold.js";
+import { listTemplates, scaffold, templatePath } from "../src/scaffold.js";
 
 const roots: string[] = [];
 
-async function scaffoldInto(name: string): Promise<string> {
+async function scaffoldInto(
+  name: string,
+  templateDir?: string,
+): Promise<string> {
   const target = await mkdtemp(join(tmpdir(), "hum-scaffold-"));
   roots.push(target);
-  await scaffold(target, name);
+  await scaffold(target, name, templateDir);
   return target;
 }
 
@@ -91,5 +94,52 @@ describe("scaffold", () => {
     expect(app).toBe(
       'export const head = define.head(<title>spaced</title>);\n',
     );
+  });
+});
+
+describe("templates", () => {
+  it("lists the templates the CLI ships", async () => {
+    expect(await listTemplates()).toEqual(["basic", "cloudflare"]);
+  });
+
+  it("resolves a template by name and refuses anything else", async () => {
+    expect(await templatePath("cloudflare")).toContain("cloudflare");
+
+    // A name is never joined into a path, so it cannot leave the templates.
+    await expect(templatePath("../basic")).rejects.toThrow(/unknown template/);
+    await expect(templatePath("nope")).rejects.toThrow(/unknown template/);
+  });
+
+  it("scaffolds a Worker project from the Cloudflare template", async () => {
+    const target = await scaffoldInto("worker", await templatePath("cloudflare"));
+
+    const files = (await walk(target))
+      .map((file) => file.slice(target.length + 1).replace(/\\/g, "/"))
+      .sort();
+    expect(files).toContain("wrangler.jsonc");
+    expect(files).toContain("server.ts");
+
+    // The Worker owns the entry and the platform serves the build's public
+    // tree, so nothing in the project imports the Node adapter.
+    const server = await readFile(join(target, "server.ts"), "utf8");
+    expect(server).not.toContain("@hono/node-server");
+    expect(server).toContain("export default app");
+
+    const wrangler = await readFile(join(target, "wrangler.jsonc"), "utf8");
+    expect(wrangler).toContain('"main": "./dist/server.js"');
+    expect(wrangler).toContain('"directory": "./dist/public"');
+    expect(wrangler).toContain('"nodejs_compat"');
+
+    const vite = await readFile(join(target, "vite.config.ts"), "utf8");
+    expect(vite).toContain('platform: "cloudflare"');
+
+    const pkg = JSON.parse(
+      await readFile(join(target, "package.json"), "utf8"),
+    ) as {
+      dependencies: Record<string, string>;
+      devDependencies: Record<string, string>;
+    };
+    expect(pkg.dependencies["@hono/node-server"]).toBeUndefined();
+    expect(pkg.devDependencies.wrangler).toBeDefined();
   });
 });

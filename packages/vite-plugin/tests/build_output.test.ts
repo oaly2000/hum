@@ -12,14 +12,20 @@ import { join, resolve } from "node:path";
 import { build } from "vite";
 import { describe, expect, it } from "vitest";
 
-import { hum } from "../src/mod.js";
+import { hum, type HumOptions } from "../src/mod.js";
+
+interface BuildOptions {
+  outDir?: string;
+  platform?: HumOptions["platform"];
+}
 
 /**
  * Builds a throwaway project and inspects the output it produced. The project
  * carries a `public/` directory of its own, which is what ties the build's
  * public tree to the one the app serves.
  */
-async function buildProject(outDir?: string): Promise<string> {
+async function buildProject(options: BuildOptions = {}): Promise<string> {
+  const { outDir, platform } = options;
   // Inside the workspace, so the framework resolves for the built app while
   // everything else about the project is disposable.
   const root = await mkdtemp(
@@ -43,10 +49,14 @@ async function buildProject(outDir?: string): Promise<string> {
   await writeFile(join(root, "public", "robots.txt"), "User-agent: *\n");
   await writeFile(join(root, "public", "favicon.svg"), "<svg/>\n");
 
+  const humOptions: HumOptions = {};
+  if (outDir !== undefined) humOptions.outDir = outDir;
+  if (platform !== undefined) humOptions.platform = platform;
+
   await build({
     root,
     configFile: false,
-    plugins: [hum(outDir === undefined ? {} : { outDir })],
+    plugins: [hum(humOptions)],
     logLevel: "silent",
     ...(outDir === undefined ? {} : { build: { outDir } }),
   });
@@ -66,7 +76,7 @@ async function exists(path: string): Promise<boolean> {
 describe("the production build layout", () => {
   it("publishes every client asset under <outDir>/public/_hum", async () => {
     const outDir = "dist";
-    const root = await buildProject(outDir);
+    const root = await buildProject({ outDir });
 
     try {
       // The output directory holds the server entry, its package.json and the
@@ -98,7 +108,7 @@ describe("the production build layout", () => {
 
   it("keeps user public files next to the client assets", async () => {
     const outDir = "wwwroot";
-    const root = await buildProject(outDir);
+    const root = await buildProject({ outDir });
 
     try {
       expect(await readFile(join(root, outDir, "public", "robots.txt"), "utf8"))
@@ -126,7 +136,7 @@ describe("the production build layout", () => {
 
   it("addresses the client assets through /_hum, never through the outDir", async () => {
     const outDir = "dist";
-    const root = await buildProject(outDir);
+    const root = await buildProject({ outDir });
 
     try {
       const entry = await readFile(join(root, outDir, "server.js"), "utf8");
@@ -135,6 +145,37 @@ describe("the production build layout", () => {
       expect(entry).toContain('"assetsBase": "/_hum"');
       expect(entry).not.toContain(`/_hum/${outDir}`);
       expect(entry).not.toContain('"/dist/');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("starts a Node listener by default", async () => {
+    const root = await buildProject();
+
+    try {
+      const entry = await readFile(join(root, "dist", "server.js"), "utf8");
+      // The default build serves itself: the entry owns the HTTP listener.
+      // Nothing here may be asserted by absence: the bundled framework is part
+      // of the file, so the Worker's own markers are checked on their build.
+      expect(entry).toContain("overrideGlobalObjects: false");
+      expect(entry).toContain("process.env.PORT");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("exports the handler a Worker runtime calls instead", async () => {
+    const root = await buildProject({ platform: "cloudflare" });
+
+    try {
+      const entry = await readFile(join(root, "dist", "server.js"), "utf8");
+      // Nothing binds a port and nothing reaches for the Node adapter: the
+      // platform owns the entry and answers for the public tree itself.
+      expect(entry).toContain("fetch(request, env, executionCtx) {");
+      expect(entry).not.toContain("overrideGlobalObjects");
+      expect(entry).not.toContain("process.env.PORT");
+      expect(entry).not.toContain("@hono/node-server");
     } finally {
       await rm(root, { recursive: true, force: true });
     }

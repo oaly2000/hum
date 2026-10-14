@@ -1,0 +1,21 @@
+{
+  // Cloudflare requires lowercase letters, digits and dashes: rename the Worker
+  // here (and in package.json) if the project directory has anything else.
+  "name": "{{name}}",
+  // Hum's build: one server bundle next to the public tree it publishes.
+  "main": "./dist/server.js",
+  "assets": {
+    "directory": "./dist/public",
+    // Makes the tree reachable as `env.ASSETS` from a route handler. It does
+    // not need to be mounted: assets are answered before the Worker runs.
+    "binding": "ASSETS"
+  },
+  // The runtime imports `node:async_hooks` and `node:path`, which this flag
+  // provides. Keep the flag when changing the date; a date below 2026-08-04
+  // requires it anyway.
+  "compatibility_date": "2026-07-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true
+  }
+}

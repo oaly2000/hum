@@ -55,6 +55,14 @@ The app serves its `public/` tree (see `server.ts`, which mounts
 `@hono/node-server/serve-static` for it) — in production that is normally
 delegated to a reverse proxy, a CDN, or a platform asset binding.
 
+The same build runs on a Worker runtime. `pnpm dlx create-hum my-worker
+--template cloudflare` scaffolds a project whose `vite.config.ts` sets
+`hum({ platform: "cloudflare" })`: the generated entry exports the app's fetch
+handler instead of starting a listener, and the server bundle is compiled for
+that runtime. `wrangler.jsonc` points `main` at `dist/server.js` and publishes
+`dist/public` through the Worker's static asset binding. Development is Vite on
+Node in both templates.
+
 ## Static files
 
 Files in `public/` are served from the site root in development and copied into

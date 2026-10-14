@@ -61,7 +61,11 @@ function serverBuildConfig(options: ResolvedHumOptions): Record<string, unknown>
     outDir: options.outDir,
     emptyOutDir: false,
     ssr: true,
-    target: "node20",
+    // A Node build runs on the Node the project targets. A Worker build runs on
+    // a Worker runtime instead, which takes the newest syntax and resolves the
+    // Node built-ins the bundle imports (this runtime keeps them external)
+    // through its Node compatibility layer.
+    target: options.platform === "cloudflare" ? "esnext" : "node20",
     rollupOptions: {
       input: { [SERVER_ENTRY_NAME]: SERVER_ENTRY },
       // Routes are discovered through dynamic imports; disabling splitting

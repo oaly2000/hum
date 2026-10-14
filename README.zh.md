@@ -48,6 +48,12 @@ dist/                 产物目录，对应插件选项里的 `outDir`
 （Node 内置模块除外）。`public/` 目录由应用自己提供（见 `server.ts`：它为它挂载了
 `@hono/node-server/serve-static`）——生产环境通常交给反向代理、CDN 或平台的静态资源绑定。
 
+同一份产物也能跑在 Worker 运行时上：`pnpm dlx create-hum my-worker --template cloudflare`
+生成的项目的 `vite.config.ts` 设置了 `hum({ platform: "cloudflare" })`，生成的入口不再
+监听端口，而是导出应用的 fetch handler，服务端产物也按该运行时编译；`wrangler.jsonc`
+把 `main` 指向 `dist/server.js`，并通过 Worker 的静态资源绑定发布 `dist/public`。
+两个模板的开发流程一样，都是 Node 上的 Vite。
+
 ## 静态文件
 
 `public/` 下的文件在开发时从站点根路径提供，构建时被复制进产物的 `public/` 目录，

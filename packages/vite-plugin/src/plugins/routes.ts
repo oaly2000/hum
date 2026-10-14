@@ -20,9 +20,9 @@ import {
  * route table with build machine paths. Adding or removing a route file
  * invalidates this module the way it invalidates any other glob owner.
  *
- * The file naming rules themselves live in `@humjs/core/routing`, so this
- * module and `crawlProject` (the file system fallback for callers without a
- * bundler) agree on what a route or island file is.
+ * The file naming rules themselves live in `@humjs/core/routing`, so the file
+ * list the bundler resolves and the route and island names derived from it
+ * agree on what a route or island file is.
  */
 export function humRoutes(ctx: HumContext): Plugin {
   return virtualModule(
