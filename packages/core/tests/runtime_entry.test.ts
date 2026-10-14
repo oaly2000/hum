@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ProdManifest } from "../src/build.js";
 import { defineBuild, mountHum } from "../src/mod.js";
+import { tagIsland } from "../src/routing/island_tag.js";
 import type { HumManifest } from "../src/types.js";
 
 /** A path that holds no project, so any disk read of it would fail. */
@@ -17,6 +18,13 @@ const EMPTY_ROOT = join(tmpdir(), "hum-no-such-project");
 function Counter() {
   return h("button", { id: "counter" }, "count");
 }
+
+// The tag the bundler's transform writes into every island module.
+tagIsland(Counter, {
+  name: "Counter",
+  file: "islands/Counter.tsx",
+  exportName: "default",
+});
 
 const manifest: HumManifest = {
   islands: [

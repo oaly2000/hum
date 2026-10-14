@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { BuildCache } from "../src/build_cache.js";
 import { parse } from "../src/jsonify/parse.js";
+import { tagIsland } from "../src/routing/island_tag.js";
 import { CUSTOM_PARSER, type Payload } from "../src/runtime/client/reviver.js";
 import {
   add,
@@ -49,13 +50,15 @@ async function renderPage(
     basePath: "/",
   });
   for (const [component, name] of options.islands ?? []) {
-    state.buildCache.islandRegistry.set(component, {
+    const file = `islands/${name}.tsx`;
+    state.buildCache.islands.set(name, {
       name,
       exportName: "default",
-      file: `islands/${name}.tsx`,
-      clientUrl: `/islands/${name}.tsx`,
+      file,
+      clientUrl: `/${file}`,
       css: [],
     });
+    tagIsland(component, { name, file, exportName: "default" });
   }
 
   const html = await withRenderState(state, () =>

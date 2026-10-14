@@ -2,6 +2,7 @@ import { h, Fragment } from "preact";
 import { expect, it } from "vitest";
 
 import { createApp, defineBuild } from "../src/mod.js";
+import { tagIsland } from "../src/routing/island_tag.js";
 import type { HumManifest } from "../src/types.js";
 
 function app(manifest: HumManifest) {
@@ -63,6 +64,11 @@ it("renders a page with an island", async () => {
   function Counter(props: { n: number }) {
     return h("p", null, `n=${props.n}`);
   }
+  tagIsland(Counter, {
+    name: "Counter",
+    file: "islands/Counter.tsx",
+    exportName: "default",
+  });
   const manifest: HumManifest = {
     islands: [
       {

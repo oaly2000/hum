@@ -195,6 +195,36 @@ export function humDevServer(ctx: HumContext): Plugin {
         (plugin) => plugin.name === "vite-plugin-cloudflare:dev",
       );
 
+      // Registered before Vite's own middlewares and before any other plugin's,
+      // so it does not matter which order the plugins are listed in: this URL
+      // is Hum's, and no runtime that answers pages can answer it.
+      //
+      // The boot script imports `boot` from here, so this URL has to serve the
+      // user client entry wired to the runtime: that entry imports
+      // `client/main.ts` (global styles, factory modules) and re-exports the
+      // runtime. Serving the runtime alone would leave factories the page
+      // relies on unregistered in the browser.
+      server.middlewares.use(async (req, res, next) => {
+        if (
+          req.url !== RUNTIME_URL && !req.url?.startsWith(RUNTIME_URL + "?")
+        ) {
+          next();
+          return;
+        }
+
+        try {
+          const result = await server.transformRequest(
+            RESOLVED_USER_ENTRY_VIRTUAL_ID,
+          );
+          res.statusCode = 200;
+          res.setHeader("Content-Type", "text/javascript; charset=utf-8");
+          res.setHeader("Cache-Control", "no-store");
+          res.end(result?.code ?? "");
+        } catch (err) {
+          next(err);
+        }
+      });
+
       // Adding or removing a route/island file changes the route table, so the
       // app has to be rebuilt. Plain edits do not, they are picked up by the
       // per-request module reload.
@@ -216,28 +246,8 @@ export function humDevServer(ctx: HumContext): Plugin {
             next: (err?: unknown) => void,
           ) => {
             try {
-              if (
-                req.url === RUNTIME_URL ||
-                req.url?.startsWith(RUNTIME_URL + "?")
-              ) {
-                // The boot script imports `boot` from here, so this URL has to
-                // serve the user client entry wired to the runtime: that entry
-                // imports `client/main.ts` (global styles, factory modules) and
-                // re-exports the runtime. Serving the runtime alone would leave
-                // factories the page relies on unregistered in the browser.
-                const result = await server.transformRequest(
-                  RESOLVED_USER_ENTRY_VIRTUAL_ID,
-                );
-                res.statusCode = 200;
-                res.setHeader("Content-Type", "text/javascript; charset=utf-8");
-                res.setHeader("Cache-Control", "no-store");
-                res.end(result?.code ?? "");
-                return;
-              }
-
-              // Hand everything else to the runtime that is running the app;
-              // the client entry above is the one URL Vite does not answer and
-              // that runtime cannot.
+              // Hand the request to the runtime that is running the app; the
+              // client entry above is the one URL that runtime cannot answer.
               if (platformOwnsRequests) {
                 next();
                 return;

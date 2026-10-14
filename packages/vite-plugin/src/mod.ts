@@ -4,6 +4,7 @@ import { humBuildInput } from "./plugins/build_input.js";
 import { humBuild } from "./plugins/build.js";
 import { humClientEntry } from "./plugins/client_entry.js";
 import { humDevServer } from "./plugins/dev_server.js";
+import { humIslandTags } from "./plugins/island_tags.js";
 import { humIslands } from "./plugins/islands.js";
 import { humRoutes } from "./plugins/routes.js";
 import { resolveHumOptions, type HumContext, type HumOptions } from "./shared.js";
@@ -40,6 +41,7 @@ export function hum(userOptions: HumOptions = {}): Plugin[] {
     humRoutes(ctx),
     humBuildInput(ctx),
     humIslands(),
+    humIslandTags(ctx),
     humClientEntry(ctx),
     humDevServer(ctx),
     humBuild(ctx),

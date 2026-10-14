@@ -1,21 +1,22 @@
 import type { HumBuild } from "./build.js";
 import { ASSETS_BASE, RUNTIME_URL } from "./config.js";
 import { setBuildId } from "./runtime/shared_internal.js";
-import type { Island, Logger } from "./types.js";
+import type { Island } from "./types.js";
 
 /**
- * Maps island components to their client side module URLs, and keeps the
- * bookkeeping the renderer needs (`islandRegistry`, entry assets, build id).
+ * Maps island names to their client side module URLs, and keeps the bookkeeping
+ * the renderer needs (entry assets, build id).
  *
- * Island modules are loaded through the bundler supplied thunks, so the same
- * cache implementation works for the Vite dev module runner and for the
- * bundled production output.
+ * Nothing is imported to build the table: an island's name, export and file
+ * path are all in the build's manifest, and a module is only ever loaded when a
+ * page uses it. That is what keeps mounting free of module loading, in the Vite
+ * dev module runner and in the bundled production output alike — and what lets
+ * the renderer recognize islands by the tag their components carry, rather than
+ * by the identity of a module instance.
  */
 export class BuildCache {
-  /** Islands by name. */
+  /** Islands by name, as their markers and the boot script name them. */
   readonly islands = new Map<string, Island>();
-  /** Islands by component reference, used to detect islands while rendering. */
-  readonly islandRegistry = new Map<unknown, Island>();
   /** URL of the client runtime entry, imported by the boot script. */
   clientEntry: string;
   /** Stylesheets that belong to the client entry itself. */
@@ -35,37 +36,15 @@ export class BuildCache {
     this.clientEntry = dev ? RUNTIME_URL : "";
   }
 
-  /** Loads every island module and (re)builds the registries. */
-  async load(build: HumBuild, logger?: Logger): Promise<void> {
+  /** (Re)builds the island table from the build's manifest. */
+  load(build: HumBuild): void {
     const prod = this.dev ? null : build.prod;
     this.islands.clear();
-    this.islandRegistry.clear();
     // The URL is the build's, not the configuration's: the client assets are
     // published under it wherever the output directory ends up on disk.
     this.#assetsBase = (prod?.assetsBase ?? ASSETS_BASE).replace(/\/+$/, "");
 
     for (const spec of build.islands) {
-      let component: unknown;
-      try {
-        const mod = await spec.load();
-        component = mod[spec.exportName];
-      } catch (err) {
-        logger?.error(
-          `hum: failed to load island "${spec.name}" from ${spec.file}:`,
-          err,
-        );
-        continue;
-      }
-
-      if (component === undefined) {
-        logger?.warn(
-          `hum: island "${spec.name}" (${spec.file}) has no ` +
-            `"${spec.exportName}" export. Add a default export to make it ` +
-            `interactive.`,
-        );
-        continue;
-      }
-
       // In dev the modules are served straight from Vite, so the assets of a
       // build must never win over the dev URLs.
       const prodInfo = prod?.islands[spec.name];
@@ -82,7 +61,6 @@ export class BuildCache {
       };
 
       this.islands.set(island.name, island);
-      this.islandRegistry.set(component, island);
     }
 
     if (!this.dev && prod !== null) {

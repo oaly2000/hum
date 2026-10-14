@@ -17,6 +17,7 @@ import {
   type ResolvedHumOptions,
 } from "../shared.js";
 import { humBuildInput } from "./build_input.js";
+import { humIslandTags } from "./island_tags.js";
 import { writeBuildEntries } from "./islands.js";
 import { humRoutes } from "./routes.js";
 
@@ -251,7 +252,12 @@ export function humBuild(ctx: HumContext): Plugin {
         // generated server entry imports the build from its virtual module, so
         // the two plugins that resolve it are the exception.
         configFile: false,
-        plugins: [humRoutes(ctx), humBuildInput(ctx)],
+        // The island tags belong to the server bundle as much as to the dev
+        // server: the island modules a page imports are the ones the renderer
+        // recognizes, and this pass is the only thing that transforms them
+        // here. Without it a production build serves islands that nothing
+        // hydrates.
+        plugins: [humRoutes(ctx), humBuildInput(ctx), humIslandTags(ctx)],
         // The public tree was already assembled beside the server entry.
         publicDir: false,
         logLevel: "warn",

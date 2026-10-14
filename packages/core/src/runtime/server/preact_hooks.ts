@@ -11,6 +11,7 @@ import type { ReadonlySignal, Signal } from "@preact/signals";
 
 import type { BuildCache } from "../../build_cache.js";
 import { stringify, type Stringifiers } from "../../jsonify/stringify.js";
+import { islandTagOf } from "../../routing/island_tag.js";
 import type { Island } from "../../types.js";
 import { factoryMarkerOf } from "../events.js";
 import { isPartialType, type PartialProps } from "../shared.js";
@@ -214,12 +215,25 @@ function Slot(props: SlotProps): AnyVNode {
   );
 }
 
+/**
+ * The island a component is, if the build publishes one under that name.
+ *
+ * Identity is the component's own — the tag the bundler left on it — so a
+ * component is recognized wherever it was loaded from.
+ */
+function islandOf(state: RenderState, component: unknown): Island | undefined {
+  const tag = islandTagOf(component);
+  return tag === undefined
+    ? undefined
+    : state.buildCache.islands.get(tag.name);
+}
+
 /** Checks whether the current component is (nested) inside an island. */
 function hasIslandOwner(state: RenderState, vnode: VNode): boolean {
   let current: VNode | undefined = vnode;
   let owner: VNode | undefined;
   while (current !== undefined && (owner = state.owners.get(current)) !== undefined) {
-    if (state.buildCache.islandRegistry.has(owner.type)) return true;
+    if (islandOf(state, owner.type) !== undefined) return true;
     current = owner;
   }
   return false;
@@ -275,12 +289,7 @@ function rememberSignalProps(
 function isInsideIsland(state: RenderState): boolean {
   let current: VNode | undefined = state.ownerStack.at(-1);
   while (current !== undefined) {
-    if (
-      typeof current.type === "function" &&
-      state.buildCache.islandRegistry.has(current.type)
-    ) {
-      return true;
-    }
+    if (islandOf(state, current.type) !== undefined) return true;
     current = state.owners.get(current);
   }
   return false;
@@ -472,14 +481,21 @@ const HOOKS_FLAG = "__hum_preact_hooks_installed__";
 /**
  * Installs the Preact options hooks that implement islands, slots and
  * partials. Head tags come from route `head` exports and are therefore never
- * intercepted here. Safe to call repeatedly; the flag is stored on
- * `globalThis` so
- * that a re-evaluated module (bundler HMR) cannot install the hooks twice.
+ * intercepted here.
+ *
+ * The flag that keeps this idempotent lives on Preact's options object, which
+ * is one object per Preact: re-evaluating the module in place (a bundler's HMR)
+ * marks the same one and installs nothing twice. A flag on `globalThis` would
+ * instead be shared by every copy of the framework in the same process — or in
+ * the same Worker isolate — so the first copy to install would silence all the
+ * others. Those copies render with no hooks at all: no island markers, no
+ * slots, and a page whose `<html>` the renderer never sees, which it answers by
+ * wrapping the finished document in a second one.
  */
 function installHooks(): void {
-  const global = globalThis as Record<string, unknown>;
-  if (global[HOOKS_FLAG] === true) return;
-  global[HOOKS_FLAG] = true;
+  const options = preactOptions as unknown as Record<string, unknown>;
+  if (options[HOOKS_FLAG] === true) return;
+  options[HOOKS_FLAG] = true;
 
   wrapHook(OptionsType.VNODE, (...args) => {
     const vnode = args[0] as VNode;
@@ -559,7 +575,7 @@ function installHooks(): void {
 
       if (PATCHED.has(vnode)) return;
 
-      const island = state.buildCache.islandRegistry.get(vnode.type);
+      const island = islandOf(state, vnode.type);
       if (island === undefined) return;
 
       if (hasIslandOwner(state, vnode)) {

@@ -15,6 +15,7 @@ import {
   Suspense as HumSuspense,
 } from "../src/mod.js";
 import { Partial } from "../src/runtime/shared.js";
+import { tagIsland } from "../src/routing/island_tag.js";
 import type { HumContext, HumManifest, RouteProps } from "../src/types.js";
 
 const START: Signal<number> = signal(3);
@@ -29,6 +30,14 @@ function Counter(
     props.children,
   );
 }
+
+// The bundler's transform stamps every island module this way; the manifest
+// tests make the same write so the renderer recognizes `Counter` as one.
+tagIsland(Counter, {
+  name: "Counter",
+  file: "islands/Counter.tsx",
+  exportName: "default",
+});
 
 function App(props: { children?: ComponentChildren }) {
   return h(

@@ -185,7 +185,7 @@ export async function mountHum<
   // configuration that could override it, so the output directory never
   // reaches a client URL.
   const buildCache = new BuildCache(dev);
-  await buildCache.load(build, resolved.logger);
+  buildCache.load(build);
 
   const { routes, notFound } = resolveRoutes(build.routes, resolved.routesDir);
   const loader = new ModuleLoader(dev);
@@ -211,7 +211,7 @@ export async function mountHum<
     notFound,
     async refresh() {
       if (!resolved.dev) return;
-      await buildCache.load(build, resolved.logger);
+      buildCache.load(build);
     },
   };
 
