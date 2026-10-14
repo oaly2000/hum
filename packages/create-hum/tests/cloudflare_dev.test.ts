@@ -8,6 +8,27 @@ import { describe, expect, it } from "vitest";
 import { scaffold, templatePath } from "../src/scaffold.js";
 
 /**
+ * Fetches until the answer carries `marker`, so a test does not decide how long
+ * the worker takes to come back with the change it just made.
+ */
+async function fetchUntil(
+  origin: string,
+  path: string,
+  marker: string,
+): Promise<Response> {
+  const deadline = Date.now() + 30_000;
+  let response = await fetch(`${origin}${path}`);
+  while (
+    Date.now() < deadline &&
+    !(await response.clone().text()).includes(marker)
+  ) {
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    response = await fetch(`${origin}${path}`);
+  }
+  return response;
+}
+
+/**
  * The Cloudflare template's development server, end to end.
  *
  * The project is scaffolded inside the documentation site so that it resolves
@@ -65,6 +86,26 @@ describe("the Cloudflare template in development", () => {
 
       expect(runtime.status, runtimeHtml).toBe(200);
       expect(runtimeHtml).toContain("workerd");
+
+      // A change re-runs the worker's entry module while `server.ts` stays in
+      // the module cache, so the mount is made again — and it is made on an app
+      // of the entry's own, which is what lets an edited page and a page added
+      // while the server runs both answer without restarting it. Mounting the
+      // cached app directly fails here: Hono takes no route once a request has
+      // matched on its router.
+      await writeFile(
+        join(target, "routes", "index.tsx"),
+        'export default function Home() { return <p>edited-home</p>; }\n',
+      );
+      const edited = await fetchUntil(origin, "/", "edited-home");
+      expect(edited.status, await edited.text()).toBe(200);
+
+      await writeFile(
+        join(target, "routes", "added.tsx"),
+        'export default function Added() { return <p>added-page</p>; }\n',
+      );
+      const added = await fetchUntil(origin, "/added", "added-page");
+      expect(added.status, await added.text()).toBe(200);
     } finally {
       await server.close();
       await rm(target, { recursive: true, force: true }).catch(() => {});

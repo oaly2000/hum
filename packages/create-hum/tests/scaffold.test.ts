@@ -160,6 +160,10 @@ describe("templates", () => {
     expect(worker).toContain('import "virtual:hum/build"');
     expect(worker).toContain("await mountHum(app,");
     expect(worker).toContain("export default app");
+    // The mount goes on an app of the worker's own: the dev runtime re-runs the
+    // entry after every change while the app module stays cached, and Hono
+    // takes no further route once a request has matched on its router.
+    expect(worker).toContain('app.route("/", userApp)');
 
     const pkg = JSON.parse(
       await readFile(join(target, "package.json"), "utf8"),

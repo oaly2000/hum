@@ -145,6 +145,25 @@ describe("mounting without a build", () => {
   });
 });
 
+describe("mounting an app Hum already mounted", () => {
+  it("is refused, and says which shape works instead", async () => {
+    defineBuild({ ...manifest, prod: null });
+    const app = new Hono();
+    await mountHum(app, { root: EMPTY_ROOT, dev: true });
+
+    // What a re-evaluated worker entry does to an app that is still in the
+    // module cache: Hono's router cannot take the routes a second mount would
+    // register, and its own message does not name the cause.
+    await expect(mountHum(app, { root: EMPTY_ROOT, dev: true })).rejects.toThrow(
+      /already mounted/,
+    );
+
+    // The first mount keeps serving: the refusal is a setup mistake, not a
+    // reason to take a working app down.
+    expect((await app.request("http://localhost/")).status).toBe(200);
+  });
+});
+
 describe("the runtime entry", () => {
   it("never touches the file system", async () => {
     // A platform without a file system has to be able to run Hum, so `node:fs`

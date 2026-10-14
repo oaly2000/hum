@@ -46,6 +46,13 @@ because `main` in `wrangler.jsonc` names the *built* entry — the same app, but
 mounted from the build. `npm run preview` then runs that build, so a change that
 only works in development is caught before deploying.
 
+`dev-worker.ts` mounts that app on an app of its own instead of onto `server.ts`'s
+app. The dev runtime re-runs the worker's entry file on every change, while the
+app module it imports stays in the module cache, and Hono takes no route once a
+request has matched on its router: mounting the cached app again fails, where
+mounting a fresh app that the project's app is routed into keeps serving the
+edited page — and a page added while the server runs.
+
 The runtime imports `node:async_hooks` and `node:path`; `compatibility_flags:
 ["nodejs_compat"]` in `wrangler.jsonc` is what provides them, so keep the flag
 when changing `compatibility_date`. If wrangler reports that the date is newer

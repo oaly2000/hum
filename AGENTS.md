@@ -103,12 +103,23 @@ the example where applicable.
   silence the others — which renders without island markers and wraps a finished
   document in a second one.
 - The dev server yields to a plugin that runs the app in a runtime of its own:
-  it detects the Cloudflare plugin by name (`vite-plugin-cloudflare:dev`) and
-  leaves the request to it, answering only the client runtime URL. That URL is
-  registered before Vite's own middlewares, so the order the plugins are listed
-  in does not matter. The Vite dev script is emitted by the document render
+  it asks the `ssr` environment for a module runner — one a platform plugin
+  builds for its own runtime has none, because the runner lives in that runtime
+  — and leaves the request to that runtime, answering only the client runtime
+  URL. Nothing keys off a plugin's name, so another adapter of the same kind
+  needs no change here. That URL is registered before Vite's own middlewares and
+  — the plugin half being `enforce: "pre"` — before every other plugin's, so no
+  runtime that answers pages can claim it whatever order the plugins are listed
+  in. The Vite dev script is emitted by the document render
   (development only, never in a partial response) rather than spliced into the
   response, because a runtime rendering elsewhere has no response to splice.
+- An app is mounted once. Such a runtime re-evaluates the module that mounts the
+  app on every change while the app module it imports stays in the module cache,
+  and Hono takes no route once a request has matched on its router, so the entry
+  mounts onto an app of its own — `new Hono()`, the project's app routed into it
+  — which is what the Cloudflare template's `dev-worker.ts` does and what Hum's
+  dev server does internally. `mountHum` refuses a second mount of the same app
+  and names that shape, instead of letting Hono fail without explanation.
 - `createApp(config)` creates the Hono app for projects that do not have their
   own `server.ts`. Keep it a wrapper around `mountHum(app, config)` so both
   paths share routing behavior.

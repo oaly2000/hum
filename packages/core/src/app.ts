@@ -167,6 +167,10 @@ async function loadMiddleware(
  * `defineBuild` registered — the Vite plugin generates the module that does it,
  * so an app only has to import it. Application middleware registered before
  * this call also wraps Hum routes.
+ *
+ * An app is mounted once. Hono builds its router when the first request matches
+ * on it and takes no route after that, so a runtime that re-runs the module
+ * which mounts the app mounts onto an app of its own — see `ALREADY_MOUNTED`.
  */
 export async function mountHum<
   E extends Env,
@@ -176,6 +180,13 @@ export async function mountHum<
   app: Hono<E, S, P>,
   config: HumConfig,
 ): Promise<MountedHumApp<E, S, P>> {
+  // Re-mounting is a setup mistake, not a state to recover from: the routes the
+  // second mount has to register cannot be registered. Say what the runtime
+  // should do instead, because Hono's own error says nothing about the cause.
+  if ((app as { hum?: unknown }).hum !== undefined) {
+    throw new TypeError(ALREADY_MOUNTED);
+  }
+
   const build = humBuild();
   const prod = build.prod;
   const dev = config.dev ?? prod === null;
@@ -270,6 +281,24 @@ export async function mountHum<
 
   return Object.assign(app, { hum: internals });
 }
+
+/**
+ * Why a second mount of the same app is refused, and what to do instead.
+ *
+ * The case is real rather than theoretical: `@cloudflare/vite-plugin` runs a
+ * project's worker entry in the runtime and re-evaluates that entry after every
+ * change, while the app module it imports keeps coming from the module cache.
+ * An entry that mounts the app it imported therefore mounts an app Hum already
+ * mounted — and a plain mount onto the app is what broke, so the message names
+ * the shape that works, which is the one Hum's dev server and the scaffold's
+ * `dev-worker.ts` use.
+ */
+const ALREADY_MOUNTED =
+  "hum: this Hono app is already mounted, and Hono takes no further route once " +
+  "a request has matched on its router. Mount on an app of your own instead of " +
+  "on the app you imported, so a runtime that re-runs the mounting module can " +
+  "mount again: `const app = new Hono(); app.route(\"/\", userApp); " +
+  "await mountHum(app, config)`.";
 
 /** Creates a standalone Hono app with Hum mounted on it. */
 export async function createApp(config: HumConfig): Promise<HumApp> {
