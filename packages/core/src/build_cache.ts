@@ -6,6 +6,12 @@ import type { Island, Logger } from "./types.js";
 export const CLIENT_ENTRY_DEV = "/_hum/runtime.js";
 
 /**
+ * URL Hum publishes its client assets under when it runs from source: the dev
+ * server serves them, and there is no build to record a different one.
+ */
+export const ASSETS_BASE_DEV = "/_hum";
+
+/**
  * Maps island components to their client side module URLs, and keeps the
  * bookkeeping the renderer needs (`islandRegistry`, entry assets, build id).
  *
@@ -24,11 +30,14 @@ export class BuildCache {
   entryAssets: string[] = [];
   buildId = "dev";
   readonly dev: boolean;
-  /** URL prefix the production output directory is served from. */
-  #assetsBase = "";
+  /** URL prefix the client assets are published under. */
+  #assetsBase: string;
 
-  constructor(dev: boolean) {
+  constructor(dev: boolean, assetsBase?: string) {
     this.dev = dev;
+    // The build records the URL its assets are published under; a bundler that
+    // runs from source falls back to the one the dev server serves.
+    this.#assetsBase = (assetsBase ?? ASSETS_BASE_DEV).replace(/\/+$/, "");
     this.clientEntry = dev ? CLIENT_ENTRY_DEV : "";
   }
 
@@ -37,9 +46,9 @@ export class BuildCache {
     const prod = this.dev ? null : build.prod;
     this.islands.clear();
     this.islandRegistry.clear();
-    this.#assetsBase = prod === null
-      ? ""
-      : (prod.assetsBase ?? "").replace(/\/+$/, "");
+    // The URL is the build's, not the configuration's: the client assets are
+    // published under it wherever the output directory ends up on disk.
+    this.#assetsBase = (prod?.assetsBase ?? this.#assetsBase).replace(/\/+$/, "");
 
     for (const spec of build.islands) {
       let component: unknown;
@@ -70,6 +79,8 @@ export class BuildCache {
         name: spec.name,
         exportName: spec.exportName,
         file: spec.file,
+        // In dev Vite serves the island module by its source path, which is why
+        // the build's assets must never win over it.
         clientUrl: prodInfo === undefined
           ? `/${spec.file}`
           : this.#assetUrl(prodInfo.file),
@@ -90,9 +101,9 @@ export class BuildCache {
     }
   }
 
-  /** Turns a path relative to the output directory into a public URL. */
+  /** Turns a path relative to the assets base into a public URL. */
   #assetUrl(file: string): string {
-    // Manifests written by an older plugin stored absolute URLs; keep those
+    // Builds written by an older plugin stored absolute URLs; keep those
     // working instead of prefixing them a second time.
     if (file.startsWith("/")) return file;
     return `${this.#assetsBase}/${file}`;

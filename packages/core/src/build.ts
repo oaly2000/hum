@@ -2,9 +2,9 @@ import type { IslandManifestEntry, RouteManifestEntry } from "./types.js";
 
 /** One island chunk of a production build. */
 export interface ProdIslandEntry {
-  /** Island chunk path, relative to the output directory. */
+  /** Island chunk path, relative to `assetsBase`. */
   file: string;
-  /** Island stylesheet paths, relative to the output directory. */
+  /** Island stylesheet paths, relative to `assetsBase`. */
   css?: string[];
 }
 
@@ -19,16 +19,16 @@ export interface ProdIslandEntry {
 export interface ProdManifest {
   buildId: string;
   /**
-   * URL the output directory is served from, e.g. `/_hum`. The assets are
-   * addressed through it, while the directory itself is located next to the
-   * server bundle, so the built app keeps working when the output directory is
-   * renamed or moved on the deploy machine.
+   * URL Hum publishes its client assets under, e.g. `/_hum`. It is never
+   * derived from the output directory: the assets live in the build's `public`
+   * directory, next to the server bundle, and the URL is what addresses them,
+   * so the output directory can be called `dist`, `wwwroot` or anything else.
    */
   assetsBase: string;
-  /** Client runtime chunk path, relative to the output directory. */
+  /** Client runtime chunk path, relative to `assetsBase`. */
   clientEntry: string;
   islands: Record<string, ProdIslandEntry>;
-  /** Client entry stylesheet paths, relative to the output directory. */
+  /** Client entry stylesheet paths, relative to `assetsBase`. */
   entryAssets?: string[];
 }
 

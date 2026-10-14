@@ -21,29 +21,19 @@ function configure(app: Hono) {
 }
 
 /**
- * Answers the client asset requests the production build wrote into
- * `<outDir>/client`. A reverse proxy or a CDN normally handles them; this keeps
- * `npm start` runnable on its own. Point `HUM_OUT_DIR` at the deployed
- * directory when it was renamed or moved.
+ * Answers the requests for the build's `public/` directory: Hum's client assets
+ * under `/_hum`, plus whatever the project put in its own `public/` directory.
+ * A reverse proxy or a CDN normally handles them; this keeps `npm start`
+ * runnable on its own. Point `HUM_OUT_DIR` at the deployed directory when it
+ * was renamed or moved.
  */
 function serveClientAssets(app: Hono) {
-  /**
-   * URL prefix the client assets are published under, matching `assetsBase` in
-   * the build.
-   */
-  const assetsBase = "/_hum";
-  const clientRoot = resolve(process.env.HUM_OUT_DIR ?? "./_hum", "client");
+  const publicRoot = resolve(process.env.HUM_OUT_DIR ?? "./dist", "public");
 
-  // Dev serves the client assets through Vite, so this only matters once the
-  // output directory exists. Only its client half is public: the server bundle
-  // and the manifest must stay unreachable.
-  if (!existsSync(clientRoot)) return;
+  // Dev serves the project's public files through Vite, so this only matters
+  // once the output directory exists. The server bundle lives next to `public/`
+  // rather than inside it, so it can never be reached over HTTP.
+  if (!existsSync(publicRoot)) return;
 
-  app.use(
-    `${assetsBase}/client/*`,
-    serveStatic({
-      root: clientRoot,
-      rewriteRequestPath: (path) => path.slice(`${assetsBase}/client`.length),
-    }),
-  );
+  app.use("*", serveStatic({ root: publicRoot }));
 }

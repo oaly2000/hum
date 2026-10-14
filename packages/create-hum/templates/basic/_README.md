@@ -5,22 +5,30 @@ A [Hum](https://github.com/) app: static HTML first, islands for interaction.
 ```bash
 npm install
 npm run dev      # Custom Hono server with Vite SSR + HMR middleware
-npm run build    # client + server bundles into _hum/
+npm run build    # client + server bundles into dist/
 npm start        # run the built server
 ```
 
 The production server is emitted as one JavaScript file with its npm
 dependencies bundled, so the runtime deployment does not need the project's
-`node_modules`. The generated `_hum/` directory can move or even be renamed —
-the server locates it next to its own bundle — and `server/server.js` is the
-entry point.
+`node_modules`. The generated output directory can move or even be renamed — it
+holds everything the deployment needs:
 
-Hum renders the client asset URLs the build recorded (under `/_hum/` by
-default) but does not serve them itself: `server.ts` answers those requests with
-`@hono/node-server/serve-static`, and `HUM_OUT_DIR` points it at a renamed or
-relocated output directory. Delegate them to a reverse proxy or a CDN in
-production. Only `_hum/client/` is public — `_hum/server/` stays unreachable.
-Node.js 20 or newer is still required.
+```
+dist/
+  server.js     the entry point
+  package.json  {"type": "module"}
+  public/       served from the deployment root
+    _hum/       Hum's client assets (runtime, islands, styles)
+    …           the files you put in public/
+```
+
+Hum renders the client asset URLs the build recorded (under `/_hum/`, next to
+the server entry) but does not serve them itself: `server.ts` answers the
+requests for `public/` with `@hono/node-server/serve-static`, and `HUM_OUT_DIR`
+points it at a renamed or relocated output directory. Delegate them to a reverse
+proxy or a CDN in production. Only `public/` is public — the server entry sits
+next to it and stays unreachable. Node.js 20 or newer is still required.
 
 ## Hono server
 
@@ -46,8 +54,16 @@ islands/
 client/
   main.ts       client entry; imports global CSS
   style.css     Tailwind CSS entry point
+public/         files served from / in dev, and copied into the build
 server.ts       Hono app with middleware and API routes
 ```
+
+## Static files
+
+Anything in `public/` is served from the site root in development and copied into
+the build's `public/` directory, so `/favicon.svg` means the same file before and
+after a build. Hum's own client assets (the runtime, island chunks, stylesheets)
+are handled for you and do not belong there.
 
 ## Tailwind CSS
 

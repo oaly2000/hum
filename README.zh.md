@@ -25,14 +25,35 @@ islands/
 client/
   main.ts        客户端入口；导入全局 CSS
   style.css      全局样式
+public/          开发时从 / 提供；构建时被复制进产物的 public/
 server.ts        Hono 应用，包含中间件与 API 路由
 vite.config.ts   plugins: [hum(), tailwindcss()]
 ```
 
-项目使用 Vite 进行 dev/build，build 产物可以直接用 `node _hum/server/server.js`
-运行。生产构建会将服务端产物合并为单个 JavaScript 文件，并打包 npm 依赖
-（Node 内置模块除外）。客户端资源由应用自己提供（见 `server.ts`：它为 `_hum/client` 挂载了
+项目使用 Vite 进行 dev/build，build 产物可以直接用 `node dist/server.js` 运行。
+产物目录无论部署到哪都是同一个结构：
+
+```
+dist/                 产物目录，对应插件选项里的 `outDir`
+  server.js           服务端应用，npm 依赖已打包进去
+  package.json        {"type": "module"}，让 Node 以 ESM 运行 server.js
+  public/             从部署根路径提供
+    _hum/             Hum 的客户端资源（runtime、islands、样式）
+    …                 项目 public/ 目录里的内容
+```
+
+产物目录本身不会被写进任何 URL：Hum 的客户端资源放在与 `server.js` 同级的
+`public/_hum` 下，所以同一份产物部署成 `dist`、`wwwroot` 还是别的名字都能照常运行。
+生产构建会将服务端产物合并为单个 JavaScript 文件，并打包 npm 依赖
+（Node 内置模块除外）。`public/` 目录由应用自己提供（见 `server.ts`：它为它挂载了
 `@hono/node-server/serve-static`）——生产环境通常交给反向代理、CDN 或平台的静态资源绑定。
+
+## 静态文件
+
+`public/` 下的文件在开发时从站点根路径提供，构建时被复制进产物的 `public/` 目录，
+因此 `/favicon.svg` 在构建前后指向的是同一个文件。只有这个目录是公开的：服务端入口
+与它同级，而不在它里面。Hum 自己产出的资源（客户端 runtime、island 分包、样式）已经由
+框架接管，不需要放进 `public/`。
 
 
 ## 文件路由
@@ -62,7 +83,8 @@ vite.config.ts   plugins: [hum(), tailwindcss()]
 - `_error.tsx`（别名 `_500.tsx`）—— 渲染路由错误。
 - `_404.tsx` —— 处理其目录子树下未匹配的路径。
 
-`routes/` 之外还有两个配置文件：`server.ts` 是你的 Hono 应用，`client/main.ts` 是默认的客户端入口。
+`routes/` 之外还有几个配置文件：`server.ts` 是你的 Hono 应用，`client/main.ts` 是默认的客户端入口，
+`public/` 则是原样提供的静态文件所在目录。
 
 名为 `_components/` 和 `_islands/` 的目录会被排除在路由发现之外，因此你可以把可复用
 组件与某个路由分支放在一起，并通过相对路径导入。

@@ -42,14 +42,14 @@ const manifest: HumManifest = {
 const prod: ProdManifest = {
   buildId: "abc123",
   assetsBase: "/_hum",
-  clientEntry: "client/assets/runtime.js",
+  clientEntry: "assets/runtime.js",
   islands: {
     Counter: {
-      file: "client/assets/Counter.js",
-      css: ["client/assets/Counter.css"],
+      file: "assets/Counter.js",
+      css: ["assets/Counter.css"],
     },
   },
-  entryAssets: ["client/assets/entry.css"],
+  entryAssets: ["assets/entry.css"],
 };
 
 describe("a build that carries its production assets", () => {
@@ -63,9 +63,9 @@ describe("a build that carries its production assets", () => {
 
     const html = await (await mounted.request("http://localhost/")).text();
 
-    expect(html).toContain('from "/_hum/client/assets/runtime.js"');
-    expect(html).toContain('"/_hum/client/assets/Counter.js"');
-    expect(html).toContain('"/_hum/client/assets/entry.css"');
+    expect(html).toContain('from "/_hum/assets/runtime.js"');
+    expect(html).toContain('"/_hum/assets/Counter.js"');
+    expect(html).toContain('"/_hum/assets/entry.css"');
     // Running from source would address the island by its source file path.
     expect(html).not.toContain("/islands/Counter.tsx");
   });
@@ -80,7 +80,7 @@ describe("a build that carries its production assets", () => {
     const second = await mountHum(new Hono(), { root: EMPTY_ROOT, dev: true });
 
     expect(await (await first.request("http://localhost/")).text()).toContain(
-      'from "/_hum/client/assets/runtime.js"',
+      'from "/_hum/assets/runtime.js"',
     );
     expect(await (await second.request("http://localhost/")).text()).toContain(
       '"/islands/Counter.tsx"',

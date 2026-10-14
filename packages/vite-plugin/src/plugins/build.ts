@@ -1,11 +1,13 @@
-import { readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { cp, readFile, rm, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { join, resolve, sep } from "node:path";
 
 import type { ProdManifest } from "@humjs/core";
 import { islandNameOfFile } from "@humjs/core/routing";
 import { build, type Plugin } from "vite";
 
 import {
+  ASSETS_BASE,
   CLIENT_RUNTIME_ENTRY,
   ISLANDS_ENTRY,
   makeBuildId,
@@ -23,11 +25,27 @@ interface ClientManifestEntry {
   css?: string[];
 }
 
-/** Output directories, relative to the project root. */
-function outDirs(options: ResolvedHumOptions) {
+/** Public directory of the project whose contents the client build copies. */
+const PROJECT_PUBLIC = "public";
+
+/** Directory inside the build Hum's own client assets are published under. */
+const HUM_ASSETS_DIR = "_hum";
+
+/** Paths of a production build, relative to the project root. */
+function buildPaths(options: ResolvedHumOptions) {
   return {
-    client: `${options.outDir}/client`,
-    server: `${options.outDir}/server`,
+    /**
+     * Client build output; copied into `<outDir>/public/_hum` and removed once
+     * the build is assembled.
+     */
+    client: `${options.outDir}/.hum-client`,
+    /** Public tree of the build, next to the server bundle. */
+    publicDir: `${options.outDir}/public`,
+    /** The client assets of the build, addressed through `/_hum`. */
+    assets: `${options.outDir}/public/${HUM_ASSETS_DIR}`,
+    /** Manifest that tells Node the output directory is ESM. */
+    packageJson: `${options.outDir}/package.json`,
+    projectPublic: resolve(options.root, PROJECT_PUBLIC),
   };
 }
 
@@ -38,9 +56,9 @@ function outDirs(options: ResolvedHumOptions) {
  * The islands come from the manifest itself rather than from a directory scan,
  * so every island chunk the bundler emitted is registered, and an island can
  * neither be missed nor reported with a chunk that does not exist. Asset paths
- * are stored relative to the output directory, with the URL the directory is
- * served from kept separately, so renaming or moving it on the deploy machine
- * cannot break the client asset URLs.
+ * are relative to `assetsBase` — the URL the assets are published under — which
+ * is what keeps the client asset URLs independent of the output directory's
+ * name: `dist`, `wwwroot`, whatever the app was deployed as.
  *
  * The result is inlined into the server bundle through `virtual:hum/build`
  * instead of being written to a file, which is what keeps the runtime — and the
@@ -48,11 +66,11 @@ function outDirs(options: ResolvedHumOptions) {
  */
 async function prodManifest(ctx: HumContext): Promise<ProdManifest> {
   const options = ctx.options;
-  const clientOut = outDirs(options).client;
+  const clientOut = join(options.root, buildPaths(options).client);
 
   const clientManifest = JSON.parse(
     await readFile(
-      join(options.root, clientOut, ".vite", "manifest.json"),
+      join(clientOut, ".vite", "manifest.json"),
       "utf8",
     ),
   ) as Record<string, ClientManifestEntry>;
@@ -64,24 +82,65 @@ async function prodManifest(ctx: HumContext): Promise<ProdManifest> {
     );
   }
 
-  const prefix = "client/";
   const islands: ProdManifest["islands"] = {};
   for (const [file, entry] of Object.entries(clientManifest)) {
     const name = islandNameOfFile(file, options);
     if (name === null) continue;
-    islands[name] = {
-      file: prefix + entry.file,
-      css: (entry.css ?? []).map((css) => prefix + css),
-    };
+    // The manifest reports paths relative to the client output directory, which
+    // is itself the `_hum` directory of the published assets.
+    islands[name] = { file: entry.file, css: entry.css };
   }
 
   return {
     buildId: makeBuildId(),
-    assetsBase: `/${options.outDir.replace(/\\/g, "/")}`,
-    clientEntry: prefix + runtime.file,
+    assetsBase: ASSETS_BASE,
+    clientEntry: runtime.file,
     islands,
-    entryAssets: (runtime.css ?? []).map((css) => prefix + css),
+    entryAssets: runtime.css,
   };
+}
+
+/**
+ * Assembles the build: the client pass wrote `<outDir>/.hum-client`, which is
+ * not where the assets are published from, so its output is copied to
+ * `<outDir>/public/_hum` — the directory `/_hum` addresses — and the project's
+ * own `public/` directory is copied into `<outDir>/public` next to it. The
+ * intermediate client directory is then removed: it is build bookkeeping, its
+ * contents now live in the public tree, and leaving it behind would make the
+ * output directory look like it still had a client half. Only the client output
+ * is written into the build's public tree, so the server bundle never becomes
+ * reachable over HTTP through it.
+ */
+async function assembleBuild(ctx: HumContext): Promise<ProdManifest> {
+  const paths = buildPaths(ctx.options);
+  const root = ctx.options.root;
+
+  const prod = await prodManifest(ctx);
+  await cp(join(root, paths.client), resolve(root, paths.assets), {
+    recursive: true,
+    // The client manifest is build bookkeeping, not a client asset: the runtime
+    // carries its build inside the server bundle, so nothing reads it at
+    // runtime and it has no business being public. Node resolves a `cp` filter
+    // against the source path only while its parent survives, so the directory
+    // is named rather than pattern matched.
+    filter: (source) => !source.includes(`${sep}.vite`),
+  });
+
+  if (existsSync(paths.projectPublic)) {
+    await cp(paths.projectPublic, resolve(root, paths.publicDir), {
+      recursive: true,
+      // Layout is the only thing that decides what is public, so a stale asset
+      // of a previous build must not survive in the build's public tree.
+      force: true,
+    });
+  }
+
+  // The intermediate client output has served its purpose: its contents are in
+  // the public tree now, and the deployed build should only carry what it
+  // publishes.
+  await rm(resolve(root, paths.client), { recursive: true, force: true });
+
+  return prod;
 }
 
 /**
@@ -104,7 +163,7 @@ export function humBuild(ctx: HumContext): Plugin {
 
     async config(_config, env) {
       const options = ctx.options;
-      const dirs = outDirs(options);
+      const paths = buildPaths(options);
 
       await writeBuildEntries(ctx);
 
@@ -113,8 +172,10 @@ export function humBuild(ctx: HumContext): Plugin {
       if (isSsr) {
         return {
           build: {
-            outDir: dirs.server,
-            emptyOutDir: true,
+            outDir: options.outDir,
+            // The client pass assembled the build's public tree in this
+            // directory, so this pass may only replace its own entry.
+            emptyOutDir: false,
             ssr: true,
             target: "node20",
             rollupOptions: {
@@ -130,7 +191,9 @@ export function humBuild(ctx: HumContext): Plugin {
       return {
         appType: "custom",
         build: {
-          outDir: dirs.client,
+          // The client output is assembled into `<outDir>/public/_hum` once the
+          // pass is done, so this directory is an implementation detail.
+          outDir: paths.client,
           emptyOutDir: true,
           manifest: true,
           // The client runtime exports (`boot`/`revive`/`applyPartials`) are
@@ -155,12 +218,13 @@ export function humBuild(ctx: HumContext): Plugin {
       chained = true;
 
       const options = ctx.options;
-      const dirs = outDirs(options);
+      const paths = buildPaths(options);
 
-      // The client pass just wrote the assets, so the runtime's input is
-      // complete: `virtual:hum/build` inlines it into the server bundle below,
-      // which is why the deployed app has no manifest file to read.
-      ctx.prod = await prodManifest(ctx);
+      // The client pass just wrote the assets and the build's public tree is
+      // assembled from them, so the runtime's input is complete:
+      // `virtual:hum/build` inlines it into the server bundle below, which is
+      // why the deployed app has no manifest file to read.
+      ctx.prod = await assembleBuild(ctx);
       if (options.verbose) {
         // The routes are resolved by the bundler now, so only the islands are
         // known here.
@@ -177,8 +241,10 @@ export function humBuild(ctx: HumContext): Plugin {
         plugins: [humRoutes(ctx), humBuildInput(ctx)],
         logLevel: "warn",
         build: {
-          outDir: dirs.server,
-          emptyOutDir: true,
+          // The build's public tree sits in the same directory, so this pass
+          // writes its entry next to it without emptying it.
+          outDir: options.outDir,
+          emptyOutDir: false,
           ssr: true,
           target: "node20",
           rollupOptions: {
@@ -194,7 +260,7 @@ export function humBuild(ctx: HumContext): Plugin {
         ssr: { noExternal: true },
       });
       await writeFile(
-        join(options.root, dirs.server, "package.json"),
+        join(options.root, paths.packageJson),
         JSON.stringify({ type: "module" }, null, 2) + "\n",
         "utf8",
       );

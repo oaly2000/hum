@@ -29,17 +29,40 @@ islands/
 client/
   main.ts        client entry; imports global CSS
   style.css      global styles
+public/          served from / in dev; copied into the build's public/
 server.ts        Hono app with middleware and API routes
 vite.config.ts   plugins: [hum(), tailwindcss()]
 ```
 
 Projects use Vite for dev/build, and the build output can be run directly with
-`node _hum/server/server.js`. Production emits a single server JavaScript file
-with npm dependencies bundled; Node built-ins remain external. The app serves
-its own client assets (see
-`server.ts`, which mounts `@hono/node-server/serve-static` for `_hum/client`) —
-in production that is normally delegated to a reverse proxy, a CDN, or a
-platform asset binding.
+`node dist/server.js`. The output directory has one shape wherever it is
+deployed:
+
+```
+dist/                 the output directory; `outDir` in the plugin options
+  server.js           the app, with npm dependencies bundled
+  package.json        {"type": "module"}, so Node runs server.js as ESM
+  public/             served from the deployment root
+    _hum/             Hum's client assets (runtime, islands, styles)
+    …                 whatever the project's public/ directory holds
+```
+
+The directory itself is never addressed: Hum's client assets live in
+`public/_hum` next to the server entry, so the same build runs whether it is
+deployed as `dist`, `wwwroot` or anything else. Production emits a single server
+JavaScript file with npm dependencies bundled; Node built-ins remain external.
+The app serves its `public/` tree (see `server.ts`, which mounts
+`@hono/node-server/serve-static` for it) — in production that is normally
+delegated to a reverse proxy, a CDN, or a platform asset binding.
+
+## Static files
+
+Files in `public/` are served from the site root in development and copied into
+the build's `public/` directory, so `/favicon.svg` means the same file before
+and after a build. Only that directory is public: the server entry sits next to
+it, never inside it. Everything Hum itself publishes — the client runtime,
+island chunks, stylesheets — is already covered by the framework and does not
+belong in `public/`.
 
 ## File-based routing
 
@@ -73,6 +96,8 @@ Every file under `routes/` produces a URL based on its relative path.
 
 Two files outside `routes/` configure the project rather than the route tree:
 `server.ts` is your Hono app, and `client/main.ts` is the default client entry.
+The `public/` directory is the third: it is where static files the app serves
+unchanged live.
 
 Directories named `_components/` and `_islands/` are excluded from route
 discovery, so you can co-locate reusable components with a route branch and

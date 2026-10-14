@@ -8,11 +8,13 @@ import {
   type HumVariables,
   mountHum,
 } from "@humjs/core";
+import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Plugin, ViteDevServer } from "vite";
 
 import {
+  ASSETS_BASE,
   BUILD_VIRTUAL_ID,
   projectSummary,
   projectUrlPath,
@@ -21,6 +23,23 @@ import {
   USER_ENTRY_VIRTUAL_ID,
 } from "../shared.js";
 import type { HumContext } from "../shared.js";
+
+/**
+ * Project directory whose contents are public in development and in the build.
+ */
+const PUBLIC_DIR = "public";
+
+/** Default file that default-exports the project's Hono app. */
+const SERVER_ENTRY_FILE = "server.ts";
+
+/**
+ * Options of the static middleware that answers the dev requests for the
+ * project's own `public/` directory: where it is, and which URLs it may answer.
+ */
+interface PublicFileOptions {
+  root: string;
+  filter: (url: string) => boolean;
+}
 
 type RequestApp = Pick<HumApp, "fetch" | "use" | "all" | "notFound" | "route">;
 
@@ -64,6 +83,7 @@ async function loadBuild(server: ViteDevServer): Promise<HumBuild> {
  */
 export function humDevServer(ctx: HumContext): Plugin {
   let app: Promise<RequestApp> | null = null;
+  let publicFiles: PublicFileOptions | null = null;
 
   async function buildApp(server: ViteDevServer): Promise<RequestApp> {
     // Importing the build module registers it, so mounting needs nothing else.
@@ -84,8 +104,26 @@ export function humDevServer(ctx: HumContext): Plugin {
       dev: true,
     };
 
-    const serverEntry = resolve(ctx.options.root, "server.ts");
-    if (!existsSync(serverEntry)) return await createApp(humConfig);
+    // A project's own `public/` directory is served during development, the way
+    // the build copies it into the output directory's public tree. Mounted with
+    // Hono rather than on the Vite middleware stack, so it inherits the same
+    // request handling as the rest of the app.
+    const publicDir = resolve(ctx.options.root, PUBLIC_DIR);
+    if (existsSync(publicDir)) {
+      publicFiles = {
+        root: publicDir,
+        // A built project publishes its client assets under `/_hum` itself, so
+        // `public/` must not shadow them.
+        filter: (path) => !path.startsWith(`${ASSETS_BASE}/`),
+      };
+    } else {
+      publicFiles = null;
+    }
+
+    const serverEntry = resolve(ctx.options.root, SERVER_ENTRY_FILE);
+    if (!existsSync(serverEntry)) {
+      return withPublicFiles(await createApp(humConfig));
+    }
 
     const serverModule = await server.ssrLoadModule(
       projectUrlPath(ctx.options.root, serverEntry),
@@ -99,7 +137,19 @@ export function humDevServer(ctx: HumContext): Plugin {
     const userApp = serverModule.default as HumApp;
     const app = new Hono<{ Variables: HumVariables }>();
     app.route("/", userApp);
-    return await mountHum(app, humConfig);
+    return withPublicFiles(await mountHum(app, humConfig));
+  }
+
+  /**
+   * Registers the `public/` middleware ahead of everything the app answers, so
+   * a public file is served exactly as it would be from the build's public
+   * directory — URL unchanged, and ahead of the routes.
+   */
+  function withPublicFiles(instance: RequestApp): RequestApp {
+    if (publicFiles !== null) {
+      instance.use("*", serveStatic(publicFiles));
+    }
+    return instance;
   }
 
   return {
@@ -117,7 +167,7 @@ export function humDevServer(ctx: HumContext): Plugin {
       server.watcher.on("add", (file) => invalidate(file));
       server.watcher.on("unlink", (file) => invalidate(file));
       server.watcher.on("change", (file) => {
-        if (file === resolve(ctx.options.root, "server.ts")) app = null;
+        if (file === resolve(ctx.options.root, SERVER_ENTRY_FILE)) app = null;
       });
 
       return () => {

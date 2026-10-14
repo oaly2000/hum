@@ -5,17 +5,14 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 
 /**
- * URL prefix the client assets are published under, matching `assetsBase` in
- * the build.
- */
-const assetsBase = "/_hum";
-
-/**
- * Directory the production build wrote into. A reverse proxy or a CDN normally
- * answers these requests; this keeps the built app runnable on its own. Point
+ * Directory the production build wrote into. It holds the server entry and a
+ * `public/` tree; a reverse proxy or a CDN normally answers the requests for
+ * the latter, and this keeps the built app runnable on its own. Point
  * `HUM_OUT_DIR` at the deployed directory when it was renamed or moved.
  */
-const clientRoot = resolve(process.env.HUM_OUT_DIR ?? "./_hum", "client");
+const outDir = resolve(process.env.HUM_OUT_DIR ?? "./dist");
+
+const publicRoot = resolve(outDir, "public");
 
 const app = new Hono();
 
@@ -24,17 +21,12 @@ app.use("*", async (c, next) => {
   await next();
 });
 
-// Dev serves the client assets through Vite, so this only matters once the
-// output directory exists. Only its client half is public: the server bundle
-// and the manifest must stay unreachable.
-if (existsSync(clientRoot)) {
-  app.use(
-    `${assetsBase}/client/*`,
-    serveStatic({
-      root: clientRoot,
-      rewriteRequestPath: (path) => path.slice(`${assetsBase}/client`.length),
-    }),
-  );
+// Dev serves the project's `public/` directory through Vite, so this only
+// matters once the output directory exists. The whole public tree is served —
+// Hum's client assets under `/_hum` and the project's own files beside them —
+// while the server bundle itself stays outside it and unreachable.
+if (existsSync(publicRoot)) {
+  app.use("*", serveStatic({ root: publicRoot }));
 }
 
 app.get("/api/health", (c) => c.json({ status: "ok" }));

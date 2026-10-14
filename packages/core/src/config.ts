@@ -2,6 +2,12 @@ import { resolve } from "node:path";
 
 import type { Logger } from "./types.js";
 
+/**
+ * URL Hum publishes its client assets under. It matches the browser safe
+ * default in `./build_cache.js`, which is also the URL the dev server serves.
+ */
+export const ASSETS_BASE = "/_hum";
+
 export interface HumConfig {
   /**
    * Project root. Defaults to `process.cwd()`.
@@ -11,11 +17,12 @@ export interface HumConfig {
   routesDir?: string;
   /** Islands directory, relative to the root. Defaults to `islands`. */
   islandsDir?: string;
-  /** Output directory of the production build. Defaults to `_hum`. */
+  /** Output directory of the production build. Defaults to `dist`. */
   outDir?: string;
   /**
-   * URL the production build output is served from. The build carries it, so it
-   * is normally taken from there; the fallback is `/<outDir>`.
+   * URL Hum publishes its client assets under. The build carries it, so it is
+   * normally taken from there; Hum defaults it to `/_hum` when it runs from
+   * source. It is never derived from `outDir`.
    */
   assetsBase?: string;
   /** Base path the app is served from. Defaults to `/`. */
@@ -67,14 +74,14 @@ export function resolveConfig(config: HumConfig): ResolvedConfig {
   }
   if (basePath === "/") basePath = "";
 
-  const outDir = config.outDir ?? "_hum";
+  const outDir = config.outDir ?? "dist";
 
   return {
     root,
     routesDir: config.routesDir ?? "routes",
     islandsDir: config.islandsDir ?? "islands",
     outDir,
-    assetsBase: normalizeAssetsBase(config.assetsBase ?? `/${outDir}`),
+    assetsBase: normalizeAssetsBase(config.assetsBase ?? ASSETS_BASE),
     basePath,
     dev: config.dev ?? true,
     logger: config.logger ?? defaultLogger,

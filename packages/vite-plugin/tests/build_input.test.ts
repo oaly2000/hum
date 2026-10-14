@@ -58,15 +58,15 @@ describe("buildModuleSource", () => {
     const prod = {
       buildId: "abc123",
       assetsBase: "/_hum",
-      clientEntry: "client/assets/runtime.js",
-      islands: { Counter: { file: "client/assets/Counter.js" } },
-      entryAssets: ["client/assets/entry.css"],
+      clientEntry: "assets/runtime.js",
+      islands: { Counter: { file: "assets/Counter.js" } },
+      entryAssets: ["assets/entry.css"],
     };
     const source = buildModuleSource(context(prod));
 
     expect(source).toContain('"buildId":"abc123"');
-    expect(source).toContain('"client/assets/runtime.js"');
-    expect(source).toContain('"client/assets/Counter.js"');
+    expect(source).toContain('"assets/runtime.js"');
+    expect(source).toContain('"assets/Counter.js"');
     expect(source).not.toContain("prod: null");
   });
 });

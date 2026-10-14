@@ -84,20 +84,29 @@ the example where applicable.
 - `createApp(config)` creates the Hono app for projects that do not have their
   own `server.ts`. Keep it a wrapper around `mountHum(app, config)` so both
   paths share routing behavior.
+- Every build has the same shape: `<outDir>/server.js`, `<outDir>/package.json`
+  and `<outDir>/public/`, where `public/_hum` holds the client assets and the
+  project's `public/` files are copied in beside them. `/_hum` addresses them, so
+  the output directory is never part of an asset URL — it may be `dist`,
+  `wwwroot` or anything else, and `assetsBase` in the build is a constant rather
+  than something derived from `outDir`. The client build's intermediate output
+  (`<outDir>/.hum-client`, including Vite's manifest) is copied into
+  `<outDir>/public/_hum` and then deleted, so the deployed output directory
+  carries nothing that is not published. `outDir` defaults to `dist`.
 - Production server builds bundle npm dependencies into relocatable ESM chunks.
-  Preserve relative output structure and verify the built `_hum/` tree runs from
-  a different directory, and under a different directory name, without
-  `node_modules`. The server entry locates nothing on disk — the build is
-  inlined into the bundle — and the client asset URL comes from `assetsBase` in
-  that build, so neither may be derived from the directory name at runtime.
-- Hum renders asset URLs from its build but never serves the output it wrote.
-  Answering `/_hum/client/*` is the application's job (see
-  `packages/docs/server.ts` and the scaffold, which use
-  `@hono/node-server/serve-static` plus `HUM_OUT_DIR`), normally delegated to a
-  reverse proxy, a CDN, or a platform asset binding. Keep only `client/` public:
-  the server bundle must stay unreachable over HTTP, and
-  `tools/test-standalone-deploy.mjs` asserts both directions — including that no
-  build manifest file ships.
+  Verify the built tree runs from a different directory, and under a different
+  directory name, without `node_modules`. The server entry locates nothing on
+  disk — the build is inlined into the bundle — and the client asset URL comes
+  from `assetsBase` in that build, so neither may be derived from a directory
+  name at runtime.
+- The output directory's `public/` tree is served from the deployment root: it is
+  what the dev server answers for the project's `public/` directory and what a
+  built app mounts `@hono/node-server/serve-static` for (see
+  `packages/docs/server.ts` and the scaffold, plus `HUM_OUT_DIR`), normally
+  delegated to a reverse proxy, a CDN, or a platform asset binding. Only that
+  tree is public: the server bundle sits next to it and must stay unreachable
+  over HTTP, which `tools/test-standalone-deploy.mjs` asserts in both
+  directions.
 
 ## Development and Validation
 

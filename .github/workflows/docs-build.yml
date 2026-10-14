@@ -3,8 +3,8 @@ name: Docs build
 # Runs when a version tag is pushed: builds the documentation site and publishes
 # the production output on its own branch, so `main` stays source-only and
 # deployments can pull a ready-made artifact. The branch root is the deployable
-# directory: `manifest.json`, `client/`, and `server/server.js` (run it with
-# `node server/server.js`).
+# directory: `server.js`, `package.json`, and `public/` (run it with
+# `node server.js`; serve `public/` from the deployment root).
 on:
   push:
     tags:
@@ -52,11 +52,12 @@ jobs:
           set -euo pipefail
           publish_dir="$RUNNER_TEMP/docs-publish"
           mkdir -p "$publish_dir"
-          cp -R packages/docs/_hum/. "$publish_dir/"
+          cp -R packages/docs/dist/. "$publish_dir/"
 
           # Guard against publishing a half-finished build.
-          test -f "$publish_dir/manifest.json"
-          test -f "$publish_dir/server/server.js"
+          test -f "$publish_dir/server.js"
+          test -f "$publish_dir/package.json"
+          test -d "$publish_dir/public/_hum"
 
           cd "$publish_dir"
           # The branch carries artifacts only, so every run replaces it with a

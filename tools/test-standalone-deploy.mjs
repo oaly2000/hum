@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const docsRoot = join(repoRoot, "packages", "docs");
-const buildRoot = join(docsRoot, "_hum");
+const buildRoot = join(docsRoot, "dist");
 const deployRoot = await mkdtemp(join(tmpdir(), "hum-standalone-"));
 const scaffoldRoot = join(deployRoot, "scaffold");
 const runtimeRoot = join(deployRoot, "runtime");
@@ -36,6 +36,9 @@ try {
   );
   assert.match(scaffoldServer, /export default app/);
   assert.match(scaffoldServer, /app\.get\("\/api\/health"/);
+  // The scaffold serves the build's public tree, which is what the checks below
+  // fetch the client assets from once the directory has been renamed.
+  assert.match(scaffoldServer, /"public"/);
   assert.equal(
     (await readFile(join(scaffoldRoot, "package.json"), "utf8")).includes(
       "{{name}}",
@@ -43,16 +46,28 @@ try {
     false,
   );
 
-  await stat(join(buildRoot, "server", "server.js"));
+  // The output directory holds the server entry, its package.json and the
+  // public tree: `server.js`, `package.json`, `public/_hum`, `public/…`.
   assert.deepEqual(
-    (await listFiles(join(buildRoot, "server")))
-      .filter((file) => file.endsWith(".js"))
-      .map((file) => file.slice(file.lastIndexOf(sep) + 1)),
-    ["server.js"],
-    "the production server output must be a single JavaScript file",
+    (await listFiles(buildRoot))
+      .filter((file) =>
+        !file.includes(`${sep}public${sep}`) && !file.includes(`${sep}.hum`)
+      )
+      .filter((file) => file.endsWith(".js") || file.endsWith("package.json"))
+      .map((file) => relative(buildRoot, file).split(sep).join("/")),
+    ["package.json", "server.js"],
+    "the output directory must hold the server entry, its package.json and public/",
   );
-  // Rewrite the output directory name while copy-deploying: it is served under
-  // the URL recorded in the build manifest, so the name on disk must not matter.
+  await stat(join(buildRoot, "server.js"));
+  await stat(join(buildRoot, "package.json"));
+  assert.equal(
+    await exists(join(buildRoot, "public", "_hum")),
+    true,
+    "the build publishes its client assets under public/_hum",
+  );
+  // Rewrite the output directory name while copy-deploying: the assets are
+  // addressed through `/_hum`, next to the server entry, so the name of the
+  // directory they were deployed into must not matter.
   const outDir = "wwwroot";
   await cp(buildRoot, join(runtimeRoot, outDir), { recursive: true });
 
@@ -67,28 +82,17 @@ try {
     "standalone deployment must not depend on the source package.json",
   );
 
-  const entry = await readFile(
-    join(runtimeRoot, outDir, "server", "server.js"),
-    "utf8",
-  );
+  const entryPath = join(runtimeRoot, outDir, "server.js");
+  const entry = await readFile(entryPath, "utf8");
   assert.equal(
     entry.includes(docsRoot.replace(/\\/g, "/")),
     false,
     "server entry must not embed the build machine's project root",
   );
-  for (const file of await listFiles(join(runtimeRoot, outDir, "server"))) {
-    if (!file.endsWith(".js")) continue;
-    const contents = await readFile(file, "utf8");
-    assert.equal(
-      contents.includes(docsRoot.replace(/\\/g, "/")),
-      false,
-      `server bundle must not embed the build machine's project root: ${file}`,
-    );
-  }
 
   server = spawn(
     process.execPath,
-    [join(runtimeRoot, outDir, "server", "server.js")],
+    [entryPath],
     {
       cwd: runtimeRoot,
       // Hum does not serve its own output, so the deployment tells the app
@@ -161,15 +165,15 @@ try {
   // The runtime carries its build inside the server bundle — there is no
   // manifest file for the deployed app to read.
   assert.equal(
-    await exists(join(runtimeRoot, outDir, "manifest.json")),
+    await exists(join(runtimeRoot, outDir, "public", "_hum", ".vite")),
     false,
-    "the deployment must not carry a build manifest file",
+    "the deployment must not carry a build manifest",
   );
 
   // Islands are lazy chunks the app addresses through the build rather than
   // through its markup, so every asset the client build emitted — including the
   // stylesheets recorded for an island — has to be served too.
-  const clientRoot = join(runtimeRoot, outDir, "client");
+  const clientRoot = join(runtimeRoot, outDir, "public", "_hum");
   const assetsBase = "/_hum";
   const islandAssets = (await listFiles(clientRoot))
     .map((file) => relative(clientRoot, file).split(sep).join("/"))
@@ -179,14 +183,14 @@ try {
     "the client build should have emitted assets",
   );
   for (const asset of islandAssets) {
-    const url = `${assetsBase}/client/${asset}`;
+    const url = `${assetsBase}/${asset}`;
     const response = await fetch(`${origin}${url}`);
     assert.equal(response.status, 200, `client asset should be served: ${url}`);
   }
 
-  // Only the client half of the output directory is public: the server bundle
-  // must never be reachable over HTTP.
-  for (const path of ["/_hum/server/server.js"]) {
+  // Only the build's public tree is served: the server entry and its
+  // package.json sit next to it and must never be reachable over HTTP.
+  for (const path of ["/server.js", "/package.json"]) {
     const response = await fetch(`${origin}${path}`);
     assert.equal(response.status, 404, `${path} must not be served`);
   }
@@ -197,8 +201,8 @@ try {
 
   console.log(
     "Scaffold and standalone deployment passed: a renamed output directory " +
-      "runs without node_modules or source package.json, serves its client " +
-      "assets, and keeps the server bundle private.",
+      "runs without node_modules or source package.json, serves its public " +
+      "tree, and keeps the server bundle private.",
   );
 } catch (error) {
   if (serverOutput.length > 0) {

@@ -37,7 +37,7 @@ export interface HumOptions {
   routesDir?: string;
   /** Islands directory, relative to the root. @default "islands" */
   islandsDir?: string;
-  /** Output directory of the production build. @default "_hum" */
+  /** Output directory of the production build. @default "dist" */
   outDir?: string;
   /** Base path the app is served from. @default "/" */
   basePath?: string;
@@ -76,7 +76,7 @@ export function resolveHumOptions(
     root: resolve(options.root ?? root),
     routesDir: options.routesDir ?? "routes",
     islandsDir: options.islandsDir ?? "islands",
-    outDir: options.outDir ?? "_hum",
+    outDir: options.outDir ?? "dist",
     basePath: options.basePath ?? "/",
     clientEntry: options.clientEntry ?? "client/main.ts",
     verbose: options.verbose ?? false,
@@ -86,8 +86,15 @@ export function resolveHumOptions(
 /** Bare specifier of the client runtime shipped by `@humjs/core`. */
 export const CORE_RUNTIME_ID = "@humjs/core/runtime";
 
+/**
+ * URL Hum publishes its client assets under. It addresses
+ * `<outDir>/public/_hum`, never the output directory itself, so the build
+ * directory can be renamed or moved without touching a client URL.
+ */
+export const ASSETS_BASE = "/_hum";
+
 /** URL the dev server serves the client runtime from. */
-export const RUNTIME_URL = "/_hum/runtime.js";
+export const RUNTIME_URL = `${ASSETS_BASE}/runtime.js`;
 
 /** Virtual module that imports the user client entry (if any) and the runtime. */
 export const USER_ENTRY_VIRTUAL_ID = "virtual:hum/client-entry";

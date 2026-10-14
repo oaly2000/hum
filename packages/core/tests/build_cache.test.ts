@@ -4,19 +4,19 @@ import type { ProdManifest } from "../src/build.js";
 import { BuildCache } from "../src/build_cache.js";
 import type { HumManifest } from "../src/types.js";
 
-// Paths are relative to the output directory; `assetsBase` carries the URL the
-// directory is served from, which is independent of its name on disk.
-const prod: ProdManifest = {
+// Asset paths are relative to `assetsBase`, the URL Hum publishes them under,
+// so no path here knows what the output directory is called on disk.
+const PROD: ProdManifest = {
   buildId: "abc123",
   assetsBase: "/_hum",
-  clientEntry: "client/assets/runtime.js",
+  clientEntry: "assets/runtime.js",
   islands: {
     Counter: {
-      file: "client/assets/Counter.js",
-      css: ["client/assets/Counter.css"],
+      file: "assets/Counter.js",
+      css: ["assets/Counter.css"],
     },
   },
-  entryAssets: ["client/assets/entry.css"],
+  entryAssets: ["assets/entry.css"],
 };
 
 const manifest: HumManifest = {
@@ -34,38 +34,52 @@ const manifest: HumManifest = {
 describe("BuildCache", () => {
   it("uses the production assets when it is not in dev mode", async () => {
     const cache = new BuildCache(false);
-    await cache.load({ ...manifest, prod });
+    await cache.load({ ...manifest, prod: PROD });
 
-    expect(cache.clientEntry).toBe("/_hum/client/assets/runtime.js");
-    expect(cache.entryAssets).toEqual(["/_hum/client/assets/entry.css"]);
+    expect(cache.clientEntry).toBe("/_hum/assets/runtime.js");
+    expect(cache.entryAssets).toEqual(["/_hum/assets/entry.css"]);
     expect(cache.buildId).toBe("abc123");
     expect(cache.getIsland("Counter")?.clientUrl).toBe(
-      "/_hum/client/assets/Counter.js",
+      "/_hum/assets/Counter.js",
     );
     expect(cache.getIsland("Counter")?.css).toEqual([
-      "/_hum/client/assets/Counter.css",
+      "/_hum/assets/Counter.css",
     ]);
   });
 
-  it("addresses the assets through the recorded URL, not the output directory name", async () => {
-    // The output directory can be renamed or moved on the deploy machine, so
-    // only the URL the build recorded may reach the client.
+  it("addresses the assets through the recorded URL, not the output directory", async () => {
+    // The output directory can be `dist`, `wwwroot` or anything else: only the
+    // URL the build recorded reaches the client.
     const cache = new BuildCache(false);
-    await cache.load({ ...manifest, prod: { ...prod, assetsBase: "/wwwroot/" } });
+    await cache.load({ ...manifest, prod: { ...PROD, assetsBase: "/wwwroot/" } });
 
-    expect(cache.clientEntry).toBe("/wwwroot/client/assets/runtime.js");
+    expect(cache.clientEntry).toBe("/wwwroot/assets/runtime.js");
     expect(cache.getIsland("Counter")?.clientUrl).toBe(
-      "/wwwroot/client/assets/Counter.js",
+      "/wwwroot/assets/Counter.js",
     );
+  });
+
+  it("falls back to /_hum for a build that records no URL", async () => {
+    // The URL Hum publishes its client assets under is a constant, not a
+    // derived path: the configuration's `outDir` names the build directory and
+    // never reaches a client URL, so the fallback is the same for every project.
+    const cache = new BuildCache(false, undefined);
+    await cache.load({
+      ...manifest,
+      prod: { ...PROD, assetsBase: undefined as unknown as string },
+    });
+
+    expect(cache.clientEntry).toBe("/_hum/assets/runtime.js");
+    expect(cache.getIsland("Counter")?.clientUrl).toBe("/_hum/assets/Counter.js");
   });
 
   it("ignores the production assets in dev mode", async () => {
     // The modules are served straight from Vite in dev, so a build that carries
     // assets must not make it point at hashed chunks that no longer exist.
     const cache = new BuildCache(true);
-    await cache.load({ ...manifest, prod });
+    await cache.load({ ...manifest, prod: PROD });
 
-    expect(cache.clientEntry).not.toBe(prod.clientEntry);
+    expect(cache.clientEntry).not.toBe(PROD.clientEntry);
     expect(cache.buildId).toBe("dev");
     expect(cache.entryAssets).toEqual([]);
     expect(cache.getIsland("Counter")?.clientUrl).toBe("/islands/Counter.tsx");
