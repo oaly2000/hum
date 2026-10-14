@@ -101,34 +101,67 @@ function updateLinks(url: URL): void {
   });
 }
 
+/**
+ * Generation of the last partial navigation that started. Every request bumps
+ * it, and a response is only allowed to land while it still holds the current
+ * value: this is what makes the last navigation win instead of whichever
+ * response happens to arrive last.
+ */
+let lastNavigation = 0;
+
+/**
+ * Opens a navigation and returns its generation. A response is applied only
+ * while its generation is still the current one, so overlapping navigations
+ * cannot append or overwrite each other and a late response cannot roll the
+ * page back to an URL it no longer points at.
+ */
+export function startPartialNavigation(): number {
+  return ++lastNavigation;
+}
+
+/** Keeps the history entry a request navigates to free of bookkeeping params. */
+function stripInternalParams(url: URL): URL {
+  const cleaned = new URL(url);
+  cleaned.searchParams.delete(PARTIAL_SEARCH_PARAM);
+  return cleaned;
+}
+
 async function fetchPartials(
   actualUrl: URL,
   partialUrl: URL,
   shouldNavigate: boolean,
   init: RequestInit = {},
-): Promise<void> {
+): Promise<boolean> {
   const target = new URL(partialUrl);
   target.searchParams.set(PARTIAL_SEARCH_PARAM, "true");
 
+  const generation = startPartialNavigation();
   const res = await fetch(target, { ...init, redirect: "follow" });
+  if (generation !== lastNavigation) return false;
+
   let finalUrl = actualUrl;
   if (res.redirected) {
     const nextUrl = new URL(res.url);
     if (nextUrl.origin === actualUrl.origin) finalUrl = nextUrl;
   }
-  finalUrl.searchParams.delete(PARTIAL_SEARCH_PARAM);
+  finalUrl = stripInternalParams(finalUrl);
 
   try {
-    await applyPartials(res);
+    await applyPartials(res, generation);
   } catch (err) {
+    // A superseded response must not pull the page anywhere, not even to a
+    // redirect target: the navigation that replaced this one owns the URL now.
+    if (generation !== lastNavigation) return false;
     if (err instanceof NoPartialsError && res.redirected) {
       location.href = finalUrl.href;
-      return;
+      return false;
     }
     throw err;
   }
 
+  if (generation !== lastNavigation) return false;
   if (shouldNavigate) maybeReplaceHistory(finalUrl);
+  return true;
 }
 
 document.addEventListener("click", async (event) => {
@@ -159,7 +192,9 @@ document.addEventListener("click", async (event) => {
   maybePushHistory(nextUrl);
 
   const partialUrl = new URL(partial ?? nextUrl.href, location.href);
-  await fetchPartials(nextUrl, partialUrl, true);
+  // The URL highlight only moves when this navigation is the one that landed:
+  // a response a newer click superseded must not repaint the page around it.
+  if (!await fetchPartials(nextUrl, partialUrl, true)) return;
   updateLinks(nextUrl);
 });
 
@@ -176,7 +211,7 @@ addEventListener("popstate", async (event) => {
   index = state.index ?? index;
   const url = new URL(location.href, location.origin);
   try {
-    await fetchPartials(url, url, true);
+    if (!await fetchPartials(url, url, true)) return;
     updateLinks(url);
     scrollTo({ left: state.scrollX ?? 0, top: state.scrollY ?? 0, behavior: "instant" });
   } catch (err) {
@@ -239,8 +274,19 @@ interface PartialReviveCtx {
   foundPartials: number;
 }
 
-/** Applies the partials of an already fetched HTML response to the page. */
-export async function applyPartials(res: Response): Promise<void> {
+/**
+ * Applies the partials of an already fetched HTML response to the page.
+ *
+ * `generation` is the navigation that fetched it, when it came from one: a
+ * response carrying an older generation than the current navigation is
+ * dropped, so overlapping requests cannot append or overwrite each other.
+ */
+export async function applyPartials(
+  res: Response,
+  generation = lastNavigation,
+): Promise<void> {
+  if (generation !== lastNavigation) return;
+
   const contentType = res.headers.get("Content-Type") ?? "";
   if (!contentType.startsWith("text/html")) {
     throw new Error(
@@ -249,6 +295,9 @@ export async function applyPartials(res: Response): Promise<void> {
   }
 
   const text = await res.text();
+  // Body parsing and island loading are both awaited, and the navigation may
+  // have been replaced while waiting: check again before touching the document.
+  if (generation !== lastNavigation) return;
   const doc = new DOMParser().parseFromString(text, "text/html");
 
   let payload: Payload = [];
@@ -269,6 +318,10 @@ export async function applyPartials(res: Response): Promise<void> {
       }),
     );
   }
+
+  // Loading the island modules is awaited as well, so the generation can have
+  // moved on by now.
+  if (generation !== lastNavigation) return;
 
   if (doc.title) document.title = doc.title;
   applyHead(doc);

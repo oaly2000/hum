@@ -9,8 +9,8 @@
  * chunk actually exposes them.
  */
 import { ISLAND_REGISTRY, PartialComp, revive, boot } from "./reviver.js";
-import { applyPartials } from "./partials.js";
+import { applyPartials, startPartialNavigation } from "./partials.js";
 import "./partials.js";
 
 export { boot, revive, ISLAND_REGISTRY as hum_island_registry, PartialComp };
-export { applyPartials };
+export { applyPartials, startPartialNavigation };

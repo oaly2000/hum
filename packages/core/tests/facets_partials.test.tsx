@@ -15,7 +15,10 @@ import {
   withRenderState,
 } from "../src/runtime/server/preact_hooks.js";
 import { signal } from "@preact/signals";
-import { applyPartials } from "../src/runtime/client/partials.js";
+import {
+  applyPartials,
+  startPartialNavigation,
+} from "../src/runtime/client/partials.js";
 import { boot } from "../src/runtime/client/reviver.js";
 
 interface Rendered {
@@ -350,5 +353,67 @@ describe("page level facets when a partial updates", () => {
 
     expect(text("#shell-count")).toBe("2");
     expect(text("#panel-count")).toBe("1");
+  });
+});
+
+describe("overlapping partial requests", () => {
+  it("drops the response of a request that was superseded", async () => {
+    const initial = () =>
+      h(Partial, { name: "feed" }, h("li", null, "a"));
+
+    const { html, payload } = await renderFragment(initial);
+    await hydrate(html, payload);
+
+    const slow = await renderPartialResponse(() =>
+      h(
+        Partial,
+        { name: "feed", mode: "append" },
+        h("li", null, "slow"),
+      ));
+    const fast = await renderPartialResponse(() =>
+      h(
+        Partial,
+        { name: "feed", mode: "append" },
+        h("li", null, "fast"),
+      ));
+
+    // Two overlapping navigations, the second one (the fast response) started
+    // while the first was still in flight.
+    const slowNav = startPartialNavigation();
+    const fastNav = startPartialNavigation();
+
+    // The slow response lands after the fast one was applied, which is exactly
+    // the case that used to append both.
+    await applyPartials(fast, fastNav);
+    await applyPartials(slow, slowNav);
+    await flush();
+
+    expect(document.querySelectorAll("li")).toHaveLength(2);
+    expect(text("li:last-child")).toBe("fast");
+  });
+
+  it("does not overwrite a newer replacement with a late response", async () => {
+    const initial = () =>
+      h(Partial, { name: "panel" }, h("p", { id: "panel" }, "first"));
+
+    const { html, payload } = await renderFragment(initial);
+    await hydrate(html, payload);
+    expect(text("#panel")).toBe("first");
+
+    const newer = await renderPartialResponse(() =>
+      h(Partial, { name: "panel" }, h("p", { id: "panel" }, "second")));
+    const older = await renderPartialResponse(() =>
+      h(Partial, { name: "panel" }, h("p", { id: "panel" }, "third")));
+
+    const olderNav = startPartialNavigation();
+    const newerNav = startPartialNavigation();
+
+    // The newer response lands first, the older one arrives afterwards and
+    // must not put its own content back on screen.
+    await applyPartials(newer, newerNav);
+    await applyPartials(older, olderNav);
+    await flush();
+
+    expect(text("#panel")).toBe("second");
   });
 });

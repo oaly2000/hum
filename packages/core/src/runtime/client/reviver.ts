@@ -484,7 +484,10 @@ export function copyOldChildren(
   props.children = oldChildren === undefined || oldChildren === null
     ? []
     : Array.isArray(oldChildren)
-    ? oldChildren
+    // Copied rather than aliased: the caller mutates the list it gets back, and
+    // the array it came from is the `children` a mounted component is still
+    // rendering from.
+    ? oldChildren.slice()
     : [oldChildren];
 }
 
