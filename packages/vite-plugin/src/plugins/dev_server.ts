@@ -11,7 +11,15 @@ import {
 import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { Plugin, ViteDevServer } from "vite";
+import {
+  createServerModuleRunner,
+  type DevEnvironment,
+  type Plugin,
+  type ViteDevServer,
+} from "vite";
+
+/** Evaluator of the modules of one environment. `vite` keeps the type internal. */
+type ModuleRunner = ReturnType<typeof createServerModuleRunner>;
 
 import {
   ASSETS_BASE,
@@ -51,6 +59,22 @@ function isRequestApp(value: unknown): value is RequestApp {
 }
 
 /**
+ * Runner that evaluates a module in an environment.
+ *
+ * `server.ssrLoadModule` is a compatibility shim: it is deprecated, and it only
+ * works for an environment Vite runs itself — it throws outright for one it
+ * does not, such as the Worker environment `@cloudflare/vite-plugin` installs.
+ * Asking the environment for a runner covers both: a runnable environment hands
+ * back the one it manages, anything else gets one bound to its hot channel,
+ * which is how the module ends up evaluated inside that runtime rather than
+ * here.
+ */
+function moduleRunner(environment: DevEnvironment): ModuleRunner {
+  const runnable = environment as { runner?: ModuleRunner };
+  return runnable.runner ?? createServerModuleRunner(environment);
+}
+
+/**
  * Loads the build of the running project, which registers it with the runtime.
  *
  * The virtual module owns discovery: Vite resolves its `import.meta.glob` calls
@@ -60,8 +84,8 @@ function isRequestApp(value: unknown): value is RequestApp {
  * its lazily imported modules are served through this dev server, which is what
  * keeps HMR working.
  */
-async function loadBuild(server: ViteDevServer): Promise<HumBuild> {
-  const module = await server.ssrLoadModule(BUILD_VIRTUAL_ID) as {
+async function loadBuild(runner: ModuleRunner): Promise<HumBuild> {
+  const module = await runner.import(BUILD_VIRTUAL_ID) as {
     build?: HumBuild;
   };
   if (module.build === undefined) {
@@ -82,10 +106,17 @@ async function loadBuild(server: ViteDevServer): Promise<HumBuild> {
 export function humDevServer(ctx: HumContext): Plugin {
   let app: Promise<RequestApp> | null = null;
   let publicFiles: PublicFileOptions | null = null;
+  // One runner for the whole session: it holds the evaluated modules, and it is
+  // where HMR invalidates them.
+  let runner: ModuleRunner | null = null;
+
+  function ssrRunner(server: ViteDevServer): ModuleRunner {
+    return (runner ??= moduleRunner(server.environments.ssr));
+  }
 
   async function buildApp(server: ViteDevServer): Promise<RequestApp> {
     // Importing the build module registers it, so mounting needs nothing else.
-    const build = await loadBuild(server);
+    const build = await loadBuild(ssrRunner(server));
     if (ctx.options.verbose) {
       server.config.logger.info(projectSummary({
         routes: build.routes.length,
@@ -123,7 +154,7 @@ export function humDevServer(ctx: HumContext): Plugin {
       return withPublicFiles(await createApp(humConfig));
     }
 
-    const serverModule = await server.ssrLoadModule(
+    const serverModule = await ssrRunner(server).import(
       projectUrlPath(ctx.options.root, serverEntry),
     ) as { default?: unknown };
     if (!isRequestApp(serverModule.default)) {
@@ -155,6 +186,15 @@ export function humDevServer(ctx: HumContext): Plugin {
     apply: "serve",
 
     configureServer(server) {
+      // A plugin that runs the app in a runtime of its own — the Cloudflare
+      // plugin, which runs it inside workerd — owns the request: the routes are
+      // mounted over there, and this middleware has nothing left to answer.
+      // Hum detects it instead of being told about it, the same way it finds
+      // its entry file rather than being configured with it.
+      const platformOwnsRequests = server.config.plugins.some(
+        (plugin) => plugin.name === "vite-plugin-cloudflare:dev",
+      );
+
       // Adding or removing a route/island file changes the route table, so the
       // app has to be rebuilt. Plain edits do not, they are picked up by the
       // per-request module reload.
@@ -192,6 +232,14 @@ export function humDevServer(ctx: HumContext): Plugin {
                 res.setHeader("Content-Type", "text/javascript; charset=utf-8");
                 res.setHeader("Cache-Control", "no-store");
                 res.end(result?.code ?? "");
+                return;
+              }
+
+              // Hand everything else to the runtime that is running the app;
+              // the client entry above is the one URL Vite does not answer and
+              // that runtime cannot.
+              if (platformOwnsRequests) {
+                next();
                 return;
               }
 
@@ -247,7 +295,10 @@ async function writeResponse(
 ): Promise<void> {
   const type = response.headers.get("content-type") ?? "";
   if (type.includes("text/html")) {
-    const script = `<script type="module" src="/@vite/client"></script>`;
+    // The HMR client is part of the rendered document (see
+    // `@humjs/core/runtime/server/document`), so only what needs this process
+    // is spliced in here: styles are read out of the client environment's
+    // module graph, which a runtime rendering the app elsewhere cannot reach.
     const styles = await collectCss(server);
     const stylesHtml = styles.join("\n");
     const reader = response.body?.getReader();
@@ -271,7 +322,7 @@ async function writeResponse(
     } else {
       const end = headEnd + "</head>".length;
       initial = buffered.slice(0, headEnd) +
-        `${script}\n${stylesHtml}</head>` +
+        `${stylesHtml}</head>` +
         buffered.slice(end);
     }
 

@@ -113,4 +113,63 @@ export default define.page<PageData>(({ data }) => (
       await rm(routesRoot, { recursive: true, force: true });
     }
   }, 15_000);
+
+  it("keeps serving after a render fails", async () => {
+    const root = resolve(process.cwd(), "packages", "docs");
+    const routesRoot = await mkdtemp(join(root, "routes", "error-test-"));
+    const routesDir = relative(root, routesRoot).replace(/\\/g, "/");
+    await writeFile(
+      join(routesRoot, "index.tsx"),
+      'export default function Home() { return "home"; }\n',
+    );
+    // A reactive cycle: the effect writes the signal it reads, which is the
+    // error `@preact/signals` reports once the graph loops too far.
+    await writeFile(
+      join(routesRoot, "boom.tsx"),
+      `import { effect, signal } from "@preact/signals";
+
+export default function Boom() {
+  const count = signal(0);
+  effect(() => {
+    count.value = count.value + 1;
+  });
+  return <p>{count.value}</p>;
+}
+`,
+    );
+
+    const server = await createServer({
+      configFile: false,
+      root,
+      plugins: hum({ routesDir }),
+      logLevel: "silent",
+      server: { host: "127.0.0.1", port: 0, strictPort: true },
+    });
+
+    try {
+      await server.listen();
+      const address = server.httpServer?.address() as AddressInfo;
+      const origin = `http://127.0.0.1:${address.port}`;
+
+      const before = await fetch(`${origin}/`);
+      expect(before.status).toBe(200);
+      // The HMR client comes from the rendered document, so it is there once
+      // and the dev server never splices it into the response a second time.
+      const beforeHtml = await before.text();
+      expect(beforeHtml.match(/@vite\/client/g)?.length).toBe(1);
+
+      const boom = await fetch(`${origin}/boom`);
+      expect(boom.status).toBe(500);
+
+      // Nothing the failed render built may survive it: a runtime that keeps
+      // its modules alive across requests — a Worker, unlike this Node dev
+      // server — has to stay usable too, so a broken page must not take the
+      // rest of the app down with it.
+      expect((await fetch(`${origin}/`)).status).toBe(200);
+      expect((await fetch(`${origin}/`)).status).toBe(200);
+    } finally {
+      await server.close();
+      await rm(routesRoot, { recursive: true, force: true });
+    }
+  }, 20_000);
 });

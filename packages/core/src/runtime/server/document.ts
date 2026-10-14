@@ -68,8 +68,21 @@ function renderHead(state: RenderState): string {
   return renderToString(h(Fragment, null, nodes));
 }
 
+/**
+ * Script the Vite dev server needs in the page for HMR. It belongs to the
+ * document rather than to the request: whatever renders the app — this process,
+ * or a Worker runtime the dev server handed the request to — emits the same
+ * tag, so a dev server that never sees the response can still have its client
+ * in the page.
+ */
+const VITE_CLIENT_URL = "/@vite/client";
+
 function renderResourceNodes(state: RenderState): AnyVNode[] {
   const nodes: AnyVNode[] = [];
+
+  if (state.buildCache.dev && !state.partialRequest) {
+    nodes.push(h("script", { type: "module", src: VITE_CLIENT_URL }));
+  }
 
   if (state.needsClientRuntime) {
     nodes.push(
