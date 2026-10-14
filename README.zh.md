@@ -30,7 +30,8 @@ vite.config.ts   plugins: [hum(), tailwindcss()]
 ```
 
 项目使用 Vite 进行 dev/build，build 产物可以直接用 `node _hum/server/server.js`
-运行。客户端资源由应用自己提供（见 `server.ts`：它为 `_hum/client` 挂载了
+运行。生产构建会将服务端产物合并为单个 JavaScript 文件，并打包 npm 依赖
+（Node 内置模块除外）。客户端资源由应用自己提供（见 `server.ts`：它为 `_hum/client` 挂载了
 `@hono/node-server/serve-static`）——生产环境通常交给反向代理、CDN 或平台的静态资源绑定。
 
 

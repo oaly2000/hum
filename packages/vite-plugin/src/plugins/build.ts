@@ -117,7 +117,12 @@ export function humBuild(ctx: HumContext): Plugin {
             emptyOutDir: true,
             ssr: true,
             target: "node20",
-            rollupOptions: { input: { [SERVER_ENTRY_NAME]: SERVER_ENTRY } },
+            rollupOptions: {
+              input: { [SERVER_ENTRY_NAME]: SERVER_ENTRY },
+              // Routes are discovered through dynamic imports; disabling
+              // splitting keeps the deployment to the single server entry.
+              output: { codeSplitting: false },
+            },
           },
         };
       }
@@ -176,11 +181,16 @@ export function humBuild(ctx: HumContext): Plugin {
           emptyOutDir: true,
           ssr: true,
           target: "node20",
-          rollupOptions: { input: { [SERVER_ENTRY_NAME]: SERVER_ENTRY } },
+          rollupOptions: {
+            input: { [SERVER_ENTRY_NAME]: SERVER_ENTRY },
+            // Routes are discovered through dynamic imports; disabling
+            // splitting keeps the deployment to the single server entry.
+            output: { codeSplitting: false },
+          },
         },
         // SSR builds externalize dependencies by default, which makes the
         // deployed server depend on the project's node_modules. Bundle npm
-        // dependencies into the server chunks; Node built-ins remain external.
+        // dependencies into the server file; Node built-ins remain external.
         ssr: { noExternal: true },
       });
       await writeFile(

@@ -34,7 +34,9 @@ vite.config.ts   plugins: [hum(), tailwindcss()]
 ```
 
 Projects use Vite for dev/build, and the build output can be run directly with
-`node _hum/server/server.js`. The app serves its own client assets (see
+`node _hum/server/server.js`. Production emits a single server JavaScript file
+with npm dependencies bundled; Node built-ins remain external. The app serves
+its own client assets (see
 `server.ts`, which mounts `@hono/node-server/serve-static` for `_hum/client`) —
 in production that is normally delegated to a reverse proxy, a CDN, or a
 platform asset binding.

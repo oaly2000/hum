@@ -44,6 +44,13 @@ try {
   );
 
   await stat(join(buildRoot, "server", "server.js"));
+  assert.deepEqual(
+    (await listFiles(join(buildRoot, "server")))
+      .filter((file) => file.endsWith(".js"))
+      .map((file) => file.slice(file.lastIndexOf(sep) + 1)),
+    ["server.js"],
+    "the production server output must be a single JavaScript file",
+  );
   // Rewrite the output directory name while copy-deploying: it is served under
   // the URL recorded in the build manifest, so the name on disk must not matter.
   const outDir = "wwwroot";
@@ -75,7 +82,7 @@ try {
     assert.equal(
       contents.includes(docsRoot.replace(/\\/g, "/")),
       false,
-      `server chunk must not embed the build machine's project root: ${file}`,
+      `server bundle must not embed the build machine's project root: ${file}`,
     );
   }
 

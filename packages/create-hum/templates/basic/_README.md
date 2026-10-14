@@ -9,10 +9,10 @@ npm run build    # client + server bundles into _hum/
 npm start        # run the built server
 ```
 
-The production server bundle includes its npm dependencies, so the runtime
-deployment does not need the project's `node_modules`. The generated `_hum/`
-directory can move or even be renamed — it locates itself next to the server
-bundle — as long as its internal structure is kept and `server/server.js` is the
+The production server is emitted as one JavaScript file with its npm
+dependencies bundled, so the runtime deployment does not need the project's
+`node_modules`. The generated `_hum/` directory can move or even be renamed —
+the server locates it next to its own bundle — and `server/server.js` is the
 entry point.
 
 Hum renders the client asset URLs the build recorded (under `/_hum/` by
