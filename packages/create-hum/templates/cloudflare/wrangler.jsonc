@@ -2,7 +2,9 @@
   // Cloudflare requires lowercase letters, digits and dashes: rename the Worker
   // here (and in package.json) if the project directory has anything else.
   "name": "{{name}}",
-  // Hum's build: one server bundle next to the public tree it publishes.
+  // Hum's build: one server bundle next to the public tree it publishes. The
+  // dev server loads `dev-worker.ts` instead — the same app, mounted from
+  // source — which `vite.config.ts` passes to the Cloudflare plugin.
   "main": "./dist/server.js",
   "assets": {
     "directory": "./dist/public",

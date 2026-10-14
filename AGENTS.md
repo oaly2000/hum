@@ -89,6 +89,26 @@ the example where applicable.
   no option selects one: the Cloudflare template exports no `start`, the Node
   templates and `packages/docs` do, and a project without `server.ts` gets an app
   of its own that serves itself on Node.
+- An island is recognized by a tag the bundler writes onto its component — the
+  `humIslandTags` transform stamps `{ name, file, exportName }` under
+  `Symbol.for("hum.island")`, and the renderer reads it back and looks the name
+  up in the build. Do not reintroduce a table keyed by component identity: it
+  only works while a module is instantiated once, which a Worker runtime's
+  module runner does not promise. For the same reason `BuildCache.load()` reads
+  the island table out of the build's manifest instead of importing island
+  modules, and the plugin's server-build pass has to include the tag transform.
+- Preact's options hooks are installed per Preact, marked on the options object
+  rather than on `globalThis`. More than one copy of the framework can live in
+  one process or isolate, and a process-wide flag lets one copy's installation
+  silence the others — which renders without island markers and wraps a finished
+  document in a second one.
+- The dev server yields to a plugin that runs the app in a runtime of its own:
+  it detects the Cloudflare plugin by name (`vite-plugin-cloudflare:dev`) and
+  leaves the request to it, answering only the client runtime URL. That URL is
+  registered before Vite's own middlewares, so the order the plugins are listed
+  in does not matter. The Vite dev script is emitted by the document render
+  (development only, never in a partial response) rather than spliced into the
+  response, because a runtime rendering elsewhere has no response to splice.
 - `createApp(config)` creates the Hono app for projects that do not have their
   own `server.ts`. Keep it a wrapper around `mountHum(app, config)` so both
   paths share routing behavior.

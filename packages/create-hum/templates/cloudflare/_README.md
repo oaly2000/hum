@@ -5,7 +5,7 @@ first, islands for interaction.
 
 ```bash
 npm install
-npm run dev      # Vite dev server on Node, with SSR and HMR
+npm run dev      # Vite dev server with SSR and HMR, rendering inside workerd
 npm run build    # client + server bundles into dist/
 npm run preview  # run the built Worker locally on workerd
 npm run deploy   # publish the Worker and its assets
@@ -31,13 +31,20 @@ what keeps Hum's file routing and its `_404` page in charge. Only `public/` is
 published: the server bundle sits next to it, outside the asset directory, so it
 stays unreachable over HTTP.
 
-## Two runtimes
+## Development runs on workerd
 
-`npm run dev` is Vite on Node; `npm run build` produces a Worker. Routing,
-islands, serialization and streaming behave the same in both, but a dependency
-that needs Node — `node:fs`, an addon, a package that only works on Node — will
-load in development and fail on the platform. `npm run preview` runs the built
-Worker on the real runtime, which is the closest thing to production.
+The dev server renders pages inside workerd, the runtime that will serve them,
+so this project's bindings are available while developing and a dependency that
+needs Node fails where production would fail rather than in development only.
+Vite still owns the module graph, HMR and the client assets; the Cloudflare
+plugin takes the page requests.
+
+That is why `vite.config.ts` loads `@cloudflare/vite-plugin` only while serving:
+the production build stays Hum's own, which is what keeps `npm run build` at one
+server bundle plus a public tree. It also points the plugin at `dev-worker.ts`,
+because `main` in `wrangler.jsonc` names the *built* entry — the same app, but
+mounted from the build. `npm run preview` then runs that build, so a change that
+only works in development is caught before deploying.
 
 The runtime imports `node:async_hooks` and `node:path`; `compatibility_flags:
 ["nodejs_compat"]` in `wrangler.jsonc` is what provides them, so keep the flag
@@ -75,6 +82,7 @@ client/
   style.css     Tailwind CSS entry point
 public/         files served from / in dev, and published by the asset binding
 server.ts       Hono app with middleware and API routes
+dev-worker.ts   what the dev server loads: the same app, mounted on workerd
 wrangler.jsonc  Worker name, entry point and asset directory
 ```
 

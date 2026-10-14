@@ -129,6 +129,7 @@ describe("templates", () => {
       .sort();
     expect(files).toContain("wrangler.jsonc");
     expect(files).toContain("server.ts");
+    expect(files).toContain("dev-worker.ts");
 
     // The Worker owns the entry and the platform serves the build's public
     // tree, so nothing in the project imports the Node adapter and nothing
@@ -148,6 +149,18 @@ describe("templates", () => {
     expect(vite).toContain("hum()");
     expect(vite).not.toContain("platform:");
 
+    // Development renders on workerd, and only while serving: the production
+    // build has to stay Hum's own bundle plus its public tree.
+    expect(vite).toContain('command === "serve"');
+    expect(vite).toContain('config: { main: "./dev-worker.ts" }');
+    // The Worker needs one copy of Preact's hooks to render with.
+    expect(vite).toContain('"preact/hooks"');
+
+    const worker = await readFile(join(target, "dev-worker.ts"), "utf8");
+    expect(worker).toContain('import "virtual:hum/build"');
+    expect(worker).toContain("await mountHum(app,");
+    expect(worker).toContain("export default app");
+
     const pkg = JSON.parse(
       await readFile(join(target, "package.json"), "utf8"),
     ) as {
@@ -155,6 +168,8 @@ describe("templates", () => {
       devDependencies: Record<string, string>;
     };
     expect(pkg.dependencies["@hono/node-server"]).toBeUndefined();
+    expect(pkg.dependencies["@cloudflare/vite-plugin"]).toBeUndefined();
     expect(pkg.devDependencies.wrangler).toBeDefined();
+    expect(pkg.devDependencies["@cloudflare/vite-plugin"]).toBeDefined();
   });
 });
