@@ -21,6 +21,15 @@ import {
 /** Evaluator of the modules of one environment. `vite` keeps the type internal. */
 type ModuleRunner = ReturnType<typeof createServerModuleRunner>;
 
+/**
+ * The `ssr` environment as it is when Vite evaluates its modules here.
+ *
+ * `vite` keeps the type of a runnable environment internal, so the runner is
+ * read off the value instead of off the type: an environment Vite runs carries
+ * one, and an environment a plugin hands to a runtime of its own does not.
+ */
+type RunnableEnvironment = DevEnvironment & { readonly runner: ModuleRunner };
+
 import {
   ASSETS_BASE,
   BUILD_VIRTUAL_ID,
@@ -59,19 +68,23 @@ function isRequestApp(value: unknown): value is RequestApp {
 }
 
 /**
- * Runner that evaluates a module in an environment.
+ * Whether this dev server renders the app itself.
  *
- * `server.ssrLoadModule` is a compatibility shim: it is deprecated, and it only
- * works for an environment Vite runs itself — it throws outright for one it
- * does not, such as the Worker environment `@cloudflare/vite-plugin` installs.
- * Asking the environment for a runner covers both: a runnable environment hands
- * back the one it manages, anything else gets one bound to its hot channel,
- * which is how the module ends up evaluated inside that runtime rather than
- * here.
+ * The `ssr` environment is how Hum reaches the modules an app is made of. An
+ * environment Vite runs — the default one, and the one a project without a
+ * platform plugin has — carries a module runner, which is what makes serving
+ * pages from here possible. One without a runner belongs to a runtime of its
+ * own: `@cloudflare/vite-plugin` builds a `DevEnvironment` whose runner lives
+ * inside workerd, so this process cannot evaluate the app's modules at all, and
+ * that runtime owns the requests.
+ *
+ * Hum then mounts nothing and answers only the client runtime URL. Reading this
+ * off the environment rather than off a plugin's name is what keeps a platform
+ * adapter from having to be known here.
  */
-function moduleRunner(environment: DevEnvironment): ModuleRunner {
-  const runnable = environment as { runner?: ModuleRunner };
-  return runnable.runner ?? createServerModuleRunner(environment);
+function rendersHere(server: ViteDevServer): boolean {
+  return (server.environments.ssr as { runner?: ModuleRunner }).runner !==
+    undefined;
 }
 
 /**
@@ -101,7 +114,9 @@ async function loadBuild(runner: ModuleRunner): Promise<HumBuild> {
  *
  * Vite owns every request it can answer itself (island modules, assets, HMR);
  * everything else is handled by Hum mounted on the user Hono app (or a
- * standalone app), whose `ModuleLoader` re-imports route modules per request.
+ * standalone app), whose `ModuleLoader` re-imports route modules per request —
+ * unless a platform plugin runs the app in a runtime of its own, in which case
+ * that runtime answers those requests and this half only keeps them moving.
  */
 export function humDevServer(ctx: HumContext): Plugin {
   let app: Promise<RequestApp> | null = null;
@@ -110,8 +125,14 @@ export function humDevServer(ctx: HumContext): Plugin {
   // where HMR invalidates them.
   let runner: ModuleRunner | null = null;
 
+  /**
+   * Runner that evaluates the app's modules here. Only reached in an
+   * environment that has one: `server.ssrLoadModule` is a deprecated
+   * compatibility shim, it throws for an environment Vite does not run, and the
+   * environment's own runner is what Vite itself uses in its place.
+   */
   function ssrRunner(server: ViteDevServer): ModuleRunner {
-    return (runner ??= moduleRunner(server.environments.ssr));
+    return (runner ??= (server.environments.ssr as RunnableEnvironment).runner);
   }
 
   async function buildApp(server: ViteDevServer): Promise<RequestApp> {
@@ -184,20 +205,17 @@ export function humDevServer(ctx: HumContext): Plugin {
   return {
     name: "hum:dev-server",
     apply: "serve",
+    // Both middlewares below have to be in place before the ones other plugins
+    // register: the client runtime URL must not be answerable by a runtime that
+    // answers pages, and the app Hum serves itself only runs when nothing else
+    // does. Vite applies the middleware halves in plugin order, so being a `pre`
+    // plugin is what keeps that true whatever order the plugins are listed in.
+    enforce: "pre",
 
     configureServer(server) {
-      // A plugin that runs the app in a runtime of its own — the Cloudflare
-      // plugin, which runs it inside workerd — owns the request: the routes are
-      // mounted over there, and this middleware has nothing left to answer.
-      // Hum detects it instead of being told about it, the same way it finds
-      // its entry file rather than being configured with it.
-      const platformOwnsRequests = server.config.plugins.some(
-        (plugin) => plugin.name === "vite-plugin-cloudflare:dev",
-      );
-
-      // Registered before Vite's own middlewares and before any other plugin's,
-      // so it does not matter which order the plugins are listed in: this URL
-      // is Hum's, and no runtime that answers pages can answer it.
+      // Registered before Vite's own middlewares, and before any other plugin's
+      // (this plugin half is `enforce: "pre"`), so this URL is answered here and
+      // never reaches a runtime that answers pages.
       //
       // The boot script imports `boot` from here, so this URL has to serve the
       // user client entry wired to the runtime: that entry imports
@@ -246,9 +264,11 @@ export function humDevServer(ctx: HumContext): Plugin {
             next: (err?: unknown) => void,
           ) => {
             try {
-              // Hand the request to the runtime that is running the app; the
-              // client entry above is the one URL that runtime cannot answer.
-              if (platformOwnsRequests) {
+              // A runtime of its own is running this project: it evaluates the
+              // app's modules and answers the requests, so this middleware is
+              // only here to keep them moving. The client entry above is the one
+              // URL that runtime cannot answer.
+              if (!rendersHere(server)) {
                 next();
                 return;
               }
