@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 import { globPatterns } from "@humjs/core/routing";
 import type { Plugin } from "vite";
 
-import type { HumContext, ResolvedHumOptions } from "../shared.js";
+import type { HumContext } from "../shared.js";
 import {
   BUILD_VIRTUAL_ID,
   CLIENT_RUNTIME_ENTRY,
@@ -29,23 +29,16 @@ export function humIslands(): Plugin {
   return {
     name: "hum:islands",
 
-    // The client runtime modules expose `boot`/`revive`/`applyPartials` that the
-    // generated boot script imports from the built entry chunk, but nothing inside
-    // the bundle itself consumes them, so Rolldown (Vite 8) tree-shakes the whole
-    // `@humjs/core/runtime` module — leaving the chunk without `boot` and breaking
-    // island hydration in production. Marking the runtime as side-effectful keeps
-    // the full module (including `boot`) in the output.
+    // The runtime's entry exports are consumed from outside the bundle by the
+    // server-inlined boot script, which is the tree-shaking constraint described
+    // in `@humjs/core/runtime/client`. The runtime modules below are marked
+    // side-effectful so Rolldown (Vite 8) cannot drop the module the entry
+    // re-exports from, which would leave the entry chunk without `boot`.
     transform(code, id) {
       if (
         id.includes(CORE_RUNTIME_ID) ||
         id.includes("/runtime/client/")
       ) {
-        // `"no-treeshake"` (the Rolldown Vite 8 value) prevents this module's
-        // own code — and crucially its exports — from being tree-shaken. The
-        // client runtime exposes `boot`/`revive`/`applyPartials` that are only
-        // imported by the server-inlined boot script outside the bundle, so
-        // without this Rolldown drops them and hydration/partials break in
-        // production.
         return { code, moduleSideEffects: "no-treeshake" };
       }
       return null;
@@ -71,22 +64,14 @@ export async function writeBuildEntries(ctx: HumContext): Promise<void> {
   const userImport = existsSync(userEntry)
     ? `import ${JSON.stringify(userEntry)};\n`
     : "";
-  // The boot script in the server-rendered HTML does `import { boot } from
-  // "<entry>.js"` and calls it, but that call lives outside the bundle, so the
-  // bundler cannot see a consumer for `boot`/`revive`/`applyPartials`. Their
-  // only reachable use inside the bundle is the `typeof` guard below, which
-  // keeps them alive through tree-shaking (Rolldown in Vite 8 drops an entry
-  // that merely re-exports inlined, unused bindings — that broke island
-  // hydration in production).
+  // The boot script in the server-rendered HTML imports `boot` from this entry
+  // and calls it, but that call lives outside the bundle, so the entry has to
+  // keep the runtime's exports alive itself — see the tree-shaking note in
+  // `@humjs/core/runtime/client`. Importing the bindings locally and
+  // re-exporting them, plus the `globalThis` reference, keeps the runtime (and
+  // its partial navigation side effects) in the emitted chunk.
   await writeFile(
     join(ctx.options.root, CLIENT_RUNTIME_ENTRY),
-    // The boot script in the server-rendered HTML imports `boot` from this
-    // entry and calls it, but that call lives outside the bundle, so Rolldown
-    // (Vite 8) cannot see a consumer and tree-shakes `boot`/`revive`/
-    // `applyPartials` away — breaking hydhration and partial updates in
-    // production. Importing them here and exporting a live reference keeps the
-    // runtime (which also registers the partial navigation side effects) fully
-    // in the emitted chunk.
     userImport +
       `import { boot, revive, applyPartials, hum_island_registry } from ${
         JSON.stringify(CORE_RUNTIME_ID)

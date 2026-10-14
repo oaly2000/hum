@@ -3,10 +3,14 @@ import { resolve } from "node:path";
 import type { Logger } from "./types.js";
 
 /**
- * URL Hum publishes its client assets under. It matches the browser safe
- * default in `./build_cache.js`, which is also the URL the dev server serves.
+ * URL Hum publishes its client assets under. It is a framework constant rather
+ * than a configuration knob: the build carries it, the dev server serves it,
+ * and it never depends on the output directory's name or location.
  */
 export const ASSETS_BASE = "/_hum";
+
+/** URL the client runtime entry is served from, under `ASSETS_BASE`. */
+export const RUNTIME_URL = `${ASSETS_BASE}/runtime.js`;
 
 export interface HumConfig {
   /**
@@ -19,12 +23,6 @@ export interface HumConfig {
   islandsDir?: string;
   /** Output directory of the production build. Defaults to `dist`. */
   outDir?: string;
-  /**
-   * URL Hum publishes its client assets under. The build carries it, so it is
-   * normally taken from there; Hum defaults it to `/_hum` when it runs from
-   * source. It is never derived from `outDir`.
-   */
-  assetsBase?: string;
   /** Base path the app is served from. Defaults to `/`. */
   basePath?: string;
   /**
@@ -41,7 +39,6 @@ export interface ResolvedConfig {
   routesDir: string;
   islandsDir: string;
   outDir: string;
-  assetsBase: string;
   basePath: string;
   dev: boolean;
   logger: Logger;
@@ -55,16 +52,6 @@ export const defaultLogger: Logger = {
     if (process.env.HUM_DEBUG) console.log("hum:", ...args);
   },
 };
-
-/**
- * Normalizes an absolute URL prefix: it always starts with `/` and never ends
- * with one, so callers can append `/<path>` unconditionally.
- */
-function normalizeAssetsBase(value: string): string {
-  const trimmed = value.trim().replace(/\\/g, "/");
-  const withLeadingSlash = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
-  return withLeadingSlash.replace(/\/+$/, "");
-}
 
 export function resolveConfig(config: HumConfig): ResolvedConfig {
   const root = resolve(config.root ?? process.cwd());
@@ -81,7 +68,6 @@ export function resolveConfig(config: HumConfig): ResolvedConfig {
     routesDir: config.routesDir ?? "routes",
     islandsDir: config.islandsDir ?? "islands",
     outDir,
-    assetsBase: normalizeAssetsBase(config.assetsBase ?? ASSETS_BASE),
     basePath,
     dev: config.dev ?? true,
     logger: config.logger ?? defaultLogger,

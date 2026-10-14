@@ -65,7 +65,6 @@ interface IslandReq {
   kind: typeof RootKind.Island;
   name: string;
   propsIdx: number;
-  key: string | null;
   start: Comment | Text;
   end: Comment | Text | null;
 }
@@ -73,7 +72,6 @@ interface IslandReq {
 interface PartialReq {
   kind: typeof RootKind.Partial;
   name: string;
-  key: string | null;
   start: Comment | Text;
   end: Comment | Text | null;
 }
@@ -87,6 +85,34 @@ interface ReviveContext {
   facets: FacetReq[];
   /** Open `hum:signal` marker ranges, used to pair them up. */
   signalStack: SignalFacetReq[];
+}
+
+/**
+ * Builds the root range entry for an island or partial marker. Both kinds
+ * share the same opening structure — a hidden marker comment that had to
+ * survive as the range start — so the parts are read in one place.
+ */
+function openRoot(
+  node: Comment,
+  kind: "island" | "partial",
+  parts: string[],
+): IslandReq | PartialReq {
+  const hidden = maybeHideMarker(node);
+  if (kind === "island") {
+    return {
+      kind: RootKind.Island,
+      name: parts[0],
+      propsIdx: Number(parts[1]),
+      start: hidden as Comment,
+      end: null,
+    };
+  }
+  return {
+    kind: RootKind.Partial,
+    name: parts[0],
+    start: hidden as Comment,
+    end: null,
+  };
 }
 
 interface SlotRef {
@@ -156,7 +182,7 @@ interface HumMarkerText extends Text {
 
 const SHOW_MARKERS = false;
 
-export function isHumMarkerText(node: Node): node is HumMarkerText {
+function isHumMarkerText(node: Node): node is HumMarkerText {
   return (
     node.nodeType === Node.TEXT_NODE &&
     typeof (node as HumMarkerText)._humMarker === "string"
@@ -212,7 +238,7 @@ export const CUSTOM_PARSER: CustomParser = {
   },
 };
 
-export function createReviveCtx(): ReviveContext {
+function createReviveCtx(): ReviveContext {
   return {
     roots: [],
     stack: [],
@@ -312,16 +338,10 @@ function walkInner(ctx: ReviveContext, node: Node): void {
     const marker = parseMarker(comment);
     if (marker === null) return;
 
-    if (marker.kind === "island") {
-      const hidden = maybeHideMarker(node);
-      const found: IslandReq = {
-        kind: RootKind.Island,
-        name: marker.parts[0],
-        propsIdx: Number(marker.parts[1]),
-        key: marker.parts[2] === "" ? null : marker.parts[2],
-        start: hidden as Comment,
-        end: null,
-      };
+    if (marker.kind === "island" || marker.kind === "partial") {
+      // Both roots share the same bracketing: hide the opening marker, record
+      // the surviving node as the range start, and nest it under any open root.
+      const found = openRoot(node, marker.kind, marker.parts);
       if (ctx.stack.length === 0) ctx.roots.push(found);
       ctx.stack.push(found);
       return;
@@ -336,20 +356,6 @@ function walkInner(ctx: ReviveContext, node: Node): void {
         start: hidden as Comment,
         end: null,
       });
-      return;
-    }
-
-    if (marker.kind === "partial") {
-      const hidden = maybeHideMarker(node);
-      const found: PartialReq = {
-        kind: RootKind.Partial,
-        name: marker.parts[0],
-        key: marker.parts[2] === "" ? null : marker.parts[2],
-        start: hidden as Comment,
-        end: null,
-      };
-      if (ctx.stack.length === 0) ctx.roots.push(found);
-      ctx.stack.push(found);
       return;
     }
 
@@ -399,7 +405,7 @@ export function isCommentNode(node: Node): node is Comment {
   return node.nodeType === Node.COMMENT_NODE;
 }
 
-export function isTextNode(node: Node): node is Text {
+function isTextNode(node: Node): node is Text {
   return node.nodeType === Node.TEXT_NODE;
 }
 
@@ -634,25 +640,12 @@ export function domToVNode(
 
           vnodeStack.push(vnode);
           sib = hidden;
-        } else if (marker.kind === "key") {
-          if (!SHOW_MARKERS) {
-            const current = sib;
-            sib = sib.nextSibling;
-            current.remove();
-          }
-          const vnode = h(Fragment, { key: marker.parts[0] }) as AnyVNode;
-          addVNodeChild(vnodeStack.at(-1)!, vnode);
-          vnodeStack.push(vnode);
-          continue;
         } else if (
           marker.kind === "close-island" || marker.kind === "close-slot" ||
           marker.kind === "close-partial" || marker.kind === "close-signal"
         ) {
           vnodeStack.pop();
           markerStack.pop();
-          sib = maybeHideMarker(sib as Comment);
-        } else if (marker.kind === "close-key") {
-          vnodeStack.pop();
           sib = maybeHideMarker(sib as Comment);
         }
       }

@@ -155,7 +155,7 @@ const base64abc = [
 ];
 
 /** Encodes bytes as RFC4648 base64. */
-export function b64encode(uint8: Uint8Array): string {
+function b64encode(uint8: Uint8Array): string {
   let result = "";
   let i: number;
   const l = uint8.length;

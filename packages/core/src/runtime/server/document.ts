@@ -2,7 +2,11 @@ import { type ComponentChildren, Fragment, h, options, type VNode } from "preact
 import { renderToString } from "preact-render-to-string";
 import { renderToReadableStream } from "preact-render-to-string/stream";
 
-import { type AnyVNode, escapeScript } from "../shared_internal.js";
+import {
+  type AnyVNode,
+  escapeScript,
+  PARTIAL_STATE_ID,
+} from "../shared_internal.js";
 import type { Island } from "../../types.js";
 
 import {
@@ -53,7 +57,7 @@ function link(rel: string, href: string): AnyVNode {
  * that were used. Runs after the main render so it can contain the island
  * assets that were discovered while walking the tree.
  */
-export function renderHead(state: RenderState): string {
+function renderHead(state: RenderState): string {
   const nodes = renderResourceNodes(state);
 
   for (const node of state.headNodes) {
@@ -172,7 +176,7 @@ export function renderScripts(state: RenderState): string {
     };
     return renderToString(
       h("script", {
-        id: "__HUM_STATE__",
+        id: PARTIAL_STATE_ID,
         type: "application/json",
         dangerouslySetInnerHTML: {
           __html: escapeScript(JSON.stringify(json)),
@@ -210,13 +214,16 @@ export function renderScripts(state: RenderState): string {
   );
 }
 
+/**
+ * Replaces `token` with `replacement` without letting `String.replace`
+ * interpret `$&` style sequences in user generated HTML: the replacement is
+ * passed through a function so it is inserted verbatim.
+ */
 function replaceOnce(
   html: string,
   token: string,
   replacement: string,
 ): string {
-  // The replacement is used through a function so `$&` style sequences inside
-  // user generated HTML are never interpreted by `String.replace`.
   return html.replace(token, () => replacement);
 }
 
@@ -228,12 +235,84 @@ function wrapInDefaultDocument(
   return `<html><head>${headHtml}</head><body>${bodyHtml}${scriptsHtml}</body></html>`;
 }
 
+/** Comment placeholder a custom `_app` can leave for Hum to fill in. */
+function headPlaceholder(nonce: string): string {
+  return `<!--${HEAD_PLACEHOLDER_PREFIX}${nonce}-->`;
+}
+
+function scriptsPlaceholder(nonce: string): string {
+  return `<!--${SCRIPTS_PLACEHOLDER_PREFIX}${nonce}-->`;
+}
+
+/**
+ * Substitutes the head and bootstrap fragments into their placeholders. This
+ * is the one place that defines the injection contract, shared by the buffered
+ * and the streamed renderer: a placeholder is filled where it appears, and
+ * otherwise the fragment is inserted before `</head>` / `</body>` when the
+ * document rendered those tags itself.
+ *
+ * The fragments are matched by placeholder first and by tag second, which is
+ * what lets a document placeholder win over a tag that the custom `_app` also
+ * happened to render. `injectHead` / `injectScripts` allow the streaming
+ * renderer to inject the head once and the scripts at the very end.
+ */
+interface InjectOptions {
+  headHtml: string;
+  scriptsHtml: string;
+  nonce: string;
+  injectHead?: boolean;
+  injectScripts?: boolean;
+}
+
+interface InjectResult {
+  html: string;
+  /**
+   * Whether the head fragment was actually placed in `html`. The streamed
+   * renderer injects the head once, across chunks: a chunk may hold neither the
+   * placeholder nor `</head>`, in which case the caller has to try again on the
+   * next one. It reports that directly instead of comparing the output back.
+   */
+  headInjected: boolean;
+}
+
+function injectDocumentFragments(
+  html: string,
+  state: RenderState,
+  options: InjectOptions,
+): InjectResult {
+  const { headHtml, scriptsHtml, nonce } = options;
+  let result = html;
+  let headInjected = false;
+
+  if (options.injectHead !== false) {
+    const token = headPlaceholder(nonce);
+    if (result.includes(token)) {
+      result = replaceOnce(result, token, headHtml);
+      headInjected = true;
+    } else if (state.renderedHtmlHead && result.includes("</head>")) {
+      result = replaceOnce(result, "</head>", headHtml + "</head>");
+      headInjected = true;
+    }
+  }
+
+  if (options.injectScripts !== false) {
+    const token = scriptsPlaceholder(nonce);
+    if (result.includes(token)) {
+      result = replaceOnce(result, token, scriptsHtml);
+    } else if (state.renderedHtmlBody) {
+      result = replaceOnce(result, "</body>", scriptsHtml + "</body>");
+    }
+  }
+
+  return { html: result, headInjected };
+}
+
 /**
  * Assembles the final document by substituting the head and bootstrap
  * fragments into their placeholders. Both can only be computed once the whole
  * tree has rendered, which is why they are not part of the initial render.
  */
-export function assembleDocument(state: RenderState, pageHtml: string): string {
+function assembleDocument(state: RenderState, pageHtml: string): string {
   const headHtml = renderHead(state);
   const scriptsHtml = renderScripts(state);
 
@@ -245,21 +324,11 @@ export function assembleDocument(state: RenderState, pageHtml: string): string {
       wrapInDefaultDocument(pageHtml, headHtml, scriptsHtml);
   }
 
-  let html = pageHtml;
-
-  const headToken = `<!--${HEAD_PLACEHOLDER_PREFIX}${state.nonce}-->`;
-  if (html.includes(headToken)) {
-    html = replaceOnce(html, headToken, headHtml);
-  } else if (state.renderedHtmlHead) {
-    html = replaceOnce(html, "</head>", headHtml + "</head>");
-  }
-
-  const scriptsToken = `<!--${SCRIPTS_PLACEHOLDER_PREFIX}${state.nonce}-->`;
-  if (html.includes(scriptsToken)) {
-    html = replaceOnce(html, scriptsToken, scriptsHtml);
-  } else if (state.renderedHtmlBody) {
-    html = replaceOnce(html, "</body>", scriptsHtml + "</body>");
-  }
+  const { html } = injectDocumentFragments(pageHtml, state, {
+    headHtml,
+    scriptsHtml,
+    nonce: state.nonce,
+  });
 
   return "<!DOCTYPE html>" + html;
 }
@@ -325,8 +394,8 @@ export function renderDocumentStream(vnode: VNode): ReadableStream<Uint8Array> {
     state.renderedHtmlBody;
   const headHtml = renderHead(state);
   const alreadyRendered = resourceKeys(state);
-  const headToken = `<!--${HEAD_PLACEHOLDER_PREFIX}${state.nonce}-->`;
-  const scriptsToken = `<!--${SCRIPTS_PLACEHOLDER_PREFIX}${state.nonce}-->`;
+  const headToken = headPlaceholder(state.nonce);
+  const scriptsToken = scriptsPlaceholder(state.nonce);
   const holdLength = Math.max(headToken.length, scriptsToken.length, 20);
   let buffer = "";
   let started = false;
@@ -343,17 +412,23 @@ export function renderDocumentStream(vnode: VNode): ReadableStream<Uint8Array> {
     return `<!DOCTYPE html><html><head>${headHtml}</head><body>`;
   };
 
+  // The head fragment is injected through the same helper the buffered
+  // renderer uses, so a `$&` inside rendered HTML is never interpreted. Scripts
+  // are emitted once at the end of the stream, so their placeholder is only
+  // dropped here.
   const prepare = (text: string): string => {
     let result = text;
-    if (result.includes(headToken)) {
-      result = result.replaceAll(headToken, headHtml);
-      headInjected = true;
-    } else if (!headInjected && result.includes("</head>")) {
-      result = result.replace("</head>", `${headHtml}</head>`);
-      headInjected = true;
+    if (!headInjected) {
+      const injected = injectDocumentFragments(result, state, {
+        headHtml,
+        scriptsHtml: "",
+        nonce: state.nonce,
+        injectScripts: false,
+      });
+      headInjected = injected.headInjected;
+      result = injected.html;
     }
-    result = result.replaceAll(scriptsToken, "");
-    return result;
+    return result.replaceAll(scriptsToken, "");
   };
 
   return new ReadableStream<Uint8Array>({

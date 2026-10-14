@@ -3,7 +3,7 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const TEMPLATE_DIR = fileURLToPath(
+const TEMPLATE_DIR = fileURLToPath(
   new URL("../templates/basic", import.meta.url),
 );
 

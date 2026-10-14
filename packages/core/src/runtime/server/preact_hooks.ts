@@ -23,6 +23,7 @@ import {
   islandMarker,
   normalizeKey,
   OptionsType,
+  PARTIAL_SEARCH_PARAM,
   partialMarker,
   PartialMode,
   setActiveUrl,
@@ -30,16 +31,13 @@ import {
   slotMarker,
 } from "../shared_internal.js";
 
-/** Search param that switches a response into partial-update mode. */
-export const PARTIAL_SEARCH_PARAM = "_hum_partial";
-
 /** Comment emitted where the merged route `head` tags are injected. */
 export const HEAD_PLACEHOLDER_PREFIX = "hum:head-placeholder:";
 
 /** Comment emitted where the client boot script is injected. */
 export const SCRIPTS_PLACEHOLDER_PREFIX = "hum:scripts-placeholder:";
 
-export interface RenderStateOptions {
+interface RenderStateOptions {
   url: URL;
   buildCache: BuildCache;
   basePath: string;
@@ -183,14 +181,14 @@ function wrapWithMarker(
 }
 
 /** Marker component: replaced by the collected `<head>` elements. */
-export function HeadPlaceholder(props: { id: string }): AnyVNode {
+function HeadPlaceholder(props: { id: string }): AnyVNode {
   return h(Fragment, {
     UNSTABLE_comment: HEAD_PLACEHOLDER_PREFIX + props.id,
   } as never);
 }
 
 /** Marker component: replaced by the client bootstrap script. */
-export function ScriptsPlaceholder(props: { id: string }): AnyVNode {
+function ScriptsPlaceholder(props: { id: string }): AnyVNode {
   return h(Fragment, {
     UNSTABLE_comment: SCRIPTS_PLACEHOLDER_PREFIX + props.id,
   } as never);
@@ -343,7 +341,6 @@ function recordFacet(state: RenderState, entry: PayloadEntry): number {
  * there would be thrown away with the island's server rendered markup.
  */
 function wrapFacetChildren(
-  vnode: VNode,
   props: Record<string, unknown>,
   state: RenderState,
 ): void {
@@ -449,7 +446,7 @@ function bindFacetProps(
  * props become slot references, and a handler travels as the factory name plus
  * the arguments it was called with so the client can rebuild it.
  */
-export const HUM_STRINGIFIERS: Stringifiers = {
+const HUM_STRINGIFIERS: Stringifiers = {
   Computed: (value: unknown) =>
     isComputedSignal(value) ? { value: value.peek() } : undefined,
   Signal: (value: unknown) => (isSignal(value) ? { value: value.peek() } : undefined),
@@ -479,7 +476,7 @@ const HOOKS_FLAG = "__hum_preact_hooks_installed__";
  * `globalThis` so
  * that a re-evaluated module (bundler HMR) cannot install the hooks twice.
  */
-export function installHooks(): void {
+function installHooks(): void {
   const global = globalThis as Record<string, unknown>;
   if (global[HOOKS_FLAG] === true) return;
   global[HOOKS_FLAG] = true;
@@ -509,7 +506,7 @@ export function installHooks(): void {
       }
       if (typeof vnode.type === "string") {
         rememberSignalProps(vnode, props);
-        wrapFacetChildren(vnode, props, state);
+        wrapFacetChildren(props, state);
       }
     }
 

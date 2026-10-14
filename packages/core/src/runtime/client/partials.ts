@@ -5,6 +5,10 @@ import type { PartialStateJson } from "../server/document.js";
 import {
   CLIENT_NAV_ATTR,
   matchesUrl,
+  parseMarker,
+  PARTIAL_CLOSE,
+  PARTIAL_SEARCH_PARAM,
+  PARTIAL_STATE_ID,
   PartialMode,
   UrlMatchKind,
 } from "../shared_internal.js";
@@ -24,10 +28,7 @@ import {
 } from "./reviver.js";
 
 /** Opt-in attribute for links and forms that should update a partial region. */
-export const PARTIAL_ATTR = "data-hum-partial";
-
-/** Id of the JSON script that carries island info for a partial response. */
-export const PARTIAL_STATE_ID = "__HUM_STATE__";
+const PARTIAL_ATTR = "data-hum-partial";
 
 class NoPartialsError extends Error {}
 
@@ -39,9 +40,19 @@ interface HumHistoryState {
 }
 
 let index = (history.state?.index as number | undefined) ?? 0;
+
+/** Snapshot of the current scroll position and navigation index. */
+function snapshotHistoryState(): HumHistoryState {
+  return {
+    humClientNav: true,
+    index,
+    scrollX: globalThis.scrollX,
+    scrollY: globalThis.scrollY,
+  };
+}
+
 if (!history.state) {
-  const state: HumHistoryState = { humClientNav: true, index, scrollX, scrollY };
-  history.replaceState(state, document.title);
+  history.replaceState(snapshotHistoryState(), document.title);
 }
 
 function clientNavEnabled(el: Element): boolean {
@@ -52,24 +63,9 @@ function clientNavEnabled(el: Element): boolean {
 
 function maybePushHistory(nextUrl: URL): void {
   if (nextUrl.href === globalThis.location.href) return;
-  const current: HumHistoryState = {
-    humClientNav: true,
-    index,
-    scrollX: globalThis.scrollX,
-    scrollY: globalThis.scrollY,
-  };
-  history.replaceState(current, "", location.href);
+  history.replaceState(snapshotHistoryState(), "", location.href);
   index++;
-  history.pushState(
-    {
-      humClientNav: true,
-      index,
-      scrollX: globalThis.scrollX,
-      scrollY: globalThis.scrollY,
-    } satisfies HumHistoryState,
-    "",
-    nextUrl.href,
-  );
+  history.pushState(snapshotHistoryState(), "", nextUrl.href);
 }
 
 function maybeReplaceHistory(nextUrl: URL): void {
@@ -112,7 +108,7 @@ async function fetchPartials(
   init: RequestInit = {},
 ): Promise<void> {
   const target = new URL(partialUrl);
-  target.searchParams.set("_hum_partial", "true");
+  target.searchParams.set(PARTIAL_SEARCH_PARAM, "true");
 
   const res = await fetch(target, { ...init, redirect: "follow" });
   let finalUrl = actualUrl;
@@ -120,7 +116,7 @@ async function fetchPartials(
     const nextUrl = new URL(res.url);
     if (nextUrl.origin === actualUrl.origin) finalUrl = nextUrl;
   }
-  finalUrl.searchParams.delete("_hum_partial");
+  finalUrl.searchParams.delete(PARTIAL_SEARCH_PARAM);
 
   try {
     await applyPartials(res);
@@ -351,20 +347,23 @@ function revivePartials(
   let sib: ChildNode | null = node.firstChild;
   while (sib !== null) {
     if (isCommentNode(sib)) {
-      const parts = sib.data.split(":");
-      if (parts[0] === "hum" && parts[1] === "partial") {
+      // Parsing goes through the shared marker parser so this stays in sync
+      // with the server that emitted the marker, instead of re-spelling the
+      // `hum:partial:...` wire format here.
+      const marker = parseMarker(sib.data);
+      if (marker !== null && marker.kind === "partial") {
         // `maybeHideMarker` removes the comment and returns a text node that
         // stays in the DOM. `startNode` must reference that surviving node,
         // otherwise the fragment below spans no content.
         const hidden = maybeHideMarker(sib);
         if (++depth === 1) {
           startNode = hidden;
-          name = parts[2];
-          mode = Number(parts[3]) as PartialMode;
-          key = parts[4] ?? "";
+          name = marker.parts[0];
+          mode = Number(marker.parts[1]) as PartialMode;
+          key = marker.parts[2] ?? "";
         }
         sib = hidden;
-      } else if (sib.data === "/hum:partial") {
+      } else if (sib.data === PARTIAL_CLOSE) {
         sib = maybeHideMarker(sib);
         ctx.foundPartials++;
 

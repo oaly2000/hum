@@ -2,9 +2,9 @@ import type { Plugin } from "vite";
 
 import {
   BUILD_VIRTUAL_ID,
-  RESOLVED_BUILD_VIRTUAL_ID,
   ROUTES_VIRTUAL_ID,
   type HumContext,
+  virtualModule,
 } from "../shared.js";
 
 /**
@@ -18,19 +18,11 @@ import {
  * at startup, and the runtime never touches the file system.
  */
 export function humBuildInput(ctx: HumContext): Plugin {
-  return {
-    name: "hum:build-input",
-
-    resolveId(id) {
-      if (id === BUILD_VIRTUAL_ID) return RESOLVED_BUILD_VIRTUAL_ID;
-      return null;
-    },
-
-    load(id) {
-      if (id !== RESOLVED_BUILD_VIRTUAL_ID) return null;
-      return buildModuleSource(ctx);
-    },
-  };
+  return virtualModule(
+    "hum:build-input",
+    BUILD_VIRTUAL_ID,
+    () => buildModuleSource(ctx),
+  );
 }
 
 /** Source of the `virtual:hum/build` module. */

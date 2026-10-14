@@ -31,7 +31,7 @@ export interface ResolvedNotFound<T extends RouteFileSpec = RouteManifestEntry> 
 }
 
 /** The special files that apply to a given routes directory. */
-export interface SpecialChains<T extends RouteFileSpec = RouteManifestEntry> {
+interface SpecialChains<T extends RouteFileSpec = RouteManifestEntry> {
   middlewares: T[];
   layouts: T[];
   app?: T;
@@ -58,7 +58,7 @@ function depthOf(dir: string): number {
 }
 
 /** All directories from the root down to `dir`, inclusive. */
-export function dirsUpTo(dir: string): string[] {
+function dirsUpTo(dir: string): string[] {
   const out: string[] = [""];
   if (dir === "") return out;
   const parts = dir.split("/");
@@ -115,7 +115,7 @@ function deepest<T extends RouteFileSpec>(
  * Collects the middleware and layout chain (root first) and the nearest `_app`
  * / `_error` for a routes directory.
  */
-export function resolveSpecialChains<T extends RouteFileSpec>(
+function resolveSpecialChains<T extends RouteFileSpec>(
   routes: T[],
   routesDir: string,
   dir: string,

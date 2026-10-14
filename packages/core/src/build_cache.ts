@@ -1,15 +1,7 @@
 import type { HumBuild } from "./build.js";
+import { ASSETS_BASE, RUNTIME_URL } from "./config.js";
 import { setBuildId } from "./runtime/shared_internal.js";
 import type { Island, Logger } from "./types.js";
-
-/** URL the dev server serves the client runtime from. */
-export const CLIENT_ENTRY_DEV = "/_hum/runtime.js";
-
-/**
- * URL Hum publishes its client assets under when it runs from source: the dev
- * server serves them, and there is no build to record a different one.
- */
-export const ASSETS_BASE_DEV = "/_hum";
 
 /**
  * Maps island components to their client side module URLs, and keeps the
@@ -30,15 +22,17 @@ export class BuildCache {
   entryAssets: string[] = [];
   buildId = "dev";
   readonly dev: boolean;
-  /** URL prefix the client assets are published under. */
+  /**
+   * URL prefix the client assets are published under. It is the build's when a
+   * build registered one, and the framework constant otherwise: there is no
+   * configuration that could set it.
+   */
   #assetsBase: string;
 
-  constructor(dev: boolean, assetsBase?: string) {
+  constructor(dev: boolean) {
     this.dev = dev;
-    // The build records the URL its assets are published under; a bundler that
-    // runs from source falls back to the one the dev server serves.
-    this.#assetsBase = (assetsBase ?? ASSETS_BASE_DEV).replace(/\/+$/, "");
-    this.clientEntry = dev ? CLIENT_ENTRY_DEV : "";
+    this.#assetsBase = ASSETS_BASE;
+    this.clientEntry = dev ? RUNTIME_URL : "";
   }
 
   /** Loads every island module and (re)builds the registries. */
@@ -48,7 +42,7 @@ export class BuildCache {
     this.islandRegistry.clear();
     // The URL is the build's, not the configuration's: the client assets are
     // published under it wherever the output directory ends up on disk.
-    this.#assetsBase = (prod?.assetsBase ?? this.#assetsBase).replace(/\/+$/, "");
+    this.#assetsBase = (prod?.assetsBase ?? ASSETS_BASE).replace(/\/+$/, "");
 
     for (const spec of build.islands) {
       let component: unknown;

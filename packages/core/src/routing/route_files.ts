@@ -24,17 +24,17 @@ import type {
 import { urlPathOf } from "./path_to_pattern.js";
 
 /** Module extensions Hum picks up in both directories. */
-export const MODULE_EXTENSIONS = [".tsx", ".jsx", ".ts", ".js"] as const;
+const MODULE_EXTENSIONS = [".tsx", ".jsx", ".ts", ".js"] as const;
 
 /** True for files Hum treats as routes or islands. */
-export function isModuleFile(name: string): boolean {
+function isModuleFile(name: string): boolean {
   if (name.endsWith(".d.ts")) return false;
   if (name.startsWith(".") || name.startsWith("-")) return false;
   return MODULE_EXTENSIONS.some((ext) => name.endsWith(ext));
 }
 
 /** Removes the module extension of a file name, if it has one. */
-export function stripExtension(name: string): string {
+function stripExtension(name: string): string {
   for (const ext of MODULE_EXTENSIONS) {
     if (name.endsWith(ext)) return name.slice(0, -ext.length);
   }
@@ -42,7 +42,7 @@ export function stripExtension(name: string): string {
 }
 
 /** Maps the basename of a route file to the role it plays in the route tree. */
-export function classify(basename: string): RouteKind {
+function classify(basename: string): RouteKind {
   switch (basename) {
     case "_app":
       return "app";
@@ -61,7 +61,7 @@ export function classify(basename: string): RouteKind {
 }
 
 /** Turns an island file path into a marker safe identifier. */
-export function islandNameOf(relPathNoExt: string): string {
+function islandNameOf(relPathNoExt: string): string {
   const name = relPathNoExt.split("/").join("_").replace(
     /[^A-Za-z0-9_$]/g,
     "_",
@@ -113,7 +113,7 @@ function normalizeDir(value: string | undefined, fallback: string): string {
 }
 
 /** Turns a glob key into the project relative path the manifest stores. */
-export function globFileOf(key: string): string {
+function globFileOf(key: string): string {
   return key.replace(/\\/g, "/").replace(/^\.?\//, "");
 }
 

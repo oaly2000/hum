@@ -181,9 +181,10 @@ export async function mountHum<
   const dev = config.dev ?? prod === null;
 
   const resolved = resolveConfig({ ...config, dev });
-  // The build knows the URL its client assets are published under, so the cache
-  // takes it from there: the output directory never reaches a client URL.
-  const buildCache = new BuildCache(dev, prod?.assetsBase);
+  // The build knows the URL its client assets are published under; there is no
+  // configuration that could override it, so the output directory never
+  // reaches a client URL.
+  const buildCache = new BuildCache(dev);
   await buildCache.load(build, resolved.logger);
 
   const { routes, notFound } = resolveRoutes(build.routes, resolved.routesDir);

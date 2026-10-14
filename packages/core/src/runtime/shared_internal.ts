@@ -4,16 +4,31 @@ import type { Component, VNode } from "preact";
  * Marker prefix used for all Hum markers. Server and client both build and
  * parse markers through this module so the wire format cannot drift.
  */
-export const MARKER_PREFIX = "hum:";
+const MARKER_PREFIX = "hum:";
 
-export const ISLAND_CLOSE = "/hum:island";
-export const SLOT_CLOSE = "/hum:slot";
+const ISLAND_CLOSE = "/hum:island";
+const SLOT_CLOSE = "/hum:slot";
+const SIGNAL_CLOSE = "/hum:signal";
+
+/**
+ * Closing marker of a partial region. It is part of the client/server wire
+ * protocol, so the client parses partials through `parseMarker()` and compares
+ * against this constant instead of re-spelling the literal.
+ */
 export const PARTIAL_CLOSE = "/hum:partial";
-export const KEY_CLOSE = "/hum:key";
-export const SIGNAL_CLOSE = "/hum:signal";
 
 export const CLIENT_NAV_ATTR = "data-hum-client-nav";
 export const DATA_HUM_KEY = "data-hum-key";
+
+/**
+ * Query parameter that marks a request as a partial navigation. The client
+ * sets it and the server branches on it; both read the same constant so the
+ * two halves of the protocol cannot drift.
+ */
+export const PARTIAL_SEARCH_PARAM = "_hum_partial";
+
+/** Id of the JSON script carrying island info for a partial response. */
+export const PARTIAL_STATE_ID = "__HUM_STATE__";
 
 /**
  * Attribute a page level element carries when one of its props is bound to a
@@ -49,7 +64,7 @@ export const OptionsType = {
  */
 export type AnyVNode = VNode<any>;
 
-export interface InternalVNode extends VNode {
+interface InternalVNode extends VNode {
   __c?: Component | null;
   __?: InternalVNode | null;
   __k?: InternalVNode[] | null;
@@ -94,10 +109,6 @@ export function partialMarker(
   return `${MARKER_PREFIX}partial:${name}:${mode}:${key}`;
 }
 
-export function keyMarker(key: string): string {
-  return `${MARKER_PREFIX}key:${key}`;
-}
-
 /**
  * Marker bracketing a page level signal rendered as a child
  * (`<p>{count}</p>`). The index addresses the payload entry holding the
@@ -107,17 +118,15 @@ export function signalMarker(index: number): string {
   return `${MARKER_PREFIX}signal:${index}`;
 }
 
-export interface ParsedMarker {
+interface ParsedMarker {
   kind:
     | "island"
     | "slot"
     | "partial"
-    | "key"
     | "signal"
     | "close-island"
     | "close-slot"
     | "close-partial"
-    | "close-key"
     | "close-signal";
   parts: string[];
 }
@@ -127,7 +136,6 @@ export function parseMarker(comment: string): ParsedMarker | null {
   if (comment === ISLAND_CLOSE) return { kind: "close-island", parts: [] };
   if (comment === SLOT_CLOSE) return { kind: "close-slot", parts: [] };
   if (comment === PARTIAL_CLOSE) return { kind: "close-partial", parts: [] };
-  if (comment === KEY_CLOSE) return { kind: "close-key", parts: [] };
   if (comment === SIGNAL_CLOSE) return { kind: "close-signal", parts: [] };
 
   if (!comment.startsWith(MARKER_PREFIX)) return null;
@@ -135,7 +143,7 @@ export function parseMarker(comment: string): ParsedMarker | null {
   const kind = parts[1];
   if (
     kind === "island" || kind === "slot" || kind === "partial" ||
-    kind === "key" || kind === "signal"
+    kind === "signal"
   ) {
     return { kind, parts: parts.slice(2) };
   }

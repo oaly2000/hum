@@ -3,10 +3,10 @@ import type { Plugin } from "vite";
 
 import {
   globCall,
-  RESOLVED_ROUTES_VIRTUAL_ID,
   ROUTES_VIRTUAL_ID,
   type HumContext,
   type ResolvedHumOptions,
+  virtualModule,
 } from "../shared.js";
 
 /**
@@ -25,19 +25,11 @@ import {
  * bundler) agree on what a route or island file is.
  */
 export function humRoutes(ctx: HumContext): Plugin {
-  return {
-    name: "hum:routes",
-
-    resolveId(id) {
-      if (id === ROUTES_VIRTUAL_ID) return RESOLVED_ROUTES_VIRTUAL_ID;
-      return null;
-    },
-
-    load(id) {
-      if (id !== RESOLVED_ROUTES_VIRTUAL_ID) return null;
-      return routesModuleSource(ctx.options);
-    },
-  };
+  return virtualModule(
+    "hum:routes",
+    ROUTES_VIRTUAL_ID,
+    () => routesModuleSource(ctx.options),
+  );
 }
 
 /** Source of the `virtual:hum/routes` module. */

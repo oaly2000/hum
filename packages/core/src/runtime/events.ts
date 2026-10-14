@@ -6,9 +6,9 @@ import type { Signal } from "@preact/signals";
  * closure, and what lets the client rebuild it: the marker carries the factory
  * name plus the arguments it was called with.
  */
-export const FACTORY_MARKER = "__humFactory";
+const FACTORY_MARKER = "__humFactory";
 
-export interface FactoryMarker {
+interface FactoryMarker {
   /** Name the factory is exported under, e.g. `"setFromProp"`. */
   factory: string;
   /** Arguments the factory was called with, in declaration order. */
@@ -90,7 +90,7 @@ export function coerceToSignalType(value: unknown, previous: unknown): unknown {
   return value;
 }
 
-export interface AddOptions {
+interface AddOptions {
   /** Upper bound, inclusive. */
   max?: number;
   /** Lower bound, inclusive. */

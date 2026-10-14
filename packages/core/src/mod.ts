@@ -23,10 +23,12 @@ export { createDefine, define } from "./define.js";
 export type { Define } from "./define.js";
 
 export {
+  ASSETS_BASE,
   defaultLogger,
   type HumConfig,
   resolveConfig,
   type ResolvedConfig,
+  RUNTIME_URL,
 } from "./config.js";
 
 export type {

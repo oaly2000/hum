@@ -15,7 +15,7 @@
  * because Hono can only omit a trailing optional parameter.
  */
 
-export interface SegmentInfo {
+interface SegmentInfo {
   /** The raw segment, e.g. `[id]`. */
   raw: string;
   kind: "static" | "param" | "wildcard" | "optional" | "mixed";
@@ -50,11 +50,6 @@ const TOKEN = /\[\[([A-Za-z0-9_]+)\]\]|\[\.\.\.([A-Za-z0-9_]+)\]|\[([A-Za-z0-9_]
 const HONO_WILDCARD = /^:([A-Za-z0-9_]+)\{\.\*\}$/;
 /** A Hono parameter as produced from `[id]`: `:id`. */
 const HONO_PARAM = /^:([A-Za-z0-9_]+)$/;
-
-/** True when the segment is a `(group)` directory segment. */
-export function isGroupSegment(segment: string): boolean {
-  return GROUP_SEGMENT.test(segment);
-}
 
 function parseSegment(raw: string): SegmentInfo {
   const params: string[] = [];
@@ -238,7 +233,7 @@ function expandOptional(
 }
 
 /** The directory segments of a routes-relative path, groups removed. */
-export function dirSegments(relDir: string): string[] {
+function dirSegments(relDir: string): string[] {
   return relDir
     .split("/")
     .filter((s) => s.length > 0 && !GROUP_SEGMENT.test(s));

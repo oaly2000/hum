@@ -15,4 +15,11 @@ describe("public entry points", () => {
     expect(typeof shared.Partial).toBe("function");
     expect(typeof shared.asset).toBe("function");
   });
+
+  it("exports the single client asset base and the runtime URL", () => {
+    // The Vite plugin re-exports both, so they have to stay on the framework
+    // entry point and the runtime URL has to stay derived from the base.
+    expect(core.ASSETS_BASE).toBe("/_hum");
+    expect(core.RUNTIME_URL).toBe(`${core.ASSETS_BASE}/runtime.js`);
+  });
 });

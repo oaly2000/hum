@@ -22,7 +22,7 @@ export interface PartialProps {
  * even when the shared entry has been loaded more than once — for example in
  * dev, where the Vite plugin and route modules each import their own copy.
  */
-export const PARTIAL_FLAG = "__humPartial";
+const PARTIAL_FLAG = "__humPartial";
 
 function tagPartial<T extends (...args: never[]) => VNode>(fn: T): T {
   Object.assign(fn, { [PARTIAL_FLAG]: true });

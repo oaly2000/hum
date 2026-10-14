@@ -1,5 +1,6 @@
-import type { ProdManifest } from "@humjs/core";
+import { ASSETS_BASE, type ProdManifest, RUNTIME_URL } from "@humjs/core";
 import { resolve } from "node:path";
+import type { Plugin } from "vite";
 
 /** Shared state the Hum plugins coordinate through. */
 export interface HumContext {
@@ -87,14 +88,12 @@ export function resolveHumOptions(
 export const CORE_RUNTIME_ID = "@humjs/core/runtime";
 
 /**
- * URL Hum publishes its client assets under. It addresses
- * `<outDir>/public/_hum`, never the output directory itself, so the build
- * directory can be renamed or moved without touching a client URL.
+ * URL Hum publishes its client assets under, and the URL the dev server serves
+ * the client runtime from. Both live in `@humjs/core` so the framework, the dev
+ * server and the build share one definition; they are re-exported here because
+ * the plugins consume them through this module.
  */
-export const ASSETS_BASE = "/_hum";
-
-/** URL the dev server serves the client runtime from. */
-export const RUNTIME_URL = `${ASSETS_BASE}/runtime.js`;
+export { ASSETS_BASE, RUNTIME_URL };
 
 /** Virtual module that imports the user client entry (if any) and the runtime. */
 export const USER_ENTRY_VIRTUAL_ID = "virtual:hum/client-entry";
@@ -115,6 +114,29 @@ export const RESOLVED_ROUTES_VIRTUAL_ID = "\0" + ROUTES_VIRTUAL_ID;
  */
 export const BUILD_VIRTUAL_ID = "virtual:hum/build";
 export const RESOLVED_BUILD_VIRTUAL_ID = "\0" + BUILD_VIRTUAL_ID;
+
+/**
+ * Builds a plugin half that serves one virtual module: `resolveId` maps the
+ * public id to its resolved id and `load` produces the source. Hum's virtual
+ * modules all follow this shape, so the plumbing lives in one place instead of
+ * being repeated per plugin.
+ */
+export function virtualModule(
+  name: string,
+  id: string,
+  source: () => string,
+): Plugin {
+  const resolvedId = "\0" + id;
+  return {
+    name,
+    resolveId(request) {
+      return request === id ? resolvedId : null;
+    },
+    load(request) {
+      return request !== resolvedId ? null : source();
+    },
+  };
+}
 
 /** Directory (relative to the root) the generated build inputs live in. */
 export const GENERATED_DIR = ".hum";

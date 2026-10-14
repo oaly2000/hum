@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ProdManifest } from "../src/build.js";
 import { BuildCache } from "../src/build_cache.js";
+import { ASSETS_BASE } from "../src/config.js";
 import type { HumManifest } from "../src/types.js";
 
 // Asset paths are relative to `assetsBase`, the URL Hum publishes them under,
@@ -63,7 +64,7 @@ describe("BuildCache", () => {
     // The URL Hum publishes its client assets under is a constant, not a
     // derived path: the configuration's `outDir` names the build directory and
     // never reaches a client URL, so the fallback is the same for every project.
-    const cache = new BuildCache(false, undefined);
+    const cache = new BuildCache(false);
     await cache.load({
       ...manifest,
       prod: { ...PROD, assetsBase: undefined as unknown as string },
@@ -71,6 +72,15 @@ describe("BuildCache", () => {
 
     expect(cache.clientEntry).toBe("/_hum/assets/runtime.js");
     expect(cache.getIsland("Counter")?.clientUrl).toBe("/_hum/assets/Counter.js");
+  });
+
+  it("addresses the dev runtime under the framework base", async () => {
+    // There is no configuration that moves the assets, so the dev client entry
+    // stays under `ASSETS_BASE` no matter which build the cache later loads.
+    const cache = new BuildCache(true);
+    await cache.load({ ...manifest, prod: { ...PROD, assetsBase: "/cdn/hum" } });
+
+    expect(cache.clientEntry).toBe(`${ASSETS_BASE}/runtime.js`);
   });
 
   it("ignores the production assets in dev mode", async () => {

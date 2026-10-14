@@ -11,7 +11,7 @@ import type { HeadExport, RouteProps } from "../../types.js";
  * One head tag after normalization. `key === null` means the node carries no
  * identity and is therefore never deduplicated.
  */
-export interface HeadEntry {
+interface HeadEntry {
   key: string | null;
   node: ComponentChildren;
 }
@@ -29,7 +29,7 @@ function isSingletonLinkRel(rel: unknown): boolean {
  * that a more specific `head` export can replace a broader one, while the
  * position (set by the outermost export) is preserved.
  */
-export function headCacheKey(vnode: VNode): string {
+function headCacheKey(vnode: VNode): string {
   const type = String(vnode.type);
   if (vnode.key !== undefined && vnode.key !== null) return String(vnode.key);
   if (type === "title") return "title";
@@ -77,7 +77,7 @@ function flatten(node: ComponentChildren, out: HeadEntry[]): void {
 }
 
 /** Resolves a `head` export to JSX, supporting both its forms. */
-export function resolveHead<State = Record<string, unknown>>(
+function resolveHead<State = Record<string, unknown>>(
   head: HeadExport<State>,
   props: RouteProps<State>,
 ): ComponentChildren {

@@ -50,6 +50,28 @@ function buildPaths(options: ResolvedHumOptions) {
 }
 
 /**
+ * Build options shared by the two SSR passes. Both write the same server entry
+ * into the same directory without emptying it, and both rely on the dynamic
+ * route imports being bundled so the deployment stays a single entry.
+ */
+function serverBuildConfig(options: ResolvedHumOptions): Record<string, unknown> {
+  return {
+    // The build's public tree sits in the same directory, so this pass writes
+    // its entry next to it without emptying it.
+    outDir: options.outDir,
+    emptyOutDir: false,
+    ssr: true,
+    target: "node20",
+    rollupOptions: {
+      input: { [SERVER_ENTRY_NAME]: SERVER_ENTRY },
+      // Routes are discovered through dynamic imports; disabling splitting
+      // keeps the deployment to the single server entry.
+      output: { codeSplitting: false },
+    },
+  };
+}
+
+/**
  * Turns Vite's client manifest into the production assets the runtime serves
  * from: one hashed asset per island, plus the client runtime entry.
  *
@@ -170,22 +192,7 @@ export function humBuild(ctx: HumContext): Plugin {
       isSsr = env.isSsrBuild === true;
 
       if (isSsr) {
-        return {
-          build: {
-            outDir: options.outDir,
-            // The client pass assembled the build's public tree in this
-            // directory, so this pass may only replace its own entry.
-            emptyOutDir: false,
-            ssr: true,
-            target: "node20",
-            rollupOptions: {
-              input: { [SERVER_ENTRY_NAME]: SERVER_ENTRY },
-              // Routes are discovered through dynamic imports; disabling
-              // splitting keeps the deployment to the single server entry.
-              output: { codeSplitting: false },
-            },
-          },
-        };
+        return { build: serverBuildConfig(options) };
       }
 
       return {
@@ -199,13 +206,12 @@ export function humBuild(ctx: HumContext): Plugin {
           outDir: paths.client,
           emptyOutDir: true,
           manifest: true,
-          // The client runtime exports (`boot`/`revive`/`applyPartials`) are
-          // imported by the server-inlined boot script, which lives outside the
-          // bundle. Rolldown drops an entry export that nothing in the bundle
-          // consumes, so `preserveEntrySignatures` keeps the entry's own
-          // exports — and, for the islands entry, the lazy imports its glob
-          // result holds — in the emitted chunks. In Vite 8 the input map and
-          // these Rolldown options both live under `rolldownOptions`.
+          // Entry exports are consumed from outside the bundle by the
+          // server-inlined boot script (see the tree-shaking note in
+          // `@humjs/core/runtime/client`), so `preserveEntrySignatures` keeps
+          // them — and, for the islands entry, the lazy imports its glob result
+          // holds — in the emitted chunks. In Vite 8 the input map and the
+          // Rolldown options both live under `rolldownOptions`.
           rolldownOptions: {
             input: { runtime: CLIENT_RUNTIME_ENTRY, islands: ISLANDS_ENTRY },
             preserveEntrySignatures: "exports-only",
@@ -245,20 +251,7 @@ export function humBuild(ctx: HumContext): Plugin {
         // The public tree was already assembled beside the server entry.
         publicDir: false,
         logLevel: "warn",
-        build: {
-          // The build's public tree sits in the same directory, so this pass
-          // writes its entry next to it without emptying it.
-          outDir: options.outDir,
-          emptyOutDir: false,
-          ssr: true,
-          target: "node20",
-          rollupOptions: {
-            input: { [SERVER_ENTRY_NAME]: SERVER_ENTRY },
-            // Routes are discovered through dynamic imports; disabling
-            // splitting keeps the deployment to the single server entry.
-            output: { codeSplitting: false },
-          },
-        },
+        build: serverBuildConfig(options),
         // SSR builds externalize dependencies by default, which makes the
         // deployed server depend on the project's node_modules. Bundle npm
         // dependencies into the server file; Node built-ins remain external.
