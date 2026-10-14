@@ -80,7 +80,15 @@ the example where applicable.
   and does not replace the app-level `onError`: Hum route failures render
   `_error`, while Hono API failures use the user's Hono error handler. Register
   app middleware before routes so it wraps those routes; Vite owns the dev
-  listener and HMR, and the production entry starts the exported app.
+  listener and HMR.
+- Whether a production build runs itself is the entry's business, not a plugin
+  option: the generated entry always exports the app — a Hono instance *is* its
+  fetch handler, so a Worker or an edge runtime can import the bundle as it is —
+  and it calls the entry's optional `start(app)` export when the project has one,
+  which is the build's entry point. Nothing in the plugin records a platform, and
+  no option selects one: the Cloudflare template exports no `start`, the Node
+  templates and `packages/docs` do, and a project without `server.ts` gets an app
+  of its own that serves itself on Node.
 - `createApp(config)` creates the Hono app for projects that do not have their
   own `server.ts`. Keep it a wrapper around `mountHum(app, config)` so both
   paths share routing behavior.

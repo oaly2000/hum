@@ -39,8 +39,9 @@ normal Hono API; Hum mounts its file-based routes directly onto that app and
 handles unmatched requests with its `_404` page.
 Hum page errors use `_error`; API errors keep using the app's Hono `onError`.
 Vite owns the development listener, preserving SSR and HMR. In production the
-generated entry starts the exported app. The example includes a `/api/health`
-route.
+generated entry calls the app's `start(app)` export — this template's — which is
+what binds the port; a project that exports no `start` hands the app to whatever
+calls its `fetch` instead. The example includes a `/api/health` route.
 
 ## Layout
 

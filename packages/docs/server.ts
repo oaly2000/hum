@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 
@@ -27,3 +28,20 @@ if (existsSync(publicRoot)) {
 app.get("/api/health", (c) => c.json({ status: "ok" }));
 
 export default app;
+
+/**
+ * The build's entry point: Hum calls it once its file routes are mounted, which
+ * is what `pnpm start` runs. A deployment handed to a platform that calls
+ * `fetch` itself omits it, and the build exports the app instead.
+ */
+export function start(app: Hono) {
+  const port = Number(process.env.PORT ?? 3000);
+  const hostname = process.env.HOST ?? "0.0.0.0";
+
+  serve(
+    { fetch: app.fetch, port, hostname, overrideGlobalObjects: false },
+    (info) => {
+      console.log(`hum: listening on http://localhost:${info.port}`);
+    },
+  );
+}

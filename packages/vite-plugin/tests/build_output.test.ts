@@ -8,15 +8,49 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
 import { build } from "vite";
 import { describe, expect, it } from "vitest";
 
 import { hum, type HumOptions } from "../src/mod.js";
 
+/**
+ * What the project's `server.ts` exports: only the app, or the app plus the
+ * `start` the build enters through.
+ */
+type EntryKind = "app" | "start";
+
+/** Source of a `server.ts` exporting `kind`. */
+function serverSource(kind: EntryKind): string {
+  const start = kind === "start" ? `
+/**
+ * The build's entry point: Hum calls it once the routes are mounted, and it is
+ * what makes this deployment serve itself instead of being imported.
+ */
+export function start(app) {
+  serve(
+    { fetch: app.fetch, port: Number(process.env.PORT ?? 3000), overrideGlobalObjects: false },
+  );
+}
+` : "";
+
+  const adapter = kind === "start"
+    ? 'import { serve } from "@hono/node-server";\n'
+    : "";
+
+  return `${adapter}import { Hono } from "hono";
+
+const app = new Hono();
+
+export default app;
+${start}`;
+}
+
 interface BuildOptions {
   outDir?: string;
-  platform?: HumOptions["platform"];
+  /** Give the project a `server.ts` exporting this. */
+  entry?: EntryKind;
 }
 
 /**
@@ -25,7 +59,7 @@ interface BuildOptions {
  * public tree to the one the app serves.
  */
 async function buildProject(options: BuildOptions = {}): Promise<string> {
-  const { outDir, platform } = options;
+  const { outDir, entry } = options;
   // Inside the workspace, so the framework resolves for the built app while
   // everything else about the project is disposable.
   const root = await mkdtemp(
@@ -48,10 +82,12 @@ async function buildProject(options: BuildOptions = {}): Promise<string> {
   await mkdir(join(root, "public"), { recursive: true });
   await writeFile(join(root, "public", "robots.txt"), "User-agent: *\n");
   await writeFile(join(root, "public", "favicon.svg"), "<svg/>\n");
+  if (entry !== undefined) {
+    await writeFile(join(root, "server.ts"), serverSource(entry), "utf8");
+  }
 
   const humOptions: HumOptions = {};
   if (outDir !== undefined) humOptions.outDir = outDir;
-  if (platform !== undefined) humOptions.platform = platform;
 
   await build({
     root,
@@ -165,17 +201,42 @@ describe("the production build layout", () => {
     }
   });
 
-  it("exports the handler a Worker runtime calls instead", async () => {
-    const root = await buildProject({ platform: "cloudflare" });
+  it("exports the app when nothing in the project serves itself", async () => {
+    const root = await buildProject({ entry: "app" });
 
     try {
       const entry = await readFile(join(root, "dist", "server.js"), "utf8");
       // Nothing binds a port and nothing reaches for the Node adapter: the
-      // platform owns the entry and answers for the public tree itself.
-      expect(entry).toContain("fetch(request, env, executionCtx) {");
+      // build is handed to whatever calls its fetch, and the project said so by
+      // not exporting `start`.
       expect(entry).not.toContain("overrideGlobalObjects");
       expect(entry).not.toContain("process.env.PORT");
       expect(entry).not.toContain("@hono/node-server");
+
+      // A Hono instance *is* its fetch handler, so a runtime that calls `fetch`
+      // — a Worker, an edge runtime, a test — can import the bundle as it is.
+      const built = await import(
+        pathToFileURL(join(root, "dist", "server.js")).href
+      ) as { default: { fetch: typeof fetch } };
+      const response = await built.default.fetch(
+        new Request("http://localhost/"),
+      );
+      expect(response.status).toBe(200);
+      expect(await response.text()).toContain("home");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("enters the build through the entry's start export", async () => {
+    const root = await buildProject({ entry: "start" });
+
+    try {
+      const entry = await readFile(join(root, "dist", "server.js"), "utf8");
+      // The project's own `start` owns the listener, so its adapter and its
+      // port are in the bundle and nothing else put them there.
+      expect(entry).toContain("overrideGlobalObjects");
+      expect(entry).toContain("process.env.PORT");
     } finally {
       await rm(root, { recursive: true, force: true });
     }

@@ -116,7 +116,7 @@ describe("writeBuildEntries", () => {
     rmSync(root, { recursive: true, force: true });
   });
 
-  it("mounts Hum onto the exported Hono app", async () => {
+  it("mounts Hum onto the entry's app and exports it", async () => {
     const root = tempProject();
     writeFileSync(
       join(root, "server.ts"),
@@ -127,19 +127,24 @@ describe("writeBuildEntries", () => {
     await writeBuildEntries(ctx);
     const entry = await readFile(join(root, SERVER_ENTRY), "utf8");
 
+    // The entry's exports are the API: the app answers `fetch`, and its own
+    // `start(app)` — if it has one — is what makes the build serve itself.
     expect(entry).toContain(
-      'await import("' +
-        join(root, "server.ts").replace(/\\/g, "/") + '")',
+      'import * as entry from "' +
+        join(root, "server.ts").replace(/\\/g, "/") + '"',
     );
+    expect(entry).toContain("const app = entry.default;");
     expect(entry).toContain("await mountHum(app, humConfig);");
-    expect(entry).toContain('import { serve } from "@hono/node-server";');
+    expect(entry).toContain("export default app;");
+    expect(entry).toContain('if (typeof entry.start === "function")');
+    // Nothing binds a port unless the project said so, so the Node adapter is
+    // not the framework's to import.
+    expect(entry).not.toContain("@hono/node-server");
+    expect(entry).not.toContain("process.env.PORT");
     // The build is the entry's input: importing the generated module registers
     // the routes, the islands and the client assets with the runtime, so
     // mounting needs no configuration of its own.
     expect(entry).toContain('import "virtual:hum/build";');
-    expect(entry).toContain(
-      "{ fetch: app.fetch, port, hostname, overrideGlobalObjects: false }",
-    );
     expect(entry).not.toContain("startServer");
     rmSync(root, { recursive: true, force: true });
   });
@@ -163,6 +168,9 @@ describe("writeBuildEntries", () => {
     expect(entry).not.toContain("node:url");
     expect(entry).toContain("const app = await createApp(humConfig);");
     expect(entry).toContain('import { serve } from "@hono/node-server";');
+    // There is no entry to hand the app to, so this build serves itself and is
+    // not something a platform imports.
+    expect(entry).not.toContain("export default app;");
     expect(entry).not.toContain("startServer");
     rmSync(root, { recursive: true, force: true });
   });

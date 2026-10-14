@@ -20,6 +20,7 @@ import {
   projectUrlPath,
   RESOLVED_USER_ENTRY_VIRTUAL_ID,
   RUNTIME_URL,
+  SERVER_ENTRY_FILE,
   USER_ENTRY_VIRTUAL_ID,
 } from "../shared.js";
 import type { HumContext } from "../shared.js";
@@ -28,9 +29,6 @@ import type { HumContext } from "../shared.js";
  * Project directory whose contents are public in development and in the build.
  */
 const PUBLIC_DIR = "public";
-
-/** Default file that default-exports the project's Hono app. */
-const SERVER_ENTRY_FILE = "server.ts";
 
 /**
  * Options of the static middleware that answers the dev requests for the

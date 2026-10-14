@@ -55,13 +55,15 @@ The app serves its `public/` tree (see `server.ts`, which mounts
 `@hono/node-server/serve-static` for it) — in production that is normally
 delegated to a reverse proxy, a CDN, or a platform asset binding.
 
-The same build runs on a Worker runtime. `pnpm dlx create-hum my-worker
---template cloudflare` scaffolds a project whose `vite.config.ts` sets
-`hum({ platform: "cloudflare" })`: the generated entry exports the app's fetch
-handler instead of starting a listener, and the server bundle is compiled for
-that runtime. `wrangler.jsonc` points `main` at `dist/server.js` and publishes
-`dist/public` through the Worker's static asset binding. Development is Vite on
-Node in both templates.
+Whether a build runs itself is up to `server.ts`, not to a plugin option. It
+default-exports the app — a Hono instance *is* its fetch handler — and the build
+exports that app; when it also exports `start(app)`, Hum calls it once the file
+routes are mounted, and that is the build's entry point. `pnpm dlx create-hum
+my-worker --template cloudflare` scaffolds a project whose `server.ts` exports no
+`start`: the built module is a Worker the runtime calls, and `wrangler.jsonc`
+points `main` at `dist/server.js` and publishes `dist/public` through the
+Worker's static asset binding. A Node deployment exports `start` and binds a
+port there. Development is Vite on Node in both templates.
 
 ## Static files
 

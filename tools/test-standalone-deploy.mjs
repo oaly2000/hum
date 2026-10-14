@@ -35,6 +35,9 @@ try {
     "utf8",
   );
   assert.match(scaffoldServer, /export default app/);
+  // The scaffolded build serves itself, so its entry declares the entry point
+  // Hum calls once the routes are mounted.
+  assert.match(scaffoldServer, /export function start\(app: Hono\)/);
   assert.match(scaffoldServer, /app\.get\("\/api\/health"/);
   // The scaffold serves the sibling public directory, including after the
   // output directory has been renamed.

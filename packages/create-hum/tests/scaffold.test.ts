@@ -110,6 +110,17 @@ describe("templates", () => {
     await expect(templatePath("nope")).rejects.toThrow(/unknown template/);
   });
 
+  it("scaffolds a self-hosting project from the basic template", async () => {
+    const target = await scaffoldInto("node-app", await templatePath("basic"));
+
+    // The build serves itself because the entry says how: `start(app)` is its
+    // entry point, and it is what pulls the Node adapter into the project.
+    const server = await readFile(join(target, "server.ts"), "utf8");
+    expect(server).toContain("export default app");
+    expect(server).toContain("export function start(app: Hono)");
+    expect(server).toContain("@hono/node-server");
+  });
+
   it("scaffolds a Worker project from the Cloudflare template", async () => {
     const target = await scaffoldInto("worker", await templatePath("cloudflare"));
 
@@ -120,18 +131,22 @@ describe("templates", () => {
     expect(files).toContain("server.ts");
 
     // The Worker owns the entry and the platform serves the build's public
-    // tree, so nothing in the project imports the Node adapter.
+    // tree, so nothing in the project imports the Node adapter and nothing
+    // declares a `start`: the app is exported and the runtime calls it.
     const server = await readFile(join(target, "server.ts"), "utf8");
     expect(server).not.toContain("@hono/node-server");
     expect(server).toContain("export default app");
+    expect(server).not.toContain("export function start");
 
     const wrangler = await readFile(join(target, "wrangler.jsonc"), "utf8");
     expect(wrangler).toContain('"main": "./dist/server.js"');
     expect(wrangler).toContain('"directory": "./dist/public"');
     expect(wrangler).toContain('"nodejs_compat"');
 
+    // Nothing tells the plugin which runtime this is: the entry's exports do.
     const vite = await readFile(join(target, "vite.config.ts"), "utf8");
-    expect(vite).toContain('platform: "cloudflare"');
+    expect(vite).toContain("hum()");
+    expect(vite).not.toContain("platform:");
 
     const pkg = JSON.parse(
       await readFile(join(target, "package.json"), "utf8"),

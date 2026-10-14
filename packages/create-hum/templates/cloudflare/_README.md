@@ -55,6 +55,10 @@ handles unmatched requests with its `_404` page. Hum page errors use `_error`;
 API errors keep using the app's Hono `onError`. The example includes a
 `/api/health` route.
 
+It exports no `start(app)`, which is what makes this a Worker build: the app is
+the build's export and the runtime calls its `fetch`, so nothing binds a port.
+Export one and the same project becomes a process that serves itself.
+
 ## Layout
 
 ```

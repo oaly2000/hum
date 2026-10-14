@@ -30,9 +30,6 @@ export function globCall(patterns: string[]): string {
   return `import.meta.glob(${JSON.stringify(patterns)})`;
 }
 
-/** Runtime a production build targets. */
-export type HumPlatform = "node" | "cloudflare";
-
 /** Options accepted by the `hum()` Vite plugin. */
 export interface HumOptions {
   /** Project root. Defaults to the Vite root. */
@@ -54,24 +51,6 @@ export interface HumOptions {
    */
   clientEntry?: string;
   /**
-   * Runtime the production build targets.
-   *
-   * `"node"` starts an HTTP listener from the generated entry, which is what a
-   * Node deployment needs. `"cloudflare"` compiles the server bundle for a
-   * Worker runtime and exports the app's fetch handler instead of a listener.
-   *
-   * The output directory keeps its shape either way — `<outDir>/server.js`,
-   * `<outDir>/package.json` and `<outDir>/public/` — because the client assets
-   * are addressed through `/_hum` rather than through the output directory.
-   * Static files stay the platform's business: a Worker deployment serves that
-   * `public/` tree through its asset binding, a Node deployment through a
-   * reverse proxy, a CDN or a static middleware.
-   *
-   * Development is unaffected: the dev server is Vite's, on Node.
-   * @default "node"
-   */
-  platform?: HumPlatform;
-  /**
    * Log what Hum discovered: the routes and islands in development, and the
    * island chunks a production build emitted (the bundler resolves the routes
    * there, so their count is not known to the plugin).
@@ -87,7 +66,6 @@ export interface ResolvedHumOptions {
   outDir: string;
   basePath: string;
   clientEntry: string;
-  platform: HumPlatform;
   verbose: boolean;
 }
 
@@ -102,7 +80,6 @@ export function resolveHumOptions(
     outDir: options.outDir ?? "dist",
     basePath: options.basePath ?? "/",
     clientEntry: options.clientEntry ?? "client/main.ts",
-    platform: options.platform ?? "node",
     verbose: options.verbose ?? false,
   };
 }
@@ -160,6 +137,12 @@ export function virtualModule(
     },
   };
 }
+
+/**
+ * Project file that default-exports the app's Hono instance. Optional: without
+ * it the build makes an app of its own and serves it on Node.
+ */
+export const SERVER_ENTRY_FILE = "server.ts";
 
 /** Directory (relative to the root) the generated build inputs live in. */
 export const GENERATED_DIR = ".hum";
