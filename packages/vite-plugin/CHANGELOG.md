@@ -1,5 +1,42 @@
 # @humjs/vite-plugin
 
+## 0.3.0
+
+### Minor Changes
+
+- Decide how a production build runs from the project's entry file instead of a
+  plugin option: `server.ts` default-exports the app, the build exports it — a Hono
+  instance is its own fetch handler, so a Worker or an edge runtime can import the
+  bundle as it is — and the entry's optional `start(app)` export is the build's
+  entry point, which Hum calls once the file routes are mounted. `platform` is
+  gone: export `start` and the build serves itself, omit it and whatever imports
+  the bundle calls `fetch`.
+
+### Patch Changes
+
+- Hand dev requests to a runtime of their own by asking the `ssr` environment for
+  a module runner instead of looking for `@cloudflare/vite-plugin` by name, so an
+  adapter of the same kind needs no change here. The half that answers the client
+  runtime URL also runs before other plugins' middlewares now, which keeps that
+  URL Hum's however the plugins are ordered.
+- Expand the package documentation with entry-point guidance, configuration
+  reference, a getting-started walkthrough, and production usage notes.
+- Recognize an island by the component the bundler stamped instead of by the
+  identity of a loaded module. The Vite plugin writes the island's name, file and
+  export onto every island module's default export, and the renderer reads it
+  back, so an island is found wherever its module came from and mounting no longer
+  imports every island to build a table of components.
+
+  This also fixes the preact hooks not being installed for a second copy of the
+  framework in the same process — a render that then produced no island markers
+  and wrapped the finished document in a second one. Islands are covered end to
+  end in both the dev server and the production build now.
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+  - @humjs/core@0.4.1
+
 ## 0.2.1
 
 ### Patch Changes

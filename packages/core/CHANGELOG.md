@@ -1,5 +1,29 @@
 # @humjs/core
 
+## 0.4.1
+
+### Patch Changes
+
+- Use the browser View Transitions API for partial navigations when available.
+- Keep the Cloudflare template's development server working across edits. Its
+  dev worker mounts the project's app on an app of its own, because the runtime
+  re-runs the worker entry after every change while the app module stays cached
+  and Hono takes no route once a request has matched on its router. Mounting Hum
+  on an app it already mounted is now refused with a message naming that shape,
+  rather than failing inside Hono with nothing about the cause.
+- Expand the package documentation with entry-point guidance, configuration
+  reference, a getting-started walkthrough, and production usage notes.
+- Recognize an island by the component the bundler stamped instead of by the
+  identity of a loaded module. The Vite plugin writes the island's name, file and
+  export onto every island module's default export, and the renderer reads it
+  back, so an island is found wherever its module came from and mounting no longer
+  imports every island to build a table of components.
+
+  This also fixes the preact hooks not being installed for a second copy of the
+  framework in the same process — a render that then produced no island markers
+  and wrapped the finished document in a second one. Islands are covered end to
+  end in both the dev server and the production build now.
+
 ## 0.4.0
 
 ### Minor Changes
