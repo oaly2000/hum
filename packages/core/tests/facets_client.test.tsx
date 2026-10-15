@@ -123,6 +123,52 @@ describe("page level facets on the client", () => {
     expect(input.value).toBe("43");
   });
 
+  it("shares a state reference between a page binding and an island", async () => {
+    function Counter(props: { count: Signal<number> }) {
+      return h("output", { id: "island-count" }, props.count.value);
+    }
+    const count = signal(1);
+    const { html, payload } = await renderServer(
+      () =>
+        h(
+          "main",
+          null,
+          h("p", { id: "page-count" }, count),
+          h("button", { id: "increment", onClick: add(count, 1) }, "+"),
+          h(Counter, { count }),
+        ),
+      { islands: [[Counter, "Counter"]] },
+    );
+
+    const observer = Object.getOwnPropertyDescriptor(
+      globalThis,
+      "IntersectionObserver",
+    );
+    Object.defineProperty(globalThis, "IntersectionObserver", {
+      configurable: true,
+      value: undefined,
+    });
+    try {
+      document.body.innerHTML = html;
+      boot({ Counter }, payload);
+      await flush();
+
+      document.querySelector<HTMLButtonElement>("#increment")!
+        .dispatchEvent(new Event("click"));
+      await flush();
+
+      expect(document.querySelector("#page-count")!.textContent).toBe("2");
+      expect(document.querySelector("#island-count")!.textContent).toBe("2");
+    } finally {
+      if (observer === undefined) {
+        delete (globalThis as { IntersectionObserver?: unknown })
+          .IntersectionObserver;
+      } else {
+        Object.defineProperty(globalThis, "IntersectionObserver", observer);
+      }
+    }
+  });
+
   it("reuses the server rendered DOM instead of recreating it", async () => {
     const count = signal(2);
     const { html, payload } = await renderServer(() =>

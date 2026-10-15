@@ -91,7 +91,7 @@ function renderResourceNodes(state: RenderState): AnyVNode[] {
         withBase(state.basePath, state.buildCache.clientEntry),
       ),
     );
-    for (const island of state.islands) {
+    for (const island of eagerIslandModules(state)) {
       nodes.push(
         link("modulepreload", withBase(state.basePath, island.clientUrl)),
       );
@@ -140,6 +140,10 @@ function collectIslandCss(state: RenderState): string[] {
   return out;
 }
 
+function eagerIslandModules(state: RenderState): Island[] {
+  return [...state.eagerIslands];
+}
+
 /**
  * URLs that should be preloaded alongside the document. Surfaced as
  * `Link: <...>; rel=modulepreload` response headers.
@@ -147,7 +151,7 @@ function collectIslandCss(state: RenderState): string[] {
 export function preloadLinks(state: RenderState): string[] {
   if (!state.needsClientRuntime) return [];
   const out = [withBase(state.basePath, state.buildCache.clientEntry)];
-  for (const island of state.islands) {
+  for (const island of eagerIslandModules(state)) {
     out.push(withBase(state.basePath, island.clientUrl));
   }
   return out;
@@ -202,21 +206,29 @@ export function renderScripts(state: RenderState): string {
 
   const imports: string[] = [];
   const entries: string[] = [];
+  const loaders: string[] = [];
+  const eager = new Set(eagerIslandModules(state));
   for (let i = 0; i < islands.length; i++) {
-    const { statement, local } = islandImport(
-      islands[i],
-      i,
-      state.basePath,
+    const island = islands[i];
+    if (eager.has(island)) {
+      const { statement, local } = islandImport(island, i, state.basePath);
+      imports.push(statement);
+      entries.push(`${JSON.stringify(island.name)}:${local}`);
+      continue;
+    }
+    const url = withBase(state.basePath, island.clientUrl);
+    loaders.push(
+      `${JSON.stringify(island.name)}:()=>import(${
+        JSON.stringify(url)
+      }).then((module)=>module[${JSON.stringify(island.exportName)}])`,
     );
-    imports.push(statement);
-    entries.push(`${JSON.stringify(islands[i].name)}:${local}`);
   }
 
   const clientEntry = withBase(state.basePath, state.buildCache.clientEntry);
   const props = escapeScript(JSON.stringify(serializePayload(state)));
   const content = `import { boot } from "${clientEntry}";${
     imports.join("")
-  }boot({${entries.join(",")}},${props});`;
+  }boot({${entries.join(",")}},${props},{${loaders.join(",")}});`;
 
   return renderToString(
     h("script", {

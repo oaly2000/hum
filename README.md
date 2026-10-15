@@ -116,6 +116,13 @@ import them by relative path.
 A component becomes an island when it lives in `islands/` or a route-local
 `_islands/` directory and is used by a page.
 
+Standalone island modules are loaded when their server-rendered root is within
+200 pixels of the viewport, then hydrated. Until that point the HTML is visible
+but its island behavior is not active. If `IntersectionObserver` is unavailable
+or the island has no observable element, Hum activates it eagerly. An island
+whose markup is owned by a partial or a page-level reactive element is loaded
+eagerly so its enclosing Preact tree can be restored.
+
 ### Head tags and SEO
 
 Fresh's `head` injection mechanism is fairly complex; Hum improves on it. `head`

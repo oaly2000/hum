@@ -65,6 +65,44 @@ the example where applicable.
 - Server rendering identifies registered islands and emits markers plus
   serialized props. The client runtime discovers those markers and hydrates the
   corresponding island bundles.
+- The render payload is a reference-sharing graph, not independent per-unit
+  records. Parse one payload for a page or partial response and pass its revived
+  values to every owning interaction unit: a signal used by a page facet, an
+  island prop, a factory handler, or multiple partials must remain the same
+  client signal instance.
+- The client reviver registers island/partial roots and page-level signal/DOM
+  bindings with `runtime/client/interaction_manager.ts`. The manager owns their
+  shared scheduling, incremental registration/disposal and exclusive
+  DOM-boundary checks; a page-level element host or an island/partial root
+  delegates nested partial updates inside its range rather than creating an
+  overlapping root. Replacing a partial refreshes its delegated nested targets,
+  and `PartialComp` rekeys its active instance when reconciliation changes its
+  name. Partial updates from one response are submitted as one scheduled
+  batch. Keep them on that manager path so replacing a subtree does not race a
+  stale navigation or bypass its owner.
+- Runtime interaction instances refer to a shared unit definition that fixes
+  their kind and scheduling phase. Keep instance-specific identity, DOM range,
+  delegates and lifecycle callbacks separate from that definition when adding
+  new unit kinds.
+- Standalone island roots hydrate when their first element enters the viewport
+  (with a 200px root margin); when `IntersectionObserver` is unavailable or the
+  root has no element, activation falls back to eager hydration. Island modules
+  whose roots are nested in a partial or below a page-level element facet are
+  eagerly available to the owning Preact tree; unrelated modules on the same
+  page remain deferred. If one module is used in both contexts, the module is
+  eager for all its roots. A failed deferred import is reported and remains
+  eligible for a retry after the island leaves and re-enters the observer's
+  visibility range.
+- A changed island module in Vite development currently triggers a client
+  full-page reload, not component-state-preserving Preact HMR. Runtime boot
+  replaces its island module/loader registries so a detached runtime cannot
+  reuse loaders from the previous page; do not describe this as hot component
+  replacement without adding and validating that behavior.
+- Keep the Preact-root renderer and DOM-binding restoration as separate
+  executors behind the shared manager. Do not add an executor wrapper that only
+  forwards `mount`/`apply` callbacks; extract an executor only when it owns
+  behavior (for example dependency activation, transactional updates or
+  replacement) that can be tested independently.
 - The Vite plugin has distinct dev and production paths. Keep module handling,
   island/runtime entry generation, styles, and emitted asset metadata consistent
   between them.

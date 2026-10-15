@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -121,7 +121,12 @@ describe("islands reach the client from either pass", () => {
       expect(html).toContain("<!--/hum:island-->");
       // In dev the island is served from its source path, so the boot script
       // pulls the module Vite transforms on demand.
-      expect(html).toContain('import hum_island_0 from "/islands/Counter.tsx"');
+      expect(html).toContain(
+        '"Counter":()=>import("/islands/Counter.tsx").then((module)=>module["default"])',
+      );
+      expect(html).not.toMatch(
+        /rel="modulepreload" href="[^"]*Counter/,
+      );
     } finally {
       await server.close();
       await rm(root, { recursive: true, force: true }).catch(() => {});
@@ -151,11 +156,113 @@ describe("islands reach the client from either pass", () => {
       expect(html).toContain("<!--hum:island:Counter:0:-->");
       expect(html).toContain("<!--/hum:island-->");
       // The same island, addressed through the assets the build published.
-      expect(html).toContain("hum_island_0 from");
-      expect(html).toContain("/_hum/assets/");
+      expect(html).toMatch(
+        /"Counter":\(\)=>import\("\/_hum\/assets\/Counter-[^"]+\.js"\)/,
+      );
+      expect(html).not.toMatch(
+        /rel="modulepreload" href="[^"]*Counter-/,
+      );
       expect(html).not.toContain("/islands/Counter.tsx");
     } finally {
       await rm(root, { recursive: true, force: true }).catch(() => {});
     }
   }, 60_000);
+
+  it("reloads the client when a lazy island module changes", async () => {
+    const root = await project();
+    const islandFile = join(root, "islands", "Counter.tsx");
+    const original = await readFile(islandFile, "utf8");
+    const server = await createServer({
+      configFile: false,
+      root,
+      plugins: [hum()],
+      logLevel: "silent",
+      server: { host: "127.0.0.1", port: 0, strictPort: true },
+    });
+    let socket: WebSocket | undefined;
+
+    try {
+      await server.listen();
+      const { port } = server.httpServer?.address() as AddressInfo;
+      const origin = `http://127.0.0.1:${port}`;
+      const response = await fetch(origin);
+      const html = await response.text();
+      expect(response.status, html).toBe(200);
+      expect(html).toContain(
+        '"Counter":()=>import("/islands/Counter.tsx").then((module)=>module["default"])',
+      );
+
+      const moduleResponse = await fetch(`${origin}/islands/Counter.tsx`);
+      expect(moduleResponse.status).toBe(200);
+
+      const client = await (await fetch(`${origin}/@vite/client`)).text();
+      const token = client.match(/const wsToken = "([^"]+)"/)?.[1];
+      expect(token).toBeDefined();
+      socket = new WebSocket(
+        `ws://127.0.0.1:${port}/?token=${token}`,
+        "vite-hmr",
+      );
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(
+          () => reject(new Error("Timed out connecting to Vite HMR.")),
+          5_000,
+        );
+        socket!.addEventListener("open", () => {
+          clearTimeout(timer);
+          resolve();
+        }, { once: true });
+        socket!.addEventListener("error", () => {
+          clearTimeout(timer);
+          reject(new Error("Could not connect to Vite HMR."));
+        }, { once: true });
+      });
+
+      const fullReload = new Promise<{ type: string; path?: string }>(
+        (resolve, reject) => {
+          const timer = setTimeout(
+            () => reject(new Error("Vite did not signal a full reload.")),
+            10_000,
+          );
+          socket!.addEventListener("message", ({ data }) => {
+            const message = JSON.parse(String(data)) as {
+              type?: string;
+              path?: string;
+            };
+            if (message.type === "full-reload") {
+              clearTimeout(timer);
+              resolve({ type: message.type, path: message.path });
+            }
+          });
+        },
+      );
+
+      await writeFile(
+        islandFile,
+        original.replace(
+          "<button onClick",
+          '<button data-hmr="updated" onClick',
+        ),
+      );
+      await expect(fullReload).resolves.toEqual({
+        type: "full-reload",
+        path: "*",
+      });
+      const deadline = Date.now() + 5_000;
+      let updatedCode = "";
+      while (Date.now() < deadline) {
+        const updatedModule = await fetch(
+          `${origin}/islands/Counter.tsx?t=${Date.now()}`,
+        );
+        updatedCode = await updatedModule.text();
+        if (updatedCode.includes('"data-hmr": "updated"')) break;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      expect(updatedCode).toContain('"data-hmr": "updated"');
+    } finally {
+      socket?.close();
+      await server.close();
+      await writeFile(islandFile, original);
+      await rm(root, { recursive: true, force: true }).catch(() => {});
+    }
+  }, 30_000);
 });

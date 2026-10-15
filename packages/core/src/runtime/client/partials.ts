@@ -17,6 +17,7 @@ import {
   copyOldChildren,
   createRootFragment,
   CUSTOM_PARSER,
+  currentInteractionManager,
   type Payload,
   domToVNode,
   ISLAND_REGISTRY,
@@ -272,6 +273,14 @@ document.addEventListener("submit", async (event) => {
 
 interface PartialReviveCtx {
   foundPartials: number;
+  updates: PendingPartialUpdate[];
+  generation: number;
+}
+
+interface PendingPartialUpdate {
+  name: string;
+  delegates: string[];
+  apply: () => void;
 }
 
 /**
@@ -323,16 +332,43 @@ export async function applyPartials(
   // moved on by now.
   if (generation !== lastNavigation) return;
 
-  if (doc.title) document.title = doc.title;
-  applyHead(doc);
-
-  const ctx: PartialReviveCtx = { foundPartials: 0 };
+  const ctx: PartialReviveCtx = {
+    foundPartials: 0,
+    updates: [],
+    generation,
+  };
   if (doc.body !== null) revivePartials(ctx, payload, doc.body);
 
   if (ctx.foundPartials === 0) {
     throw new NoPartialsError(
       `Hum: the response for ${res.url} contained no partial regions.`,
     );
+  }
+
+  const manager = currentInteractionManager();
+  let headApplied = false;
+  const applied = manager?.updateMany(
+    ctx.updates.map((update) => ({
+      kind: "partial" as const,
+      key: update.name,
+      delegates: update.delegates,
+      apply: () => {
+        if (generation !== lastNavigation) return;
+        update.apply();
+        if (!headApplied) {
+          headApplied = true;
+          if (doc.title) document.title = doc.title;
+          applyHead(doc);
+        }
+      },
+    })),
+  ) ?? ctx.updates.map(() => false);
+  for (let i = 0; i < applied.length; i++) {
+    if (!applied[i]) {
+      console.warn(
+        `Hum: partial "${ctx.updates[i].name}" is not part of the current page. Skipping it.`,
+      );
+    }
   }
 }
 
@@ -396,6 +432,7 @@ function revivePartials(
   let name = "";
   let key = "";
   let mode: PartialMode = PartialMode.Replace;
+  let delegates: string[] = [];
 
   let sib: ChildNode | null = node.firstChild;
   while (sib !== null) {
@@ -409,11 +446,15 @@ function revivePartials(
         // stays in the DOM. `startNode` must reference that surviving node,
         // otherwise the fragment below spans no content.
         const hidden = maybeHideMarker(sib);
+        if (depth === 1 && !delegates.includes(marker.parts[0])) {
+          delegates.push(marker.parts[0]);
+        }
         if (++depth === 1) {
           startNode = hidden;
           name = marker.parts[0];
           mode = Number(marker.parts[1]) as PartialMode;
           key = marker.parts[2] ?? "";
+          delegates = [];
         }
         sib = hidden;
       } else if (sib.data === PARTIAL_CLOSE) {
@@ -438,15 +479,24 @@ function revivePartials(
 
           domToVNode(payload, [root], [Marker.Partial], container, endMarker);
 
-          const instance = ACTIVE_PARTIALS.get(name);
-          if (instance === undefined) {
-            console.warn(
-              `Hum: partial "${name}" is not part of the current page. Skipping it.`,
-            );
-          } else {
-            applyPartialMode(instance, root.props.children, mode);
-            instance.setState({});
-          }
+          const updateName = name;
+          const updateMode = mode;
+          ctx.updates.push({
+            name: updateName,
+            delegates,
+            apply: () => {
+              if (ctx.generation !== lastNavigation) return;
+              const instance = ACTIVE_PARTIALS.get(updateName);
+              if (instance === undefined) {
+                console.warn(
+                  `Hum: partial "${updateName}" is not mounted on the current page. Skipping it.`,
+                );
+                return;
+              }
+              applyPartialMode(instance, root.props.children, updateMode);
+              instance.setState({});
+            },
+          });
         }
       }
     } else if (depth === 0 && isElementNode(sib)) {

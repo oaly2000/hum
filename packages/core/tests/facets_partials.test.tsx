@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { Fragment, h, type ComponentChildren } from "preact";
 import { renderToStringAsync } from "preact-render-to-string";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 // An app evaluates the framework entry before the route module that imports
 // signals, so the Hum modules are imported first here as well.
@@ -19,7 +19,15 @@ import {
   applyPartials,
   startPartialNavigation,
 } from "../src/runtime/client/partials.js";
-import { boot } from "../src/runtime/client/reviver.js";
+import {
+  ACTIVE_PARTIALS,
+  boot,
+  currentInteractionManager,
+} from "../src/runtime/client/reviver.js";
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 interface Rendered {
   html: string;
@@ -54,12 +62,13 @@ async function renderFragment(
 /** A partial-only response, as the client navigation fetches and applies it. */
 async function renderPartialResponse(
   page: () => ComponentChildren,
+  title = "partial",
 ): Promise<Response> {
   const { html, state } = await renderFragment(
     page,
     "/?_hum_partial=true",
   );
-  const doc = `<!DOCTYPE html><html><head><title>partial</title></head><body>${html}${
+  const doc = `<!DOCTYPE html><html><head><title>${title}</title></head><body>${html}${
     renderScripts(state)
   }</body></html>`;
 
@@ -152,7 +161,147 @@ describe("page level facets in a partial region on the server", () => {
   });
 });
 
+describe("interaction runtime boot lifecycle", () => {
+  it("preserves a connected manager and its DOM when a second boot is rejected", async () => {
+    const { html, payload } = await renderFragment(() =>
+      h(Partial, { name: "current" }, h("p", null, "owned")));
+    document.body.innerHTML = html;
+    const manager = boot({}, payload);
+    const domAfterBoot = document.body.innerHTML;
+
+    expect(() => boot({}, payload)).toThrow(/booted again/);
+    expect(currentInteractionManager()).toBe(manager);
+    expect(document.body.innerHTML).toBe(domAfterBoot);
+
+    await flush();
+    expect(document.body.textContent).toContain("owned");
+  });
+
+  it("clears a detached manager when replacement boot fails", async () => {
+    const { html, payload } = await renderFragment(() =>
+      h(Partial, { name: "current" }, h("p", null, "owned")));
+    document.body.innerHTML = html;
+    boot({}, payload);
+    document.body.replaceChildren();
+
+    expect(() => boot({}, "{")).toThrow();
+    expect(currentInteractionManager()).toBeNull();
+
+    document.body.innerHTML = html;
+    expect(() => boot({}, payload)).not.toThrow();
+    await flush();
+    expect(document.body.textContent).toContain("owned");
+  });
+});
+
 describe("page level facets when a partial updates", () => {
+  it("shares response state between separately updated partial roots", async () => {
+    const initial = () =>
+      h(
+        "div",
+        null,
+        h(Partial, { name: "left" }, h("p", { id: "left" }, "old")),
+        h(Partial, { name: "right" }, h("p", { id: "right" }, "old")),
+      );
+    const { html, payload } = await renderFragment(initial);
+    await hydrate(html, payload);
+
+    const shared = signal(5);
+    const response = await renderPartialResponse(() =>
+      h(
+        "div",
+        null,
+        h(
+          Partial,
+          { name: "left" },
+          h("button", { id: "change", onClick: add(shared, 1) }, "+"),
+        ),
+        h(Partial, { name: "right" }, h("p", { id: "right" }, shared)),
+      ));
+    expect(ACTIVE_PARTIALS.has("left")).toBe(true);
+    expect(ACTIVE_PARTIALS.has("right")).toBe(true);
+    expect(ACTIVE_PARTIALS.get("left")).not.toBe(ACTIVE_PARTIALS.get("right"));
+    await applyPartials(response);
+    await flush();
+
+    expect(document.body.innerHTML).toContain('id="change"');
+    click("#change");
+    await flush();
+    expect(text("#right")).toBe("6");
+  });
+
+  it("routes a nested partial update through its owning partial root", async () => {
+    const initial = () =>
+      h(
+        Partial,
+        { name: "page" },
+        h("h1", null, "Page"),
+        h(Partial, { name: "details" }, h("p", { id: "details" }, "initial")),
+      );
+    const { html, payload } = await renderFragment(initial);
+    await hydrate(html, payload);
+
+    const response = await renderPartialResponse(() =>
+      h(Partial, { name: "details" }, h("p", { id: "details" }, "updated")));
+    await applyPartials(response);
+    await flush();
+
+    expect(text("h1")).toBe("Page");
+    expect(text("#details")).toBe("updated");
+  });
+
+  it("registers nested partial targets introduced by a replacement", async () => {
+    const initial = () =>
+      h(
+        Partial,
+        { name: "page" },
+        h(Partial, { name: "old-details" }, h("p", null, "old")),
+      );
+    const { html, payload } = await renderFragment(initial);
+    await hydrate(html, payload);
+
+    const replaceParent = await renderPartialResponse(() =>
+      h(
+        Partial,
+        { name: "page" },
+        h(Partial, { name: "new-details" }, h("p", { id: "details" }, "first")),
+      ));
+    await applyPartials(replaceParent);
+    await flush();
+    expect(currentInteractionManager()?.update("partial", "old-details", () => {}))
+      .toBe(false);
+    expect(currentInteractionManager()?.update("partial", "new-details", () => {}))
+      .toBe(true);
+
+    const updateChild = await renderPartialResponse(() =>
+      h(
+        Partial,
+        { name: "new-details" },
+        h("p", { id: "details" }, "second"),
+      ));
+    await applyPartials(updateChild);
+    await flush();
+
+    expect(text("#details")).toBe("second");
+  });
+
+  it("queues a response until its initial partial root mounts", async () => {
+    vi.useFakeTimers();
+    const initial = () =>
+      h(Partial, { name: "cart" }, h("p", { id: "count" }, "initial"));
+    const { html, payload } = await renderFragment(initial);
+    document.body.innerHTML = html;
+    boot({}, payload);
+
+    const response = await renderPartialResponse(() =>
+      h(Partial, { name: "cart" }, h("p", { id: "count" }, "updated")));
+    await applyPartials(response);
+
+    expect(text("#count")).toBe("initial");
+    await vi.runAllTimersAsync();
+    expect(text("#count")).toBe("updated");
+  });
+
   it("revives the signals and handlers of the newly applied region", async () => {
     const qty = signal(1);
     const initial = () =>
@@ -357,6 +506,66 @@ describe("page level facets when a partial updates", () => {
 });
 
 describe("overlapping partial requests", () => {
+  it("does not apply head changes from a response superseded while queued", async () => {
+    vi.useFakeTimers();
+    const initial = () =>
+      h(Partial, { name: "panel" }, h("p", null, "initial"));
+    const { html, payload } = await renderFragment(initial);
+    document.body.innerHTML = html;
+    document.title = "initial";
+    boot({}, payload);
+    await vi.runAllTimersAsync();
+
+    const slow = await renderPartialResponse(
+      () => h(Partial, { name: "panel" }, h("p", null, "slow")),
+      "slow response",
+    );
+    const fast = await renderPartialResponse(
+      () => h(Partial, { name: "panel" }, h("p", null, "fast")),
+      "fast response",
+    );
+
+    await applyPartials(slow, startPartialNavigation());
+    expect(document.title).toBe("initial");
+    await applyPartials(fast, startPartialNavigation());
+    expect(document.title).toBe("initial");
+
+    await vi.runAllTimersAsync();
+    expect(document.title).toBe("fast response");
+    expect(text("p")).toBe("fast");
+  });
+
+  it("drops an update that is superseded after it was queued", async () => {
+    vi.useFakeTimers();
+    const initial = () =>
+      h(Partial, { name: "feed" }, h("li", null, "initial"));
+    const { html, payload } = await renderFragment(initial);
+    document.body.innerHTML = html;
+    boot({}, payload);
+    await vi.runAllTimersAsync();
+
+    const slow = await renderPartialResponse(() =>
+      h(
+        Partial,
+        { name: "feed", mode: "append" },
+        h("li", null, "slow"),
+      ));
+    const fast = await renderPartialResponse(() =>
+      h(
+        Partial,
+        { name: "feed", mode: "append" },
+        h("li", null, "fast"),
+      ));
+    const slowNav = startPartialNavigation();
+    await applyPartials(slow, slowNav);
+    const fastNav = startPartialNavigation();
+    await applyPartials(fast, fastNav);
+
+    await vi.runAllTimersAsync();
+    expect(Array.from(document.querySelectorAll("li")).map((li) => li.textContent))
+      .toEqual(["initial", "fast"]);
+  });
+
   it("drops the response of a request that was superseded", async () => {
     const initial = () =>
       h(Partial, { name: "feed" }, h("li", null, "a"));

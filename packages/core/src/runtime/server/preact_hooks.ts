@@ -74,11 +74,14 @@ export class RenderState {
   /** Number of page level facets that were recorded in `payload`. */
   facetCount = 0;
   islands = new Set<Island>();
+  /** Islands whose renderer must already be available to an enclosing tree. */
+  eagerIslands = new Set<Island>();
   islandAssets = new Set<string>();
   /** Head tags merged from the `head` exports of the render chain. */
   headNodes: ComponentChildren[] = [];
   owners = new Map<VNode, VNode | undefined>();
   ownerStack: VNode[] = [];
+  facetOwnerStack: boolean[] = [];
   encounteredPartials = new Set<string>();
   renderedHtmlTag = false;
   renderedHtmlHead = false;
@@ -109,6 +112,7 @@ export class RenderState {
   clear(): void {
     this.islands.clear();
     this.islandAssets.clear();
+    this.eagerIslands.clear();
     this.encounteredPartials.clear();
     this.owners.clear();
     this.headNodes = [];
@@ -116,6 +120,7 @@ export class RenderState {
     this.payload = [];
     this.facetCount = 0;
     this.ownerStack = [];
+    this.facetOwnerStack = [];
   }
 
   /** True when the page needs the client runtime at all. */
@@ -584,6 +589,9 @@ function installHooks(): void {
       }
 
       state.islands.add(island);
+      if (state.partialDepth > 0 || state.facetOwnerStack.at(-1) === true) {
+        state.eagerIslands.add(island);
+      }
 
       const originalType = vnode.type;
       // Replacing `type` lets us inspect the props that Preact passes to the
@@ -642,6 +650,10 @@ function installHooks(): void {
         props[DATA_HUM_KEY] = String(vnode.key);
       }
       bindFacetProps(vnode, props, state, !insideIsland);
+      state.facetOwnerStack.push(
+        state.facetOwnerStack.at(-1) === true ||
+          FACET_SIGNAL_ATTR in props || FACET_HANDLER_ATTR in props,
+      );
     }
   });
 
@@ -665,6 +677,9 @@ function installHooks(): void {
     ) {
       state.ownerStack.pop();
       if (isPartialType(vnode.type)) state.partialDepth--;
+    }
+    if (state !== null && typeof vnode.type === "string") {
+      state.facetOwnerStack.pop();
     }
   });
 }

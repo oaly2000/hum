@@ -31,11 +31,20 @@ function Counter(
   );
 }
 
+function NestedIsland() {
+  return h("span", { id: "nested-island" }, "nested");
+}
+
 // The bundler's transform stamps every island module this way; the manifest
 // tests make the same write so the renderer recognizes `Counter` as one.
 tagIsland(Counter, {
   name: "Counter",
   file: "islands/Counter.tsx",
+  exportName: "default",
+});
+tagIsland(NestedIsland, {
+  name: "NestedIsland",
+  file: "islands/NestedIsland.tsx",
   exportName: "default",
 });
 
@@ -152,6 +161,23 @@ function PartialsPage() {
   );
 }
 
+function PartialIslandPage() {
+  return h(
+    Partial,
+    { name: "island" },
+    h(Counter, { count: START }),
+  );
+}
+
+function MixedInteractionPage() {
+  return h(
+    "main",
+    null,
+    h("section", { class: signal("facet-host") }, h(NestedIsland)),
+    h(Counter, { count: START }),
+  );
+}
+
 const PageView = define.page<
   {
     extra?: string;
@@ -180,6 +206,12 @@ const manifest: HumManifest = {
       exportName: "default",
       file: "islands/Counter.tsx",
       load: async () => ({ default: Counter }),
+    },
+    {
+      name: "NestedIsland",
+      exportName: "default",
+      file: "islands/NestedIsland.tsx",
+      load: async () => ({ default: NestedIsland }),
     },
   ],
   routes: [
@@ -307,6 +339,18 @@ const manifest: HumManifest = {
       load: async () => ({ default: PartialsPage }),
     },
     {
+      file: "routes/partial-island.tsx",
+      kind: "route",
+      urlPath: "/partial-island",
+      load: async () => ({ default: PartialIslandPage }),
+    },
+    {
+      file: "routes/mixed-interactions.tsx",
+      kind: "route",
+      urlPath: "/mixed-interactions",
+      load: async () => ({ default: MixedInteractionPage }),
+    },
+    {
       file: "routes/streaming.tsx",
       kind: "route",
       urlPath: "/streaming",
@@ -363,11 +407,14 @@ describe("island rendering", () => {
     expect(html).toContain("path /");
   });
 
-  it("injects the boot script with island imports and serialized props", async () => {
+  it("defers standalone island modules until their roots become visible", async () => {
     const html = await get("/");
     expect(html).toContain('import { boot } from "/_hum/runtime.js"');
-    expect(html).toContain('import hum_island_0 from "/islands/Counter.tsx"');
-    expect(html).toContain('boot({"Counter":hum_island_0},');
+    expect(html).not.toContain('import hum_island_0 from "/islands/Counter.tsx"');
+    expect(html).toContain('boot({},');
+    expect(html).toContain(
+      '"Counter":()=>import("/islands/Counter.tsx").then((module)=>module["default"])',
+    );
   });
 
   it("serializes signals so they can be revived on the client", async () => {
@@ -383,11 +430,46 @@ describe("island rendering", () => {
     expect(html).toContain('\\"Slot\\"');
   });
 
-  it("preloads the client entry and islands", async () => {
+  it("preloads the client entry but not a deferred standalone island", async () => {
     const res = await app.request("http://localhost/");
     const link = res.headers.get("Link") ?? "";
     expect(link).toContain("rel=modulepreload");
-    expect(link).toContain("/islands/Counter.tsx");
+    expect(link).not.toContain("/islands/Counter.tsx");
+  });
+
+  it("eagerly imports islands owned by an initial partial root", async () => {
+    const res = await app.request("http://localhost/partial-island");
+    const html = await res.text();
+    expect(html).toContain('import hum_island_0 from "/islands/Counter.tsx"');
+    expect(html).toContain('boot({"Counter":hum_island_0},');
+    expect(res.headers.get("Link")).toContain("/islands/Counter.tsx");
+  });
+
+  it("keeps unrelated islands lazy on pages with facet-owned subtrees", async () => {
+    const res = await app.request("http://localhost/mixed-interactions");
+    const html = await res.text();
+    const bootScript = html.match(
+      /<script type="module"[^>]*>(import \{ boot \}[\s\S]*?)<\/script>/,
+    )?.[1] ?? "";
+    const eagerModules = [...bootScript.matchAll(/import hum_island_\d+ from/g)];
+    const deferredModules = [...bootScript.matchAll(/:\(\)=>import\(/g)];
+    const islandPreloads = [...(res.headers.get("Link") ?? "").matchAll(
+      /\/islands\/[^>;]+/g,
+    )];
+
+    expect(eagerModules).toHaveLength(1);
+    expect(deferredModules).toHaveLength(1);
+    expect(islandPreloads).toHaveLength(1);
+    expect(html).toContain(
+      'import hum_island_0 from "/islands/NestedIsland.tsx"',
+    );
+    expect(html).toContain('"NestedIsland":hum_island_0');
+    expect(html).toContain(
+      '"Counter":()=>import("/islands/Counter.tsx").then((module)=>module["default"])',
+    );
+    expect(html).not.toContain('import hum_island_1 from "/islands/Counter.tsx"');
+    expect(res.headers.get("Link")).toContain("/islands/NestedIsland.tsx");
+    expect(res.headers.get("Link")).not.toContain("/islands/Counter.tsx");
   });
 });
 
@@ -450,7 +532,7 @@ describe("experimental streaming", () => {
 
     expect(html).toContain("stream resolved");
     expect(html).toContain("hum:island:Counter");
-    expect(html).toContain('import hum_island_0 from "/islands/Counter.tsx"');
+    expect(html).toContain('()=>import("/islands/Counter.tsx")');
     expect(html).toContain("</body></html>");
   });
 
