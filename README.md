@@ -1,5 +1,8 @@
 # Hum
 
+[![Documentation site hosted on Node.js](https://img.shields.io/badge/Documentation_site_hosted_on-Node.js-339933?logo=nodedotjs&logoColor=white)](https://hum.runasp.net/)
+[![Documentation site hosted on Cloudflare Workers](https://img.shields.io/badge/Documentation_site_hosted_on-Cloudflare_Workers-F38020?logo=cloudflare&logoColor=white)](https://hum-docs.oaly2000.workers.dev/)
+
 Hum is a server-side rendering framework built on [Preact](https://preactjs.com)
 and [Hono](https://hono.dev).
 
@@ -68,15 +71,18 @@ The app serves its `public/` tree (see `server.ts`, which mounts
 `@hono/node-server/serve-static` for it) — in production that is normally
 delegated to a reverse proxy, a CDN, or a platform asset binding.
 
-Whether a build runs itself is up to `server.ts`, not to a plugin option. It
-default-exports the app — a Hono instance *is* its fetch handler — and the build
-exports that app; when it also exports `start(app)`, Hum calls it once the file
-routes are mounted, and that is the build's entry point. `pnpm dlx create-hum
+Whether a build runs itself is up to the selected server entry, not a platform
+option. It default-exports the app — a Hono instance *is* its fetch handler —
+and the build exports that app; when it also exports `start(app)`, Hum calls it
+once the file routes are mounted, and that is the build's entry point.
+`pnpm dlx create-hum
 my-worker --template cloudflare` scaffolds a project whose `server.ts` exports no
 `start`: the built module is a Worker the runtime calls, and `wrangler.jsonc`
 points `main` at `dist/server.js` and publishes `dist/public` through the
 Worker's static asset binding. A Node deployment exports `start` and binds a
-port there. Development is Vite on Node in both templates.
+port there. If an app needs different Hono entry files per runtime, the Vite
+configuration can select one with `hum({ serverEntry: "server.cloudflare.ts" })`;
+the default remains `server.ts`. Development is Vite on Node in both templates.
 
 ## Static files
 
@@ -229,12 +235,40 @@ Because of that, API errors raised by Hono are still handled by the app's
 
 ### Client navigation and Partial
 
-See the
-[Fresh documentation](https://usefresh.dev/docs/advanced/partials) directly. You
-can also compare Hum's [documentation](https://hum.runasp.net/docs/partials) and
-its [source](./packages/docs/routes/docs/partials/[[topic]].tsx).
+Wrap the part of the page that should update in a named `Partial`, then opt in
+to client navigation on an ancestor. Links inside it fetch and render the
+destination on the server; Hum replaces the matching partial while leaving the
+rest of the page in place.
 
-The opt-in attribute is `data-hum-client-nav`; setting it to `"false"` switches
+```tsx
+import type { RouteProps } from "@humjs/core";
+import { Partial } from "@humjs/core/shared";
+
+const topics: Record<string, string> = {
+  preact: "Preact renders the page on the server.",
+  hono: "Hono handles the request and response.",
+};
+
+export default function TopicsPage({ url }: RouteProps) {
+  const topic = url.searchParams.get("topic") ?? "preact";
+
+  return (
+    <main data-hum-client-nav>
+      <nav>
+        <a href="/topics?topic=preact">Preact</a>
+        {" · "}
+        <a href="/topics?topic=hono">Hono</a>
+      </nav>
+
+      <Partial name="topic">
+        <p>{topics[topic] ?? "Choose a topic."}</p>
+      </Partial>
+    </main>
+  );
+}
+```
+
+**Note:** The opt-in attribute is `data-hum-client-nav` instead of fresh's `f-client-nav`; setting it to `"false"` switches
 client navigation off for that subtree.
 
 ### Interactive runtime model

@@ -34,6 +34,20 @@ describe("hum client entry option", () => {
   });
 });
 
+describe("hum server entry option", () => {
+  it("defaults to server.ts", () => {
+    const opts = resolveHumOptions("/tmp/project");
+    expect(opts.serverEntry).toBe("server.ts");
+  });
+
+  it("lets the user select a runtime-specific entry", () => {
+    const opts = resolveHumOptions("/tmp/project", {
+      serverEntry: "server.cloudflare.ts",
+    });
+    expect(opts.serverEntry).toBe("server.cloudflare.ts");
+  });
+});
+
 describe("humClientEntry plugin", () => {
   it("resolves the virtual user entry id", () => {
     const ctx = {
@@ -136,7 +150,8 @@ describe("writeBuildEntries", () => {
     expect(entry).toContain("const app = entry.default;");
     expect(entry).toContain("await mountHum(app, humConfig);");
     expect(entry).toContain("export default app;");
-    expect(entry).toContain('if (typeof entry.start === "function")');
+    expect(entry).toContain('const start = Reflect.get(entry, "start");');
+    expect(entry).toContain('if (typeof start === "function") await start(app);');
     // Nothing binds a port unless the project said so, so the Node adapter is
     // not the framework's to import.
     expect(entry).not.toContain("@hono/node-server");
@@ -146,6 +161,28 @@ describe("writeBuildEntries", () => {
     // mounting needs no configuration of its own.
     expect(entry).toContain('import "virtual:hum/build";');
     expect(entry).not.toContain("startServer");
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it("uses the configured server entry", async () => {
+    const root = tempProject();
+    writeFileSync(
+      join(root, "server.cloudflare.ts"),
+      "export default function app() {}\n",
+    );
+    const ctx = {
+      options: resolveHumOptions(root, {
+        serverEntry: "server.cloudflare.ts",
+      }),
+    };
+
+    await writeBuildEntries(ctx);
+    const entry = await readFile(join(root, SERVER_ENTRY), "utf8");
+
+    expect(entry).toContain(
+      'import * as entry from "' +
+        join(root, "server.cloudflare.ts").replace(/\\/g, "/") + '"',
+    );
     rmSync(root, { recursive: true, force: true });
   });
 

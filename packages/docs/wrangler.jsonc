@@ -1,0 +1,13 @@
+{
+  "name": "hum-docs",
+  "main": "./dist/server.js",
+  "assets": {
+    "directory": "./dist/public",
+    "binding": "ASSETS"
+  },
+  "compatibility_date": "2026-07-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true
+  }
+}

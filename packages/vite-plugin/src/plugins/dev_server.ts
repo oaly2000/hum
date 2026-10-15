@@ -37,7 +37,6 @@ import {
   projectUrlPath,
   RESOLVED_USER_ENTRY_VIRTUAL_ID,
   RUNTIME_URL,
-  SERVER_ENTRY_FILE,
   USER_ENTRY_VIRTUAL_ID,
 } from "../shared.js";
 import type { HumContext } from "../shared.js";
@@ -170,7 +169,7 @@ export function humDevServer(ctx: HumContext): Plugin {
       publicFiles = null;
     }
 
-    const serverEntry = resolve(ctx.options.root, SERVER_ENTRY_FILE);
+    const serverEntry = resolve(ctx.options.root, ctx.options.serverEntry);
     if (!existsSync(serverEntry)) {
       return withPublicFiles(await createApp(humConfig));
     }
@@ -253,7 +252,9 @@ export function humDevServer(ctx: HumContext): Plugin {
       server.watcher.on("add", (file) => invalidate(file));
       server.watcher.on("unlink", (file) => invalidate(file));
       server.watcher.on("change", (file) => {
-        if (file === resolve(ctx.options.root, SERVER_ENTRY_FILE)) app = null;
+        if (file === resolve(ctx.options.root, ctx.options.serverEntry)) {
+          app = null;
+        }
       });
 
       return () => {

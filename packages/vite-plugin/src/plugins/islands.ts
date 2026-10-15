@@ -14,7 +14,6 @@ import {
   globCall,
   ISLANDS_ENTRY,
   SERVER_ENTRY,
-  SERVER_ENTRY_FILE,
 } from "../shared.js";
 
 /**
@@ -56,7 +55,7 @@ export function humIslands(): Plugin {
 export async function writeBuildEntries(ctx: HumContext): Promise<void> {
   const dir = join(ctx.options.root, GENERATED_DIR);
   await mkdir(dir, { recursive: true });
-  const userServer = resolve(ctx.options.root, SERVER_ENTRY_FILE);
+  const userServer = resolve(ctx.options.root, ctx.options.serverEntry);
 
   // The runtime entry imports the optional user client entry first, so its
   // global styles (e.g. TailwindCSS) become part of the runtime chunk and flow
@@ -179,7 +178,8 @@ export default app;`;
  */
 const START_EXPORT = `// The entry's own \`start(app)\`, which is the build's entry point. Nothing
 // binds a port here unless the project exported it.
-if (typeof entry.start === "function") await entry.start(app);`;
+const start = Reflect.get(entry, "start");
+if (typeof start === "function") await start(app);`;
 
 /** Listener a project without an entry file gets. */
 const NODE_SERVING = `// The Node adapter owns the listener.

@@ -38,6 +38,8 @@ export interface HumOptions {
   routesDir?: string;
   /** Islands directory, relative to the root. @default "islands" */
   islandsDir?: string;
+  /** Hono app entry, relative to the root. @default "server.ts" */
+  serverEntry?: string;
   /** Output directory of the production build. @default "dist" */
   outDir?: string;
   /** Base path the app is served from. @default "/" */
@@ -63,6 +65,7 @@ export interface ResolvedHumOptions {
   root: string;
   routesDir: string;
   islandsDir: string;
+  serverEntry: string;
   outDir: string;
   basePath: string;
   clientEntry: string;
@@ -77,6 +80,7 @@ export function resolveHumOptions(
     root: resolve(options.root ?? root),
     routesDir: options.routesDir ?? "routes",
     islandsDir: options.islandsDir ?? "islands",
+    serverEntry: options.serverEntry ?? SERVER_ENTRY_FILE,
     outDir: options.outDir ?? "dist",
     basePath: options.basePath ?? "/",
     clientEntry: options.clientEntry ?? "client/main.ts",
