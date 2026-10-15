@@ -12,6 +12,21 @@ improvements and features of its own.
 
 ```sh
 pnpm dlx create-hum my-app     # or: npm create hum@latest my-app
+cd my-app
+npm install
+npm run dev
+```
+
+This starts the Vite development server. Open the URL it prints, then edit
+`routes/index.tsx` to change the home page. The generated project also includes
+a `Counter` island, example route handlers, and Tailwind CSS. For a guided
+walkthrough, see the [getting started guide](https://hum.runasp.net/docs/getting-started).
+
+Build and run the generated Node app with:
+
+```sh
+npm run build
+npm start
 ```
 
 The scaffold generates a project like this:

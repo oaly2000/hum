@@ -9,6 +9,7 @@ import ThemeToggle from "../_islands/ThemeToggle.js";
  * ones, so the labels no longer have to fit a horizontal strip.
  */
 const GUIDES = [
+  { href: "/docs/getting-started", label: "Getting started" },
   { href: "/docs/routing", label: "Routing and rendering" },
   { href: "/docs/hono", label: "Hono and Hum middleware" },
   { href: "/docs/handlers", label: "Route handlers" },

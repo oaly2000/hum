@@ -37,7 +37,7 @@ export default function Home() {
         <nav class="flex items-center gap-3 text-sm font-semibold sm:gap-7">
           <a
             class="hidden text-muted transition hover:text-fg sm:inline"
-            href="/docs/handlers"
+            href="/docs/getting-started"
           >
             Guides
           </a>
@@ -79,7 +79,7 @@ export default function Home() {
                 Get started <span aria-hidden="true">→</span>
               </a>
               <a
-                href="/docs/handlers"
+                href="/docs/getting-started"
                 class="rounded-full px-6 py-3.5 font-bold text-fg-soft transition hover:bg-surface-70"
               >
                 Explore Hum
