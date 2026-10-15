@@ -21,7 +21,7 @@ describe("interaction manager", () => {
 
     manager.register({
       id: "binding-0",
-      kind: "element",
+      kind: "binding",
       owner: binding,
       phase: "binding",
       mount: () => order.push("binding"),
@@ -118,7 +118,7 @@ describe("interaction manager", () => {
     const manager = new InteractionManager();
     manager.register({
       id: "host",
-      kind: "element",
+      kind: "binding",
       owner: root,
       phase: "binding",
       mount,
@@ -142,12 +142,12 @@ describe("interaction manager", () => {
     expect(() =>
       manager.register({
         id: "signal",
-        kind: "signal",
+        kind: "binding",
         owner: document.createElement("span"),
         phase: "root",
         mount: () => {},
       })
-    ).toThrow(/signal interaction units must use the "binding" phase/);
+    ).toThrow(/binding interaction units must use the "binding" phase/);
   });
 
   it("detects an element nested inside a marker-delimited owner range", () => {
@@ -169,7 +169,7 @@ describe("interaction manager", () => {
     expect(() =>
       manager.register({
         id: "nested-element",
-        kind: "element",
+        kind: "binding",
         owner: child,
         phase: "binding",
         mount: () => {},
@@ -187,7 +187,7 @@ describe("interaction manager", () => {
     const manager = new InteractionManager();
     manager.register({
       id: "element",
-      kind: "element",
+      kind: "binding",
       owner: parent,
       phase: "binding",
       mount: () => {},
@@ -235,7 +235,7 @@ describe("interaction manager", () => {
     });
     manager.register({
       id: "second",
-      kind: "element",
+      kind: "binding",
       owner: second,
       phase: "binding",
       mount: () => order.push("mount-second"),
@@ -278,7 +278,7 @@ describe("interaction manager", () => {
     const update = vi.fn();
     manager.register({
       id: "element-host",
-      kind: "element",
+      kind: "binding",
       owner: host,
       phase: "binding",
       delegates: ["partial:cart"],
@@ -322,7 +322,7 @@ describe("interaction manager", () => {
     for (const [id, owner] of [["first", first], ["second", second]] as const) {
       manager.register({
         id,
-        kind: "element",
+        kind: "binding",
         owner,
         phase: "binding",
         delegates: ["partial:cart"],
@@ -358,6 +358,36 @@ describe("interaction manager", () => {
     expect(vi.getTimerCount()).toBe(1);
     await vi.runAllTimersAsync();
     expect(updates).toEqual(["first", "second"]);
+  });
+
+  it("waits until a batch of mounted-unit updates has been applied", async () => {
+    vi.useFakeTimers();
+    const manager = new InteractionManager();
+    const apply = vi.fn();
+    manager.register({
+      id: "partial:current",
+      kind: "partial",
+      key: "current",
+      owner: document.createElement("section"),
+      phase: "root",
+      mount: () => {},
+    });
+    manager.mount();
+    await vi.runAllTimersAsync();
+
+    let settled = false;
+    const result = manager.updateManyAndWait([
+      { kind: "partial", key: "current", apply },
+    ]).then((applied) => {
+      settled = true;
+      return applied;
+    });
+
+    expect(settled).toBe(false);
+    await vi.runAllTimersAsync();
+    await expect(result).resolves.toEqual([true]);
+    expect(apply).toHaveBeenCalledOnce();
+    expect(settled).toBe(true);
   });
 
   it("replaces delegated partial targets when their owning partial updates", async () => {
@@ -411,6 +441,90 @@ describe("interaction manager", () => {
     expect(updates).toEqual(["first", "second"]);
   });
 
+  it("waits for queued updates until their owner mounts", async () => {
+    vi.useFakeTimers();
+    const manager = new InteractionManager();
+    const apply = vi.fn();
+    manager.register({
+      id: "partial:pending",
+      kind: "partial",
+      key: "pending",
+      owner: document.createElement("section"),
+      phase: "root",
+      mount: () => {},
+    });
+    const result = manager.updateManyAndWait([
+      { kind: "partial", key: "pending", apply },
+    ]);
+
+    await vi.runAllTimersAsync();
+    expect(apply).not.toHaveBeenCalled();
+    manager.mount();
+    await vi.runAllTimersAsync();
+
+    await expect(result).resolves.toEqual([true]);
+    expect(apply).toHaveBeenCalledOnce();
+  });
+
+  it("settles waiting updates when their owner is removed or the manager is disposed", async () => {
+    const unregistered = new InteractionManager();
+    unregistered.register({
+      id: "partial:removed",
+      kind: "partial",
+      key: "removed",
+      owner: document.createElement("section"),
+      phase: "root",
+      mount: () => {},
+    });
+    const removedUpdate = unregistered.updateManyAndWait([
+      { kind: "partial", key: "removed", apply: () => {} },
+    ]);
+    expect(unregistered.unregister("partial:removed")).toBe(true);
+    await expect(removedUpdate).resolves.toEqual([false]);
+
+    const disposed = new InteractionManager();
+    disposed.register({
+      id: "partial:disposed",
+      kind: "partial",
+      key: "disposed",
+      owner: document.createElement("section"),
+      phase: "root",
+      mount: () => {},
+    });
+    const disposedUpdate = disposed.updateManyAndWait([
+      { kind: "partial", key: "disposed", apply: () => {} },
+    ]);
+    disposed.dispose();
+    await expect(disposedUpdate).resolves.toEqual([false]);
+  });
+
+  it("rejects waiting batches when an update fails", async () => {
+    vi.useFakeTimers();
+    const manager = new InteractionManager();
+    manager.register({
+      id: "partial:broken",
+      kind: "partial",
+      key: "broken",
+      owner: document.createElement("section"),
+      phase: "root",
+      mount: () => {},
+    });
+    manager.mount();
+    await vi.runAllTimersAsync();
+
+    const result = manager.updateManyAndWait([{
+      kind: "partial",
+      key: "broken",
+      apply: () => {
+        throw new Error("update failed");
+      },
+    }]);
+    const rejected = expect(result).rejects.toThrow(/interaction updates failed/);
+    await vi.runAllTimersAsync();
+
+    await rejected;
+  });
+
   it("does not queue part of a batch when another update has ambiguous ownership", async () => {
     vi.useFakeTimers();
     const manager = new InteractionManager();
@@ -429,7 +543,7 @@ describe("interaction manager", () => {
     for (const [id, owner] of [["host-a", first], ["host-b", second]] as const) {
       manager.register({
         id,
-        kind: "element",
+        kind: "binding",
         owner,
         phase: "binding",
         delegates: ["partial:ambiguous"],
@@ -466,7 +580,7 @@ describe("interaction manager", () => {
     await vi.runAllTimersAsync();
     manager.register({
       id: "late",
-      kind: "element",
+      kind: "binding",
       owner: late,
       phase: "binding",
       mount: () => mounted.push("late"),
@@ -485,7 +599,7 @@ describe("interaction manager", () => {
     parent.append(child);
     manager.register({
       id: "parent",
-      kind: "element",
+      kind: "binding",
       owner: parent,
       phase: "binding",
       mount: () => {},

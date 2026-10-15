@@ -65,6 +65,30 @@ const linkExample = `// the link navigates to /docs/partials/handlers, but the f
   Handlers
 </a>`;
 
+const viewTransitionExample = `::view-transition-old(root) {
+  animation: 180ms ease-out both fade-out;
+}
+
+::view-transition-new(root) {
+  animation: 180ms ease-out both fade-in;
+}
+
+@keyframes fade-out {
+  to { opacity: 0; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(root),
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 0s;
+  }
+}`;
+
 const loadMoreExample = `// handlers: what the "Load more" form below submits to
 export const handlers = define.handlers({
   GET: () => page({ hasMore: true }),
@@ -160,6 +184,19 @@ export default function PartialsPage({
         navigation. Set <code>data-hum-client-nav={"{false}"}</code>{" "}
         to opt out inside an enabled ancestor.
       </div>
+
+      <h2 class="mt-12 text-xl font-extrabold tracking-tight sm:text-2xl">
+        View Transitions
+      </h2>
+      <p class="mt-3 leading-7 text-muted">
+        Hum automatically uses the browser’s View Transitions API for
+        client-side partial navigations when it is available. The transition
+        covers the partial DOM updates and current-link state; no extra
+        attribute or JavaScript setup is needed. Browsers without the API apply
+        the updates normally. You can customize the animation with the standard
+        View Transition pseudo-elements, for example:
+      </p>
+      <CodeBlock code={viewTransitionExample} language="css" />
 
       <h2 class="mt-12 text-xl font-extrabold tracking-tight sm:text-2xl">
         Choose how new content is applied

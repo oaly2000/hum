@@ -235,7 +235,7 @@ describe("page level facets on the client", () => {
 });
 
 describe("facets while adopting DOM", () => {
-  it("maps a signal marker to a SignalText leaf and revives bound props", async () => {
+  it("wraps a signal marker in an isolated reactive text leaf", async () => {
     const count = signal(7);
     const value = signal("a");
     const { html, payload } = await renderServer(() =>

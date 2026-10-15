@@ -1,7 +1,5 @@
 # Hum
 
-[中文](./README.zh.md)
-
 Hum is a server-side rendering framework built on [Preact](https://preactjs.com)
 and [Hono](https://hono.dev).
 
@@ -223,6 +221,84 @@ its [source](./packages/docs/routes/docs/partials/[[topic]].tsx).
 
 The opt-in attribute is `data-hum-client-nav`; setting it to `"false"` switches
 client navigation off for that subtree.
+
+### Interactive runtime model
+
+Hum coordinates interactive DOM ownership through one client-side
+`InteractionManager`. Islands, Partial roots, and page-level element facets act
+as hosts; signals and handlers are reactive bindings that can live inside any
+host. A signal outside every host gets a standalone binding range. The
+InteractionManager treats page-level element facets and unhosted signal ranges
+alike as `binding` units; signal children inside a host are revived as part of
+its tree. Each signal use gets a `SignalText` VNode boundary around the shared
+signal value, so multiple trees can subscribe independently without sharing
+VNode bookkeeping. Island and Partial Preact roots remain root units. All units
+share ownership checks, mount ordering, update routing, scheduling, and cleanup.
+
+```mermaid
+flowchart TD
+  SSR["Server render"] --> HTML["HTML markers + serialized props and facets"]
+  HTML --> BOOT["Client boot: scan markers and payload"]
+  BOOT --> PLAN["Plan exclusive DOM ownership<br/>drop nested roots/facets covered by a host"]
+  PLAN --> MANAGER["Register units in InteractionManager"]
+  MANAGER --> ROOTS["Root phase"]
+  MANAGER --> BINDINGS["Binding phase"]
+
+  ROOTS --> ISLAND["Island host"]
+  ROOTS --> PARTIAL["Partial host"]
+  BINDINGS --> ELEMENT["Element facet host<br/>adopted subtree"]
+  BINDINGS --> STANDALONE_SIGNAL["Standalone binding range<br/>(currently an unhosted signal)"]
+
+  ROOTS --> ORDER["Schedule roots before bindings"]
+  ORDER --> ISLAND
+  ORDER --> PARTIAL
+  ORDER --> ELEMENT
+  ORDER --> STANDALONE_SIGNAL
+
+  ISLAND --> TREE["Host-owned interactive tree"]
+  PARTIAL --> TREE
+  ELEMENT --> TREE
+  TREE --> SIGNAL_BINDING["Signal binding"]
+  TREE --> HANDLER_BINDING["Handler binding"]
+  SIGNAL_BINDING --> SIGNAL_TEXT["SignalText VNode boundary<br/>one per rendered signal use"]
+  STANDALONE_SIGNAL --> SIGNAL_TEXT
+  SIGNAL_TEXT --> SIGNAL_VALUE["Shared signal value<br/>@preact/signals updates its text node"]
+
+  ISLAND --> VISIBLE{"Standalone island<br/>near viewport?"}
+  VISIBLE -->|"yes, or eager fallback"| LOAD["Load island module and hydrate"]
+  VISIBLE -->|"not yet"| WAIT["Keep server HTML visible"]
+  WAIT --> VISIBLE
+
+  SIGNAL_VALUE --> REACTIVE["Signal subscriptions drive text and prop updates"]
+  HANDLER_BINDING --> REACTIVE
+  ISLAND --> REACTIVE
+  PARTIAL --> REACTIVE
+
+  REACTIVE --> OWNER["Resolve owning unit and delegate"]
+  OWNER --> QUEUE["Queue or schedule update"]
+  QUEUE --> DOM["Apply update with the unit's renderer"]
+  DOM --> REACTIVE
+
+  NAV["Opted-in link or GET/POST form"] --> FETCH["Fetch partial response"]
+  FETCH --> PARSE["Parse response markers, payload and island modules"]
+  PARSE --> CURRENT{"Still the current navigation?"}
+  CURRENT -->|"yes"| ROUTE["Route each partial update to its owner<br/>warn and skip unmatched regions"]
+  ROUTE --> TRANSITION{"View Transitions API<br/>available?"}
+  TRANSITION -->|"yes"| VT["Apply routed updates and URL-link state<br/>inside transition callback; await DOM commit"]
+  TRANSITION -->|"no"| UPDATE["Schedule routed updates normally"]
+  VT --> HISTORY["Commit destination URL after success"]
+  UPDATE --> HISTORY
+  CURRENT -->|"no"| SKIP["Drop stale response"]
+  FETCH -->|"network/error"| KEEP["Keep current page and URL; report failure"]
+
+  DETACH["Owned DOM removed / manager disposed"] --> CLEAN["Run unit cleanup and disconnect observers"]
+```
+
+On successful client navigation, link clicks add a history entry, while form
+submissions reconcile the URL only after the partial response has been applied.
+A failed link or form request leaves the current URL and rendered page in place.
+Browsers with the View Transitions API animate the committed DOM update; other
+browsers use the same update path without a transition.
 
 ### Page-level reactivity
 

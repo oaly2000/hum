@@ -290,9 +290,9 @@ function createReviveCtx(): ReviveContext {
 }
 
 /**
- * Component leaf owning a page level signal that was rendered as a child.
- * Returning the signal itself hands the text node over to `@preact/signals`,
- * which patches it in place: no component above it re-renders.
+ * Gives each signal child its own VNode boundary. The signal instance itself is
+ * shared state, so using it directly as a VNode lets separate partial trees
+ * overwrite Preact's per-VNode bookkeeping on that shared object.
  */
 export function SignalText(props: { signal: unknown }): ComponentChildren {
   return props.signal as ComponentChildren;
@@ -893,6 +893,21 @@ export function boot(
   const facets = planFacets(ctx);
 
   const manager = new InteractionManager();
+  const registerBinding = (
+    id: string,
+    owner: Node,
+    mount: () => void | (() => void),
+    delegates?: string[],
+  ) => {
+    manager.register({
+      id,
+      kind: "binding",
+      owner,
+      phase: "binding",
+      ...(delegates === undefined ? {} : { delegates }),
+      mount,
+    });
+  };
 
   for (let i = 0; i < ctx.roots.length; i++) {
     const root = ctx.roots[i];
@@ -981,22 +996,18 @@ export function boot(
         facet.start,
         facet.end,
       );
-      manager.register({
-        id: `signal:${facet.idx}:${i}`,
-        kind: "signal",
-        owner: container,
-        phase: "binding",
-        mount: () => hydrateSignalFacet(facet, payload),
-      });
+      registerBinding(
+        `signal:${facet.idx}:${i}`,
+        container,
+        () => hydrateSignalFacet(facet, payload),
+      );
     } else {
-      manager.register({
-        id: `element:${i}`,
-        kind: "element",
-        owner: facet.el,
-        phase: "binding",
-        delegates: facet.delegates,
-        mount: () => hydrateElementFacet(facet, payload),
-      });
+      registerBinding(
+        `element:${i}`,
+        facet.el,
+        () => hydrateElementFacet(facet, payload),
+        facet.delegates,
+      );
     }
   }
 
@@ -1063,7 +1074,6 @@ function planFacets(ctx: ReviveContext): FacetReq[] {
 
 /**
  * Hands the text node of a page level signal to a `SignalText` component leaf.
- * The signal patches the text node directly, so nothing above it re-renders.
  */
 function hydrateSignalFacet(
   facet: SignalFacetReq,

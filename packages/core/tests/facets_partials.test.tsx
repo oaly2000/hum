@@ -195,6 +195,115 @@ describe("interaction runtime boot lifecycle", () => {
 });
 
 describe("page level facets when a partial updates", () => {
+  it("keeps the current URL when a client navigation request fails", async () => {
+    const initial = () =>
+      h(
+        "div",
+        { "data-hum-client-nav": "" },
+        h("a", { href: "/network-offline" }, "Offline"),
+        h(Partial, { name: "route" }, h("p", { id: "content" }, "current")),
+      );
+    const { html, payload } = await renderFragment(initial);
+    await hydrate(html, payload);
+    const currentUrl = location.href;
+    const networkError = new TypeError("Failed to fetch");
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(networkError));
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      document.querySelector("a")!.dispatchEvent(
+        new MouseEvent("click", {
+          bubbles: true,
+          button: 0,
+          cancelable: true,
+        }),
+      );
+
+      await vi.waitFor(() => expect(error).toHaveBeenCalledOnce());
+      expect(error).toHaveBeenCalledWith(
+        "Hum: client navigation failed; keeping the current page.",
+        networkError,
+      );
+      expect(location.href).toBe(currentUrl);
+      expect(text("#content")).toBe("current");
+    } finally {
+      error.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it.each([true, false])(
+    "keeps URL highlights in sync (View Transitions support: %s)",
+    async (supportsViewTransitions) => {
+      const initial = () =>
+        h(
+          "div",
+          { "data-hum-client-nav": "" },
+          h("a", { href: "/next", "data-current": "false" }, "Next"),
+          h(Partial, { name: "route" }, h("p", { id: "content" }, "old")),
+        );
+      const { html, payload } = await renderFragment(initial);
+      await hydrate(html, payload);
+
+      const response = await renderPartialResponse(() =>
+        h(Partial, { name: "route" }, h("p", { id: "content" }, "new")));
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response));
+
+      const originalDescriptor = Object.getOwnPropertyDescriptor(
+        document,
+        "startViewTransition",
+      );
+      let callbackDone: Promise<void> | undefined;
+      const startViewTransition = vi.fn((update: () => Promise<void>) => {
+        callbackDone = update();
+        return { updateCallbackDone: callbackDone };
+      });
+      Object.defineProperty(document, "startViewTransition", {
+        configurable: true,
+        value: supportsViewTransitions ? startViewTransition : undefined,
+      });
+
+      try {
+        document.querySelector("a")!.dispatchEvent(
+          new MouseEvent("click", {
+            bubbles: true,
+            button: 0,
+            cancelable: true,
+          }),
+        );
+        if (supportsViewTransitions) {
+          await vi.waitFor(() =>
+            expect(startViewTransition).toHaveBeenCalledOnce()
+          );
+          await callbackDone;
+        } else {
+          await vi.waitFor(() => expect(text("#content")).toBe("new"));
+          expect(startViewTransition).not.toHaveBeenCalled();
+        }
+
+        expect(text("#content")).toBe("new");
+        expect(document.querySelector("a")?.getAttribute("data-current")).toBe(
+          "true",
+        );
+        expect(document.querySelector("a")?.getAttribute("aria-current")).toBe(
+          "page",
+        );
+        await vi.waitFor(() => expect(location.pathname).toBe("/next"));
+      } finally {
+        if (originalDescriptor === undefined) {
+          Reflect.deleteProperty(document, "startViewTransition");
+        } else {
+          Object.defineProperty(
+            document,
+            "startViewTransition",
+            originalDescriptor,
+          );
+        }
+        vi.unstubAllGlobals();
+      }
+    },
+  );
+
   it("shares response state between separately updated partial roots", async () => {
     const initial = () =>
       h(

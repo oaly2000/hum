@@ -132,6 +132,7 @@ async function fetchPartials(
   partialUrl: URL,
   shouldNavigate: boolean,
   init: RequestInit = {},
+  historyMode: "push" | "replace" = "replace",
 ): Promise<boolean> {
   const target = new URL(partialUrl);
   target.searchParams.set(PARTIAL_SEARCH_PARAM, "true");
@@ -148,7 +149,15 @@ async function fetchPartials(
   finalUrl = stripInternalParams(finalUrl);
 
   try {
-    await applyPartials(res, generation);
+    await applyPartials(
+      res,
+      generation,
+      shouldNavigate && generation === lastNavigation
+        ? () => {
+          if (generation === lastNavigation) updateLinks(finalUrl);
+        }
+        : undefined,
+    );
   } catch (err) {
     // A superseded response must not pull the page anywhere, not even to a
     // redirect target: the navigation that replaced this one owns the URL now.
@@ -161,7 +170,10 @@ async function fetchPartials(
   }
 
   if (generation !== lastNavigation) return false;
-  if (shouldNavigate) maybeReplaceHistory(finalUrl);
+  if (shouldNavigate) {
+    if (historyMode === "push") maybePushHistory(finalUrl);
+    else maybeReplaceHistory(finalUrl);
+  }
   return true;
 }
 
@@ -190,13 +202,15 @@ document.addEventListener("click", async (event) => {
   const nextUrl = new URL(anchor.href);
 
   event.preventDefault();
-  maybePushHistory(nextUrl);
 
   const partialUrl = new URL(partial ?? nextUrl.href, location.href);
   // The URL highlight only moves when this navigation is the one that landed:
   // a response a newer click superseded must not repaint the page around it.
-  if (!await fetchPartials(nextUrl, partialUrl, true)) return;
-  updateLinks(nextUrl);
+  try {
+    await fetchPartials(nextUrl, partialUrl, true, {}, "push");
+  } catch (err) {
+    console.error("Hum: client navigation failed; keeping the current page.", err);
+  }
 });
 
 addEventListener("popstate", async (event) => {
@@ -213,7 +227,6 @@ addEventListener("popstate", async (event) => {
   const url = new URL(location.href, location.origin);
   try {
     if (!await fetchPartials(url, url, true)) return;
-    updateLinks(url);
     scrollTo({ left: state.scrollX ?? 0, top: state.scrollY ?? 0, behavior: "instant" });
   } catch (err) {
     if (err instanceof NoPartialsError) {
@@ -293,6 +306,7 @@ interface PendingPartialUpdate {
 export async function applyPartials(
   res: Response,
   generation = lastNavigation,
+  afterUpdate?: () => void,
 ): Promise<void> {
   if (generation !== lastNavigation) return;
 
@@ -347,8 +361,7 @@ export async function applyPartials(
 
   const manager = currentInteractionManager();
   let headApplied = false;
-  const applied = manager?.updateMany(
-    ctx.updates.map((update) => ({
+  const updates = ctx.updates.map((update) => ({
       kind: "partial" as const,
       key: update.name,
       delegates: update.delegates,
@@ -361,14 +374,31 @@ export async function applyPartials(
           applyHead(doc);
         }
       },
-    })),
-  ) ?? ctx.updates.map(() => false);
-  for (let i = 0; i < applied.length; i++) {
-    if (!applied[i]) {
-      console.warn(
-        `Hum: partial "${ctx.updates[i].name}" is not part of the current page. Skipping it.`,
-      );
+    }));
+
+  const applyUpdates = async (waitForCommit: boolean) => {
+    const applied = waitForCommit
+      ? await manager?.updateManyAndWait(updates) ??
+        updates.map(() => false)
+      : manager?.updateMany(updates) ?? updates.map(() => false);
+    for (let i = 0; i < applied.length; i++) {
+      if (!applied[i]) {
+        console.warn(
+          `Hum: partial "${ctx.updates[i].name}" is not part of the current page. Skipping it.`,
+        );
+      }
     }
+    afterUpdate?.();
+  };
+
+  const startViewTransition = document.startViewTransition;
+  if (typeof startViewTransition === "function" && manager !== null) {
+    const transition = startViewTransition.call(document, () =>
+      applyUpdates(true)
+    );
+    await transition.updateCallbackDone;
+  } else {
+    await applyUpdates(false);
   }
 }
 

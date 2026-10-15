@@ -3,6 +3,7 @@ import { add, setFromProp } from "@humjs/core/events";
 import { define } from "@humjs/core";
 import { CodeBlock } from "../_components/CodeBlock.js";
 import { resetOrder } from "../../client/factories.js";
+import Counter from "../_islands/Counter.js";
 
 export const head = define.head(
   <title>Page-level reactivity — Hum Guides</title>,
@@ -67,6 +68,12 @@ export default function ReactivityPage() {
         prop, or a handler the browser rebuilds to write back to one, is all it
         takes—the machinery an island uses, applied to a single node.
       </p>
+
+            <div onClick={add(tickets, 1)}>
+        <label>click: { tickets }</label>
+
+        <Counter start={2} />
+      </div>
 
       <h2 class="mt-12 text-xl font-extrabold tracking-tight sm:text-2xl">
         The same machinery as an island
