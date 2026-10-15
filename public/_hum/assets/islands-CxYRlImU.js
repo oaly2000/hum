@@ -1,0 +1,2 @@
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/Counter-H0iGcd-8.js","assets/signals.module-DOuEyVru.js","assets/jsxRuntime-Bpyyn9Gq.js","assets/ThemeToggle-58BFUsYU.js"])))=>i.map(i=>d[i]);
+import{t as e}from"./preload-helper-BLdHbfdN.js";var t=Object.assign({"/routes/_islands/Counter.tsx":()=>e(()=>import(`./Counter-H0iGcd-8.js`),__vite__mapDeps([0,1,2])),"/routes/_islands/ThemeToggle.tsx":()=>e(()=>import(`./ThemeToggle-58BFUsYU.js`),__vite__mapDeps([3,1,2]))});export{t as islandModules};
