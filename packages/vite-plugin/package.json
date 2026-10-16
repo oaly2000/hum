@@ -32,7 +32,7 @@
     "hono": "^4.13.13"
   },
   "devDependencies": {
-    "@pracht/preact-ssr-precompile": "^0.1.4",
+    "@humjs/preact-ssr-precompile": "workspace:*",
     "@types/node": "^26.6.5",
     "preact": "^11.0.1",
     "vite": "^8.3.4"

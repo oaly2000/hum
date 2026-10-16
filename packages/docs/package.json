@@ -3,6 +3,9 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -23,6 +26,7 @@
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.63.2",
+    "@humjs/preact-ssr-precompile": "workspace:*",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^26.6.5",
     "tailwindcss": "^4.3.3",

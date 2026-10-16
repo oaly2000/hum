@@ -188,7 +188,9 @@ the example where applicable.
 
 ## Development and Validation
 
-Requires Node.js 20.19 or later (or 22.12 or later) and pnpm.
+Workspace development and documentation builds require Node.js 22.18 or later
+and pnpm. Hum's published Vite build plugin itself supports Node.js 20.19 or
+later (or 22.12 or later).
 
 ```bash
 pnpm install

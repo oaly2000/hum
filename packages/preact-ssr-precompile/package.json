@@ -1,0 +1,45 @@
+{
+  "name": "@humjs/preact-ssr-precompile",
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "description": "Precompile safe Preact JSX for SSR while preserving interactive elements",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/oaly2000/hum.git",
+    "directory": "packages/preact-ssr-precompile"
+  },
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "node ../../tools/clean-dist.mjs && tsc -p tsconfig.json",
+    "clean": "node ../../tools/clean-dist.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "rolldown": "^1.2.13",
+    "rolldown-string": "^0.3.0"
+  },
+  "peerDependencies": {
+    "preact": "^10.26.0 || ^11.0.0-0",
+    "preact-render-to-string": "^6.5.13",
+    "vite": "^8.0.0"
+  },
+  "peerDependenciesMeta": {
+    "vite": {
+      "optional": true
+    }
+  }
+}

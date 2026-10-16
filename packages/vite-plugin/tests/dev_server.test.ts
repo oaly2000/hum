@@ -4,7 +4,7 @@ import { join, relative, resolve } from "node:path";
 
 import { createServer } from "vite";
 import { describe, expect, it } from "vitest";
-import { preactSsrPrecompile } from "@pracht/preact-ssr-precompile";
+import { preactSsrPrecompile } from "@humjs/preact-ssr-precompile";
 
 import { hum } from "../src/mod.js";
 

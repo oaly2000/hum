@@ -6,8 +6,9 @@
 Hum is a server-side rendering framework built on [Preact](https://preactjs.com)
 and [Hono](https://hono.dev).
 
-Hum's Vite build requires Node.js 20.19 or later (or 22.12 or later) and pnpm
-for workspace development.
+Hum's Vite build requires Node.js 20.19 or later (or 22.12 or later). Workspace
+development and the precompiled documentation site require Node.js 22.18 or
+later and pnpm.
 
 Most of its inspiration and a good part of its code come from
 [Fresh](https://usefresh.dev). It keeps Fresh's distinctive

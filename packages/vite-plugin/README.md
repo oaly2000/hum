@@ -63,11 +63,11 @@ factories used by server-rendered page facets. The plugin includes its CSS in
 development responses and production assets.
 
 To precompile supported static Preact JSX subtrees for server rendering, add
-[`@pracht/preact-ssr-precompile`](https://www.npmjs.com/package/@pracht/preact-ssr-precompile)
-to your project and add it to `vite.config.ts` before `hum()`:
+[`@humjs/preact-ssr-precompile`](../preact-ssr-precompile) to your project and
+add it to `vite.config.ts` before `hum()`:
 
 ```ts
-import { preactSsrPrecompile } from "@pracht/preact-ssr-precompile";
+import { preactSsrPrecompile } from "@humjs/preact-ssr-precompile";
 
 export default defineConfig({
   plugins: [preactSsrPrecompile(), ...hum()],
@@ -77,7 +77,8 @@ export default defineConfig({
 Hum forwards configured user transform hooks to its internal production server
 build without replaying the plugins' other lifecycle hooks. The precompile
 transform runs for server rendering; the client build keeps the regular JSX
-runtime for hydration. The precompile package requires Node.js 22.18 or later.
+runtime for hydration. The precompiler automatically preserves likely
+interactive facet elements. It requires Node.js 22.18 or later.
 Precompiled keyed elements serialize their keys as `data-hum-key` attributes
 for Hum's client reviver.
 

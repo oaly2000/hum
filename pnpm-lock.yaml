@@ -85,6 +85,9 @@ importers:
       '@cloudflare/vite-plugin':
         specifier: ^1.63.2
         version: 1.63.2(@types/node@26.6.5)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))(wrangler@4.150.0(@types/node@26.6.5))
+      '@humjs/preact-ssr-precompile':
+        specifier: workspace:*
+        version: link:../preact-ssr-precompile
       '@tailwindcss/vite':
         specifier: ^4.3.3
         version: 4.3.3(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
@@ -101,6 +104,24 @@ importers:
         specifier: ^4.150.0
         version: 4.150.0(@types/node@26.6.5)
 
+  packages/preact-ssr-precompile:
+    dependencies:
+      preact:
+        specifier: ^10.26.0 || ^11.0.0-0
+        version: 11.0.1(preact-render-to-string@6.8.0)
+      preact-render-to-string:
+        specifier: ^6.5.13
+        version: 6.8.0(preact@11.0.1)
+      rolldown:
+        specifier: ^1.2.13
+        version: 1.2.13
+      rolldown-string:
+        specifier: ^0.3.0
+        version: 0.3.1(rolldown@1.2.13)
+      vite:
+        specifier: ^8.0.0
+        version: 8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)
+
   packages/vite-plugin:
     dependencies:
       '@hono/node-server':
@@ -113,9 +134,9 @@ importers:
         specifier: ^4.13.13
         version: 4.13.13
     devDependencies:
-      '@pracht/preact-ssr-precompile':
-        specifier: ^0.1.4
-        version: 0.1.4(preact-render-to-string@6.8.0)(preact@11.0.1)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
+      '@humjs/preact-ssr-precompile':
+        specifier: workspace:*
+        version: link:../preact-ssr-precompile
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5
@@ -624,17 +645,6 @@ packages:
 
   '@poppinss/exception@1.2.3':
     resolution: {integrity: sha512-dCED+QRChTVatE9ibtoaxc+WkdzOSjYTKi/+uacHWIsfodVfpsueo3+DKpgU5Px8qXjgmXkSvhXvSCz3fnP9lw==}
-
-  '@pracht/preact-ssr-precompile@0.1.4':
-    resolution: {integrity: sha512-+wnQ+9BLH9PcqpH6rOLZiTpwyZmlWcfpQmLMKpekaFN7duCuVYGbrX44/UDdrEwKJvs1az5G7KyZ94G6TS8x9w==}
-    engines: {node: '>=22.18'}
-    peerDependencies:
-      preact: ^10.26.0 || ^11.0.0-0
-      preact-render-to-string: ^6.5.13
-      vite: ^8.0.0
-    peerDependenciesMeta:
-      vite:
-        optional: true
 
   '@preact/signals-core@1.14.4':
     resolution: {integrity: sha512-HNB6HYeYKhQbJ1aKl+YRjrS4+QWHLKX6qKoUsfS/m0vqzsVaEBiZiaKbG/e+NKk2ch5ALQr/ihWaMHxiCuuWHA==}
@@ -1943,15 +1953,6 @@ snapshots:
       supports-color: 10.2.2
 
   '@poppinss/exception@1.2.3': {}
-
-  '@pracht/preact-ssr-precompile@0.1.4(preact-render-to-string@6.8.0)(preact@11.0.1)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))':
-    dependencies:
-      preact: 11.0.1(preact-render-to-string@6.8.0)
-      preact-render-to-string: 6.8.0(preact@11.0.1)
-      rolldown: 1.2.13
-      rolldown-string: 0.3.1(rolldown@1.2.13)
-    optionalDependencies:
-      vite: 8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)
 
   '@preact/signals-core@1.14.4': {}
 
