@@ -13,6 +13,7 @@ import {
   type RequestContext,
   runWithRequestContext,
 } from "./request_context.js";
+import { ResourceManager } from "./resource.js";
 import {
   findNotFound,
   renderError,
@@ -241,43 +242,48 @@ export async function mountHum<
     }
   }
 
-  app.notFound(async (c) => {
-    const url = new URL(c.req.url);
-    const context = c as HumContext;
-    const found = findNotFound(notFound, url.pathname);
-    const dir = found === undefined
-      ? ""
-      : dirOf(found.file.file, resolved.routesDir);
+  app.notFound((c) =>
+    runWithRequestContext(
+      { resources: new ResourceManager() },
+      async () => {
+        const url = new URL(c.req.url);
+        const context = c as HumContext;
+        const found = findNotFound(notFound, url.pathname);
+        const dir = found === undefined
+          ? ""
+          : dirOf(found.file.file, resolved.routesDir);
 
-    const route = unmatchedRoute(
-      build.routes,
-      resolved.routesDir,
-      dir,
-      url.pathname,
-    );
-    const input: RouteRenderInput = {
-      config: resolved,
-      buildCache,
-      loader,
-      route,
-      url,
-      params: {},
-      state: c.var as Record<string, unknown>,
-      notFound,
-    };
+        const route = unmatchedRoute(
+          build.routes,
+          resolved.routesDir,
+          dir,
+          url.pathname,
+        );
+        const input: RouteRenderInput = {
+          config: resolved,
+          buildCache,
+          loader,
+          route,
+          url,
+          params: {},
+          state: c.var as Record<string, unknown>,
+          notFound,
+        };
 
-    try {
-      await internals.refresh();
-      // The middleware of the directory the `_404` page belongs to wraps the
-      // render too, so a branch guard also covers unmatched paths under it.
-      const middleware = await loadMiddleware(route, internals);
-      const terminal = async (): Promise<Response> =>
-        htmlResponse(context, await renderNotFound(input, url.pathname));
-      return await runRouteMiddleware(middleware, context, terminal);
-    } catch (err) {
-      return htmlResponse(context, await renderError(input, err));
-    }
-  });
+        try {
+          await internals.refresh();
+          // The middleware of the directory the `_404` page belongs to wraps the
+          // render too, so a branch guard also covers typos in that branch.
+          const middleware = await loadMiddleware(route, internals);
+          const terminal = async (): Promise<Response> =>
+            htmlResponse(context, await renderNotFound(input, url.pathname));
+          return await runRouteMiddleware(middleware, context, terminal);
+        } catch (err) {
+          return htmlResponse(context, await renderError(input, err));
+        }
+      },
+    )
+  );
 
   return Object.assign(app, { hum: internals });
 }
@@ -311,60 +317,67 @@ function routeHandler(
   internals: HumInternals,
   notFound: ResolvedNotFound[],
 ): MiddlewareHandler {
-  return async (c) => {
-    const url = new URL(c.req.url);
-    const method = c.req.method.toUpperCase();
-    const params = c.req.param() as Record<string, string>;
-    const context = c as HumContext;
-    context.set("humRoute", route);
-    const input: RouteRenderInput = {
-      config: internals.config,
-      buildCache: internals.buildCache,
-      loader: internals.loader,
-      route,
-      url,
-      params,
-      state: c.var as Record<string, unknown>,
-      notFound,
-    };
+  return (c) =>
+    runWithRequestContext(
+      { resources: new ResourceManager() },
+      async () => {
+        const url = new URL(c.req.url);
+        const method = c.req.method.toUpperCase();
+        const params = c.req.param() as Record<string, string>;
+        const context = c as HumContext;
+        context.set("humRoute", route);
+        const input: RouteRenderInput = {
+          config: internals.config,
+          buildCache: internals.buildCache,
+          loader: internals.loader,
+          route,
+          url,
+          params,
+          state: c.var as Record<string, unknown>,
+          notFound,
+        };
 
-    try {
-      await internals.refresh();
-      const mod = (await internals.loader.load(route.file)) as RouteModule;
-      const routeMiddleware = await loadMiddleware(route, internals);
-      const terminal = async (): Promise<Response> => {
-        const handler = pickHandler(mod.handlers, method);
-        if (handler !== undefined) {
-          const requestContext: RequestContext = {
-            page: async (data?: unknown, options?: PageRenderOptions) =>
-              htmlResponse(context, await renderRoute(input, data, options)),
+        try {
+          await internals.refresh();
+          const mod = (await internals.loader.load(route.file)) as RouteModule;
+          const routeMiddleware = await loadMiddleware(route, internals);
+          const terminal = async (): Promise<Response> => {
+            const handler = pickHandler(mod.handlers, method);
+            if (handler !== undefined) {
+              const requestContext: Pick<RequestContext, "page"> = {
+                page: async (data?: unknown, options?: PageRenderOptions) =>
+                  htmlResponse(
+                    context,
+                    await renderRoute(input, data, options),
+                  ),
+              };
+
+              const res = await runWithRequestContext(
+                requestContext,
+                () => handler(context),
+              );
+              if (res instanceof Response) return res;
+            } else if (
+              mod.handlers !== undefined && method !== "GET" && method !== "HEAD"
+            ) {
+              return context.text("Method Not Allowed", 405);
+            }
+
+            return htmlResponse(context, await renderRoute(input));
           };
 
-          const res = await runWithRequestContext(
-            requestContext,
-            () => handler(context),
-          );
-          if (res instanceof Response) return res;
-        } else if (
-          mod.handlers !== undefined && method !== "GET" && method !== "HEAD"
-        ) {
-          return context.text("Method Not Allowed", 405);
+          return await runRouteMiddleware(routeMiddleware, context, terminal);
+        } catch (err) {
+          if (route.error === undefined) {
+            internals.config.logger.error(
+              `hum: unhandled error while handling ${context.req.method} ${url.pathname}`,
+              err,
+            );
+          }
+          return htmlResponse(context, await renderError(input, err));
         }
-
-        return htmlResponse(context, await renderRoute(input));
-      };
-
-      return await runRouteMiddleware(routeMiddleware, context, terminal);
-    } catch (err) {
-      if (route.error === undefined) {
-        internals.config.logger.error(
-          `hum: unhandled error while handling ${context.req.method} ${url.pathname}`,
-          err,
-        );
-      }
-      return htmlResponse(context, await renderError(input, err));
-    }
-  };
+      },
+    );
 }
 
 /**

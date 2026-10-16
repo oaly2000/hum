@@ -59,6 +59,63 @@ the route's default view as its `data` prop; it does not add framework-specific
 fields to Hono's context. A handler may also return a normal `Response`, such as
 `c.json(...)` or `c.redirect(...)`.
 
+## Resources across route layers
+
+For data shared between a directory middleware and its layout or page, define a
+typed key in a module imported by both route files:
+
+```tsx
+// routes/admin/_components/resources.ts
+import { createResourceKey } from "@humjs/core";
+
+export const accountKey = createResourceKey<{ name: string }>("admin.account");
+```
+
+Register the request-specific fetch in the directory middleware. Descendant
+layouts and pages can retrieve the same `Resource<T>` from the request context:
+
+```tsx
+// routes/admin/_middleware.ts
+import { registerResource, type HumMiddleware } from "@humjs/core";
+import { accountKey } from "./_components/resources.js";
+
+const middleware: HumMiddleware = async (c, next) => {
+  registerResource(accountKey, () => loadAccount(c));
+  await next();
+};
+
+export default middleware;
+```
+
+```tsx
+// routes/admin/_layout.tsx
+import { getResource, Suspense } from "@humjs/core";
+import type { ComponentChildren } from "preact";
+import { accountKey } from "./_components/resources.js";
+
+export default function AdminLayout(
+  { children }: { children?: ComponentChildren },
+) {
+  return (
+    <Suspense
+      resource={getResource(accountKey)}
+      fallback={<p>Loading account…</p>}
+      errorFallback={<p>Could not load account.</p>}
+    >
+      {(account) => <section>Welcome, {account.name}{children}</section>}
+    </Suspense>
+  );
+}
+```
+
+Resources are scoped to one request and shared through AsyncLocalStorage, so
+parallel requests do not share values. Registering the same key more than once
+in one request throws; layouts and middleware must import the same key object,
+and a key must be registered before a layout or page reads it. The existing
+`streaming: true` route option lets `Suspense` stream its fallback while the
+resource is pending. Resource values are server-side and are not serialized
+into island props.
+
 ## Runtime boundaries
 
 - Keep server-only APIs from `@humjs/core` out of browser island modules. Import

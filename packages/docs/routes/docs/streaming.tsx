@@ -156,11 +156,54 @@ export default define.page<StreamingPageData>(({ data }) => {
 
       <p class="mt-5 leading-7 text-muted">
         The handler starts the request and passes a stable resource to the page.
-        <code>profile.read()</code>{" "}
+        <code>resource.read()</code>{" "}
         returns the value when ready or suspends while pending. If it rejects,
         Hum’s <code>Suspense</code>{" "}
-        takes care of pending and rejected states in one place. Create the
-        resource once per request in the handler.
+        handles pending and rejected states in one place.
+      </p>
+
+      <h2 class="mt-12 text-xl font-extrabold tracking-tight sm:text-2xl">
+        Share requests across route layers
+      </h2>
+      <p class="mt-3 leading-7 text-muted">
+        For data owned by a directory, register it in that directory’s
+        {" "}
+        <code>_middleware.ts</code>{" "}
+        with a typed key. Descendant layouts and pages can retrieve the
+        request-scoped resource without passing it through every route:
+      </p>
+      <CodeBlock
+        code={`        // routes/admin/_components/resources.ts
+import { createResourceKey } from "@humjs/core";
+export const accountKey = createResourceKey<Account>("admin.account");
+
+// routes/admin/_middleware.ts
+import { registerResource, type HumMiddleware } from "@humjs/core";
+        import { accountKey } from "./_components/resources.js";
+const middleware: HumMiddleware = async (c, next) => {
+  registerResource(accountKey, () => loadAccount(c));
+  await next();
+};
+export default middleware;
+
+// routes/admin/_layout.tsx
+import { getResource, Suspense } from "@humjs/core";
+import type { ComponentChildren } from "preact";
+import { accountKey } from "./_components/resources.js";
+export default function AdminLayout(
+  { children }: { children?: ComponentChildren },
+) {
+  return (
+    <Suspense resource={getResource(accountKey)} fallback={<p>Loading…</p>}>
+      {(account) => <section>{account.name}{children}</section>}
+    </Suspense>
+  );
+}`}
+        language="typescript"
+      />
+      <p class="mt-3 leading-7 text-muted">
+        Resources are isolated per request. Registering the same key twice in
+        one request throws instead of silently replacing the first value.
       </p>
 
       <h2 class="mt-12 text-xl font-extrabold tracking-tight sm:text-2xl">

@@ -9,6 +9,71 @@ import { preactSsrPrecompile } from "@pracht/preact-ssr-precompile";
 import { hum } from "../src/mod.js";
 
 describe("Hum Vite dev server", () => {
+  it("shares middleware resources with route views across the SSR module runner", async () => {
+    const root = resolve(process.cwd(), "packages", "docs");
+    const routesRoot = await mkdtemp(
+      join(root, "routes", "resource-manager-test-"),
+    );
+    const routesDir = relative(root, routesRoot).replace(/\\/g, "/");
+    const componentsRoot = join(routesRoot, "_components");
+    await mkdir(componentsRoot, { recursive: true });
+    await writeFile(
+      join(componentsRoot, "resource-key.ts"),
+      `import { createResourceKey } from "@humjs/core";
+export const messageKey = createResourceKey<string>("dev-test.message");
+`,
+    );
+    await writeFile(
+      join(routesRoot, "_middleware.ts"),
+      `import { registerResource } from "@humjs/core";
+import { messageKey } from "./_components/resource-key";
+
+export default async function middleware(c, next) {
+  registerResource(messageKey, async () => c.req.header("x-message") ?? "missing");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await next();
+}
+`,
+    );
+    await writeFile(
+      join(routesRoot, "_layout.tsx"),
+      `import { getResource } from "@humjs/core";
+import { messageKey } from "./_components/resource-key";
+
+export default function Layout({ children }) {
+  return <section>{getResource(messageKey).read()}{children}</section>;
+}
+`,
+    );
+    await writeFile(
+      join(routesRoot, "index.tsx"),
+      'export default function Home() { return <p>runner view</p>; }\n',
+    );
+
+    const server = await createServer({
+      configFile: false,
+      root,
+      plugins: hum({ routesDir }),
+      logLevel: "silent",
+      server: { host: "127.0.0.1", port: 0, strictPort: true },
+    });
+
+    try {
+      await server.listen();
+      const address = server.httpServer?.address() as AddressInfo;
+      const response = await fetch(`http://127.0.0.1:${address.port}`, {
+        headers: { "x-message": "from middleware" },
+      });
+      expect(response.status).toBe(200);
+      expect(await response.text()).toContain(
+        "<section>from middleware<p>runner view</p></section>",
+      );
+    } finally {
+      await server.close();
+      await rm(routesRoot, { recursive: true, force: true });
+    }
+  });
+
   it("runs configured transforms in the development SSR pipeline", async () => {
     const root = resolve(process.cwd(), "packages", "docs");
     const routesRoot = await mkdtemp(

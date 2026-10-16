@@ -55,9 +55,15 @@ export type {
   RouteProps,
 } from "./types.js";
 
-export { page } from "./request_context.js";
+export {
+  getResource,
+  page,
+  registerResource,
+} from "./request_context.js";
 export {
   createResource,
+  createResourceKey,
+  type ResourceKey,
   type Resource,
   Suspense,
   type SuspenseProps,

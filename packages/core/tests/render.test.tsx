@@ -8,10 +8,13 @@ import { describe, expect, it } from "vitest";
 import {
   createApp,
   createResource,
+  createResourceKey,
   define,
   defineBuild,
+  getResource,
   mountHum,
   page,
+  registerResource,
   Suspense as HumSuspense,
 } from "../src/mod.js";
 import { Partial } from "../src/runtime/shared.js";
@@ -19,6 +22,19 @@ import { tagIsland } from "../src/routing/island_tag.js";
 import type { HumContext, HumManifest, RouteProps } from "../src/types.js";
 
 const START: Signal<number> = signal(3);
+const ROUTE_RESOURCE = createResourceKey<string>("render.test.route");
+const DUPLICATE_RESOURCE = createResourceKey<string>(
+  "render.test.duplicate",
+);
+const routeResourceResolvers = new Map<string, (value: string) => void>();
+let lateResourceLookupReady = false;
+let resolveLateResourceLookup: () => void = () => {};
+const lateResourceLookupPending = new Promise<void>((resolve) => {
+  resolveLateResourceLookup = () => {
+    lateResourceLookupReady = true;
+    resolve();
+  };
+});
 
 function Counter(
   props: { count: Signal<number>; children?: ComponentChildren },
@@ -65,6 +81,33 @@ function Layout(props: { children?: ComponentChildren }) {
     { id: "layout" },
     h("nav", null, h("a", { href: "/" }, "home")),
     props.children,
+  );
+}
+
+function ResourceLayout(props: { children?: ComponentChildren }) {
+  return h(
+    "section",
+    { id: "resource-layout" },
+    h(HumSuspense, {
+      resource: getResource(ROUTE_RESOURCE),
+      fallback: h("i", null, "resource fallback"),
+      errorFallback: h("i", null, "resource error"),
+      children: (value) => h("strong", null, `resource:${value}`),
+    }),
+    props.children,
+  );
+}
+
+function LateResourceLookup() {
+  if (!lateResourceLookupReady) throw lateResourceLookupPending;
+  return h("strong", null, `late:${getResource(ROUTE_RESOURCE).read()}`);
+}
+
+function LateResourcePage() {
+  return h(
+    Suspense,
+    { fallback: h("i", null, "late lookup fallback") },
+    h(LateResourceLookup),
   );
 }
 
@@ -229,6 +272,76 @@ const manifest: HumManifest = {
       kind: "layout",
       urlPath: "/",
       load: async () => ({ default: Layout }),
+    },
+    {
+      file: "routes/resources/_middleware.ts",
+      kind: "middleware",
+      urlPath: "/resources",
+      load: async () => ({
+        default: async (c: HumContext, next: Next) => {
+          registerResource(ROUTE_RESOURCE, async () => {
+            const value = c.req.header("x-resource-value") ?? "default";
+            if (value !== "streamed-resource") return value;
+            return await new Promise<string>((resolve) => {
+              routeResourceResolvers.set(value, resolve);
+            });
+          });
+          await next();
+        },
+      }),
+    },
+    {
+      file: "routes/resources/_layout.tsx",
+      kind: "layout",
+      urlPath: "/resources",
+      load: async () => ({ default: ResourceLayout }),
+    },
+    {
+      file: "routes/resources/index.tsx",
+      kind: "route",
+      urlPath: "/resources",
+      load: async () => ({
+        default: () => h("p", null, "resource route"),
+        config: { streaming: true },
+      }),
+    },
+    {
+      file: "routes/resource-duplicate/_middleware.ts",
+      kind: "middleware",
+      urlPath: "/resource-duplicate",
+      load: async () => ({
+        default: async (_c: HumContext, next: Next) => {
+          registerResource(DUPLICATE_RESOURCE, async () => "first");
+          registerResource(DUPLICATE_RESOURCE, async () => "second");
+          await next();
+        },
+      }),
+    },
+    {
+      file: "routes/resource-duplicate/index.tsx",
+      kind: "route",
+      urlPath: "/resource-duplicate",
+      load: async () => ({ default: () => h("p", null, "unreachable") }),
+    },
+    {
+      file: "routes/resource-late-lookup/_middleware.ts",
+      kind: "middleware",
+      urlPath: "/resource-late-lookup",
+      load: async () => ({
+        default: async (_c: HumContext, next: Next) => {
+          registerResource(ROUTE_RESOURCE, async () => "available");
+          await next();
+        },
+      }),
+    },
+    {
+      file: "routes/resource-late-lookup/index.tsx",
+      kind: "route",
+      urlPath: "/resource-late-lookup",
+      load: async () => ({
+        default: LateResourcePage,
+        config: { streaming: true },
+      }),
     },
     {
       file: "routes/_404.tsx",
@@ -506,6 +619,80 @@ describe("head handling", () => {
 });
 
 describe("experimental streaming", () => {
+  it("shares typed resources from route middleware with inherited layouts", async () => {
+    const [firstResponse, secondResponse] = await Promise.all([
+      app.request("http://localhost/resources", {
+        headers: { "x-resource-value": "first-request" },
+      }),
+      app.request("http://localhost/resources", {
+        headers: { "x-resource-value": "second-request" },
+      }),
+    ]);
+    const [firstHtml, secondHtml] = await Promise.all([
+      firstResponse.text(),
+      secondResponse.text(),
+    ]);
+
+    expect(firstHtml).toContain("resource:first-request");
+    expect(secondHtml).toContain("resource:second-request");
+  });
+
+  it("streams the fallback while a registered resource is pending", async () => {
+    const response = await app.request("http://localhost/resources", {
+      headers: { "x-resource-value": "streamed-resource" },
+    });
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
+    let html = "";
+    while (!html.includes("resource fallback")) {
+      const { value, done } = await reader.read();
+      expect(done).toBe(false);
+      html += decoder.decode(value, { stream: true });
+    }
+
+    routeResourceResolvers.get("streamed-resource")!("streamed-value");
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      html += decoder.decode(value, { stream: true });
+    }
+    html += decoder.decode();
+
+    expect(html).toContain("resource:streamed-value");
+  });
+
+  it("keeps the request resource context during deferred stream rendering", async () => {
+    const response = await app.request(
+      "http://localhost/resource-late-lookup",
+    );
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
+    let html = "";
+    while (!html.includes("late lookup fallback")) {
+      const { value, done } = await reader.read();
+      expect(done).toBe(false);
+      html += decoder.decode(value, { stream: true });
+    }
+
+    resolveLateResourceLookup();
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      html += decoder.decode(value, { stream: true });
+    }
+    html += decoder.decode();
+
+    expect(html).toContain("late:available");
+  });
+
+  it("rejects registering the same resource key twice in one request", async () => {
+    const response = await app.request(
+      "http://localhost/resource-duplicate",
+    );
+    expect(response.status).toBe(500);
+    expect(await response.text()).toContain('id="error-page"');
+  });
+
   it("streams the Suspense fallback before the resolved subtree", async () => {
     const response = await app.request("http://localhost/streaming");
     expect(response.status).toBe(200);

@@ -2,7 +2,25 @@ import { h, options } from "preact";
 import { renderToStringAsync } from "preact-render-to-string";
 import { describe, expect, it } from "vitest";
 
-import { createResource, Suspense } from "../src/resource.js";
+import {
+  createResource,
+  createResourceKey,
+  ResourceManager,
+  Suspense,
+} from "../src/resource.js";
+
+describe("ResourceManager", () => {
+  it("retrieves registered resources and rejects duplicate keys", () => {
+    const manager = new ResourceManager();
+    const key = createResourceKey<string>("resource.test");
+    const resource = manager.register(key, async () => "value");
+
+    expect(manager.get(key)).toBe(resource);
+    expect(() => manager.register(key, async () => "duplicate")).toThrow(
+      'resource "resource.test" has already been registered',
+    );
+  });
+});
 
 describe("createResource", () => {
   it("suspends while pending and returns the resolved value", async () => {

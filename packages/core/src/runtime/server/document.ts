@@ -8,6 +8,10 @@ import {
   PARTIAL_STATE_ID,
 } from "../shared_internal.js";
 import type { Island } from "../../types.js";
+import {
+  getRequestContext,
+  runWithRequestContext,
+} from "../../request_context.js";
 
 import {
   getRenderState,
@@ -413,6 +417,7 @@ export function renderDocumentStream(vnode: VNode): ReadableStream<Uint8Array> {
 
   const source = renderToReadableStream(vnode, { nonce: state.nonce });
   const reader = source.getReader();
+  const requestContext = getRequestContext();
   const decoder = new TextDecoder();
   const encoder = new TextEncoder();
   const fullDocument = state.renderedHtmlTag && state.renderedHtmlHead &&
@@ -469,7 +474,10 @@ export function renderDocumentStream(vnode: VNode): ReadableStream<Uint8Array> {
             if (safeLength > 0) break;
           }
 
-          const { value, done } = await reader.read();
+          const read = () => reader.read();
+          const { value, done } = requestContext === undefined
+            ? await read()
+            : await runWithRequestContext(requestContext, read);
           if (done) {
             buffer += decoder.decode();
             finished = true;

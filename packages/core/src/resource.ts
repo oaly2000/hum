@@ -7,6 +7,51 @@ export interface Resource<T> {
   read(): T;
 }
 
+declare const resourceKeyType: unique symbol;
+
+/** A typed key used to register and retrieve a request-scoped resource. */
+export interface ResourceKey<T> {
+  readonly name: string;
+  readonly [resourceKeyType]: T;
+}
+
+/** Creates a typed key for a resource shared across route layers. */
+export function createResourceKey<T>(name: string): ResourceKey<T> {
+  if (name.length === 0) {
+    throw new TypeError("hum: resource key name cannot be empty.");
+  }
+  return Object.freeze({ name }) as ResourceKey<T>;
+}
+
+/** Stores request-local resources by typed key. */
+export class ResourceManager {
+  #resources = new Map<ResourceKey<unknown>, Resource<unknown>>();
+
+  register<T>(
+    key: ResourceKey<T>,
+    load: () => PromiseLike<T>,
+  ): Resource<T> {
+    if (this.#resources.has(key)) {
+      throw new TypeError(
+        `hum: resource "${key.name}" has already been registered for this request.`,
+      );
+    }
+    const resource = createResource<T>(Promise.resolve().then(load));
+    this.#resources.set(key, resource);
+    return resource;
+  }
+
+  get<T>(key: ResourceKey<T>): Resource<T> {
+    const resource = this.#resources.get(key);
+    if (resource === undefined) {
+      throw new Error(
+        `hum: resource "${key.name}" has not been registered for this request.`,
+      );
+    }
+    return resource as Resource<T>;
+  }
+}
+
 export interface SuspenseProps<T = unknown> {
   resource: Resource<T>;
   children: (value: T) => ComponentChildren;
