@@ -10,8 +10,9 @@ import {
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { build } from "vite";
+import { build, type Plugin } from "vite";
 import { describe, expect, it } from "vitest";
+import { preactSsrPrecompile } from "@pracht/preact-ssr-precompile";
 
 import { hum, type HumOptions } from "../src/mod.js";
 
@@ -51,6 +52,7 @@ interface BuildOptions {
   outDir?: string;
   /** Give the project a `server.ts` exporting this. */
   entry?: EntryKind;
+  plugins?: Plugin[];
 }
 
 /**
@@ -59,7 +61,7 @@ interface BuildOptions {
  * public tree to the one the app serves.
  */
 async function buildProject(options: BuildOptions = {}): Promise<string> {
-  const { outDir, entry } = options;
+  const { outDir, entry, plugins = [] } = options;
   // Inside the workspace, so the framework resolves for the built app while
   // everything else about the project is disposable.
   const root = await mkdtemp(
@@ -72,7 +74,23 @@ async function buildProject(options: BuildOptions = {}): Promise<string> {
   await mkdir(join(root, "routes"), { recursive: true });
   await writeFile(
     join(root, "routes", "index.tsx"),
-    'export default function Home() { return "home"; }\n',
+    `export default function Home() {
+  return <main className="home">{["first", "second"].map((item) =>
+    <p key={item}>{item}</p>
+  )}</main>;
+}
+`,
+  );
+  await writeFile(
+    join(root, "tsconfig.json"),
+    JSON.stringify({
+      compilerOptions: {
+        jsx: "react-jsx",
+        jsxImportSource: "preact",
+        module: "ESNext",
+        moduleResolution: "bundler",
+      },
+    }) + "\n",
   );
   await mkdir(join(root, "islands"), { recursive: true });
   await writeFile(
@@ -92,7 +110,7 @@ async function buildProject(options: BuildOptions = {}): Promise<string> {
   await build({
     root,
     configFile: false,
-    plugins: [hum(humOptions)],
+    plugins: [...plugins, ...hum(humOptions)],
     logLevel: "silent",
     ...(outDir === undefined ? {} : { build: { outDir } }),
   });
@@ -225,6 +243,45 @@ describe("the production build layout", () => {
       expect(await response.text()).toContain("home");
     } finally {
       await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("forwards user Vite transforms into the production server build", async () => {
+    const plainRoot = await buildProject({ entry: "app" });
+    const precompiledRoot = await buildProject({
+      entry: "app",
+      plugins: [preactSsrPrecompile()],
+    });
+
+    try {
+      const [plain, precompiled] = await Promise.all([
+        import(pathToFileURL(join(plainRoot, "dist", "server.js")).href),
+        import(pathToFileURL(join(precompiledRoot, "dist", "server.js")).href),
+      ]) as [{ default: { fetch: typeof fetch } }, {
+        default: { fetch: typeof fetch };
+      }];
+      const [plainResponse, precompiledResponse] = await Promise.all([
+        plain.default.fetch(new Request("http://localhost/")),
+        precompiled.default.fetch(new Request("http://localhost/")),
+      ]);
+      expect(plainResponse.status).toBe(200);
+      expect(precompiledResponse.status).toBe(200);
+      const [plainHtml, precompiledHtml] = await Promise.all([
+        plainResponse.text(),
+        precompiledResponse.text(),
+      ]);
+      const main = (html: string) =>
+        html.slice(html.indexOf("<main"), html.indexOf("</main>") + 7);
+      expect(plainHtml).not.toContain("data-hum-key");
+      expect(precompiledHtml).toContain('data-hum-key="first"');
+      expect(precompiledHtml).toContain('data-hum-key="second"');
+      expect(main(precompiledHtml).replace(/ data-hum-key="[^"]*"/g, ""))
+        .toBe(main(plainHtml));
+    } finally {
+      await Promise.all([
+        rm(plainRoot, { recursive: true, force: true }),
+        rm(precompiledRoot, { recursive: true, force: true }),
+      ]);
     }
   });
 

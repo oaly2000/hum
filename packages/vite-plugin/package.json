@@ -2,6 +2,9 @@
   "name": "@humjs/vite-plugin",
   "version": "0.3.0",
   "type": "module",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "description": "Hum Vite plugin: island bundling, SSR dev server and production build",
   "repository": {
     "type": "git",
@@ -29,6 +32,7 @@
     "hono": "^4.13.13"
   },
   "devDependencies": {
+    "@pracht/preact-ssr-precompile": "^0.1.4",
     "@types/node": "^26.6.5",
     "preact": "^11.0.1",
     "vite": "^8.3.4"

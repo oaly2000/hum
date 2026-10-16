@@ -29,8 +29,8 @@ requests for the sibling `public/` directory with
 `@hono/node-server/serve-static`. The path is resolved relative to the server
 entry, so a renamed or relocated output directory needs no extra configuration.
 Delegate static files to a reverse proxy or a CDN in production. Only `public/`
-is public — the server entry sits next to it and stays unreachable. Node.js 20 or
-newer is still required.
+is public — the server entry sits next to it and stays unreachable. Node.js
+20.19 or newer (or 22.12 or newer) is required.
 
 ## Hono server
 

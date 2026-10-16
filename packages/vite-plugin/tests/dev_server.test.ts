@@ -4,10 +4,53 @@ import { join, relative, resolve } from "node:path";
 
 import { createServer } from "vite";
 import { describe, expect, it } from "vitest";
+import { preactSsrPrecompile } from "@pracht/preact-ssr-precompile";
 
 import { hum } from "../src/mod.js";
 
 describe("Hum Vite dev server", () => {
+  it("runs configured transforms in the development SSR pipeline", async () => {
+    const root = resolve(process.cwd(), "packages", "docs");
+    const routesRoot = await mkdtemp(
+      join(root, "routes", "precompile-test-"),
+    );
+    const routesDir = relative(root, routesRoot).replace(/\\/g, "/");
+    await writeFile(
+      join(routesRoot, "index.tsx"),
+      `export default function Home() {
+  return <main className="precompiled"><p>SSR template</p></main>;
+}
+`,
+    );
+
+    const server = await createServer({
+      configFile: false,
+      root,
+      plugins: [preactSsrPrecompile(), ...hum({ routesDir })],
+      logLevel: "silent",
+      server: { host: "127.0.0.1", port: 0, strictPort: true },
+    });
+
+    try {
+      await server.listen();
+      const transformed = await server.transformRequest(
+        join(routesRoot, "index.tsx"),
+        { ssr: true },
+      );
+      expect(transformed?.code).toContain("jsxTemplate");
+
+      const address = server.httpServer?.address() as AddressInfo;
+      const response = await fetch(`http://127.0.0.1:${address.port}`);
+      expect(response.status).toBe(200);
+      expect(await response.text()).toContain(
+        '<main class="precompiled"><p>SSR template</p></main>',
+      );
+    } finally {
+      await server.close();
+      await rm(routesRoot, { recursive: true, force: true });
+    }
+  });
+
   it("keeps running and discovers a route created after startup", async () => {
     const root = resolve(process.cwd(), "packages", "docs");
     const routesRoot = await mkdtemp(join(root, "routes", "watch-test-"));

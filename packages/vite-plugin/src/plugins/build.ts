@@ -4,7 +4,7 @@ import { join, resolve, sep } from "node:path";
 
 import type { ProdManifest } from "@humjs/core";
 import { islandNameOfFile } from "@humjs/core/routing";
-import { build, type Plugin } from "vite";
+import { build, type Plugin, type ResolvedConfig } from "vite";
 
 import {
   ASSETS_BASE,
@@ -183,10 +183,26 @@ async function assembleBuild(ctx: HumContext): Promise<ProdManifest> {
 export function humBuild(ctx: HumContext): Plugin {
   let isSsr = false;
   let chained = false;
+  let userTransformPlugins: Plugin[] = [];
 
   return {
     name: "hum:build",
     apply: "build",
+
+    configResolved(config: ResolvedConfig) {
+      userTransformPlugins = config.plugins
+        .filter((plugin) =>
+          !plugin.name.startsWith("hum:") &&
+          !plugin.name.startsWith("vite:") &&
+          plugin.transform !== undefined
+        )
+        .map((plugin) => ({
+          name: `hum:ssr-transform:${plugin.name}`,
+          ...(plugin.enforce === undefined ? {} : { enforce: plugin.enforce }),
+          ...(plugin.apply === undefined ? {} : { apply: plugin.apply }),
+          transform: plugin.transform,
+        }));
+    },
 
     async config(_config, env) {
       const options = ctx.options;
@@ -247,17 +263,22 @@ export function humBuild(ctx: HumContext): Plugin {
 
       await build({
         root: options.root,
-        // This pass provides its own plugin list instead of reusing the config
-        // file, which keeps it out of the plugin's other build hooks. The
-        // generated server entry imports the build from its virtual module, so
-        // the two plugins that resolve it are the exception.
+        // This pass only reuses user transform hooks: replaying complete user
+        // plugins would also run their build/server lifecycle hooks a second
+        // time. The generated server entry imports the build from its virtual
+        // module, so the Hum plugins that resolve it are included explicitly.
         configFile: false,
         // The island tags belong to the server bundle as much as to the dev
         // server: the island modules a page imports are the ones the renderer
         // recognizes, and this pass is the only thing that transforms them
         // here. Without it a production build serves islands that nothing
         // hydrates.
-        plugins: [humRoutes(ctx), humBuildInput(ctx), humIslandTags(ctx)],
+        plugins: [
+          ...userTransformPlugins,
+          humRoutes(ctx),
+          humBuildInput(ctx),
+          humIslandTags(ctx),
+        ],
         // The public tree was already assembled beside the server entry.
         publicDir: false,
         logLevel: "warn",

@@ -113,6 +113,9 @@ importers:
         specifier: ^4.13.13
         version: 4.13.13
     devDependencies:
+      '@pracht/preact-ssr-precompile':
+        specifier: ^0.1.4
+        version: 0.1.4(preact-render-to-string@6.8.0)(preact@11.0.1)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5
@@ -621,6 +624,17 @@ packages:
 
   '@poppinss/exception@1.2.3':
     resolution: {integrity: sha512-dCED+QRChTVatE9ibtoaxc+WkdzOSjYTKi/+uacHWIsfodVfpsueo3+DKpgU5Px8qXjgmXkSvhXvSCz3fnP9lw==}
+
+  '@pracht/preact-ssr-precompile@0.1.4':
+    resolution: {integrity: sha512-+wnQ+9BLH9PcqpH6rOLZiTpwyZmlWcfpQmLMKpekaFN7duCuVYGbrX44/UDdrEwKJvs1az5G7KyZ94G6TS8x9w==}
+    engines: {node: '>=22.18'}
+    peerDependencies:
+      preact: ^10.26.0 || ^11.0.0-0
+      preact-render-to-string: ^6.5.13
+      vite: ^8.0.0
+    peerDependenciesMeta:
+      vite:
+        optional: true
 
   '@preact/signals-core@1.14.4':
     resolution: {integrity: sha512-HNB6HYeYKhQbJ1aKl+YRjrS4+QWHLKX6qKoUsfS/m0vqzsVaEBiZiaKbG/e+NKk2ch5ALQr/ihWaMHxiCuuWHA==}
@@ -1297,6 +1311,15 @@ packages:
       preact-render-to-string:
         optional: true
 
+  rolldown-string@0.3.1:
+    resolution: {integrity: sha512-dv8GOXkYqUQdI0rsXB8hmzO95pKWSuX2eg5/JSJa9czfEVIFuKNR7ZJDfat8LlmD35RAhWY+evS7/wXXqFDfSg==}
+    engines: {node: '>=20.19.0'}
+    peerDependencies:
+      rolldown: '*'
+    peerDependenciesMeta:
+      rolldown:
+        optional: true
+
   rolldown@1.2.13:
     resolution: {integrity: sha512-/5apOkwWxtACcQtZ5WlrAsKS4JwXVThQPJZ3RqIruRY9UG9M8e0VlXN068xum/JRKA4aIUoJ13ghe/kGCvidiQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -1921,6 +1944,15 @@ snapshots:
 
   '@poppinss/exception@1.2.3': {}
 
+  '@pracht/preact-ssr-precompile@0.1.4(preact-render-to-string@6.8.0)(preact@11.0.1)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))':
+    dependencies:
+      preact: 11.0.1(preact-render-to-string@6.8.0)
+      preact-render-to-string: 6.8.0(preact@11.0.1)
+      rolldown: 1.2.13
+      rolldown-string: 0.3.1(rolldown@1.2.13)
+    optionalDependencies:
+      vite: 8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)
+
   '@preact/signals-core@1.14.4': {}
 
   '@preact/signals@2.11.3(preact@11.0.1)':
@@ -2398,6 +2430,12 @@ snapshots:
   preact@11.0.1(preact-render-to-string@6.8.0):
     optionalDependencies:
       preact-render-to-string: 6.8.0(preact@11.0.1)
+
+  rolldown-string@0.3.1(rolldown@1.2.13):
+    dependencies:
+      magic-string: 1.4.3
+    optionalDependencies:
+      rolldown: 1.2.13
 
   rolldown@1.2.13:
     dependencies:

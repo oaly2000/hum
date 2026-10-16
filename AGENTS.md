@@ -188,7 +188,7 @@ the example where applicable.
 
 ## Development and Validation
 
-Requires Node.js 20 or later and pnpm.
+Requires Node.js 20.19 or later (or 22.12 or later) and pnpm.
 
 ```bash
 pnpm install
