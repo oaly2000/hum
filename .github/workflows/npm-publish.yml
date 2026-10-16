@@ -5,6 +5,7 @@ on:
     tags:
       - "@humjs/core@*"
       - "@humjs/vite-plugin@*"
+      - "@humjs/preact-ssr-precompile@*"
       - "create-hum@*"
 
 permissions:
@@ -71,4 +72,5 @@ jobs:
 
           publish_package packages/core
           publish_package packages/vite-plugin
+          publish_package packages/preact-ssr-precompile
           publish_package packages/create-hum
