@@ -25,6 +25,8 @@ import type {
 } from "./types.js";
 
 export interface RenderOutcome {
+  /** Full document plus inert partial metadata, captured from the same render. */
+  partialBody?: string;
   body: string | ReadableStream<Uint8Array>;
   links: string[];
   status: number;
@@ -33,6 +35,7 @@ export interface RenderOutcome {
 export interface RouteRenderInput<
   T extends RouteManifestEntry = RouteManifestEntry,
 > {
+  capturePage?: boolean;
   config: ResolvedConfig;
   buildCache: BuildCache;
   loader: ModuleLoader;
@@ -121,8 +124,10 @@ async function renderTree(
     }
 
     try {
-      const html = renderDocument(root);
-      return { body: html, links: preloadLinks(renderState), status };
+      const document = input.capturePage
+        ? renderDocument(root, true)
+        : { body: renderDocument(root) };
+      return { ...document, links: preloadLinks(renderState), status };
     } finally {
       renderState.clear();
     }

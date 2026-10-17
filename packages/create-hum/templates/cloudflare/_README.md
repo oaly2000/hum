@@ -58,7 +58,7 @@ under load; Workers Paid allows far more.
 ## Hono server
 
 `server.ts` exports a Hono app. Configure middleware and API routes with the
-normal Hono API, then explicitly call `await mountHum(app, config)` using
+normal Hono API, then explicitly call `await mountHum(app, { ...config, pages })` using
 `config` from `virtual:hum/build`. Hum
 handles unmatched requests with its `_404` page. Hum page errors use `_error`;
 API errors keep using the app's Hono `onError`. The example includes a
@@ -93,6 +93,27 @@ Anything in `public/` is served from the site root in development and published
 by the asset binding in production, so `/favicon.svg` means the same file before
 and after a build. Hum's own client assets (the runtime, island chunks,
 stylesheets) are handled for you and do not belong there.
+
+## Page generation
+
+The `/seo` page uses `define.config({ render: { mode: "ssg" } })` and is generated
+at build time. Dynamic routes require a `slugs` table, for example
+`{ mode: "ssg", slugs: ["hello", "world"] }` for `/posts/[slug]`. Multiple
+parameters require full paths. Unlisted SSG paths return 404.
+
+Use `{ mode: "isg", revalidate: 60, slugs: ["hello"] }` for incremental generation;
+unlisted paths generate on demand unless `fallback: false` is set. The entry's
+`createPageService()` controls storage and scheduling. Its default memory store
+lasts for the process lifetime; provide a store for persistent ISG output.
+A background executor returns stale output while updating; without one the
+update blocks. Failed updates retain the last successful page.
+
+Generation runs public GET requests without cookies, authorization or query
+parameters. Keep personalized pages on SSR. Configure `prerenderOrigin` on the
+Hum Vite plugin for absolute URLs. The build evaluates the application and route
+configuration in Node; generated handlers must work without deployment bindings.
+Full HTML and Partial responses are bundled into the server output and served
+by Hono. Development always renders fresh output.
 
 ## Tailwind CSS
 

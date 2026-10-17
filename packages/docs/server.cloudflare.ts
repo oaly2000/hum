@@ -1,4 +1,4 @@
-import { mountHum } from "@humjs/core";
+import { createPageService, mountHum } from "@humjs/core";
 import { config } from "virtual:hum/build";
 import { Hono } from "hono";
 
@@ -11,6 +11,9 @@ app.use("*", async (c, next) => {
 
 app.get("/api/health", (c) => c.json({ status: "ok" }));
 
-await mountHum(app, config);
+const pages = createPageService({
+  background: (task, c) => c.executionCtx.waitUntil(task),
+});
+await mountHum(app, { ...config, pages });
 
 export default app;

@@ -15,6 +15,8 @@ import {
   withRenderState,
 } from "../src/runtime/server/preact_hooks.js";
 import { signal } from "@preact/signals";
+import { Hono } from "hono";
+import { defineBuild, mountHum, prerenderPages } from "../src/mod.js";
 import {
   applyPartials,
   startPartialNavigation,
@@ -97,6 +99,42 @@ function click(selector: string): void {
 function text(selector: string): string {
   return document.querySelector(selector)!.textContent ?? "";
 }
+
+describe("pre-generated partial responses", () => {
+  it("revives one shared signal for multiple cached partials and a factory handler", async () => {
+    function content(value: number) {
+      const shared = signal(value);
+      return h(Fragment, null,
+        h("p", { id: "outside-cached" }, shared),
+        h(Partial, { name: "cached-left" },
+          h("p", { id: "cached-left" }, shared),
+          h("button", { id: "cached-add", onClick: add(shared, 1) }, "+")),
+        h(Partial, { name: "cached-right" }, h("p", { id: "cached-right" }, shared)));
+    }
+    const initial = await renderFragment(() => content(0));
+    await hydrate(initial.html, initial.payload);
+    defineBuild({
+      prod: { buildId: "cached-partials", assetsBase: "/_hum", clientEntry: "runtime.js", islands: {} },
+      islands: [],
+      routes: [{
+        file: "routes/next.tsx", kind: "route", urlPath: "/next",
+        load: async () => ({ config: { render: { mode: "ssg" } }, default: () => content(10) }),
+      }],
+    });
+    const app = await mountHum(new Hono(), { dev: false });
+    await prerenderPages(app);
+    const response = await app.request("http://localhost/next?_hum_partial=true");
+    await applyPartials(response);
+    await flush();
+    expect(text("#cached-left")).toBe("10");
+    expect(text("#cached-right")).toBe("10");
+    click("#cached-add");
+    await flush();
+    expect(text("#cached-left")).toBe("11");
+    expect(text("#cached-right")).toBe("11");
+    expect(text("#outside-cached")).toBe("0");
+  });
+});
 
 describe("page level facets in a partial region on the server", () => {
   function page(outside: unknown, inside: unknown) {

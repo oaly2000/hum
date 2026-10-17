@@ -280,7 +280,7 @@ function matcherSource(info: UrlPatternInfo, subpaths: boolean): string {
       parts.push(`(?:/(?<${name}>[^/]+))?`);
       continue;
     }
-    if (seg.params.length === 1) {
+    if (seg.kind === "param") {
       const name = seg.params[0];
       parts.push(`/(?<${name}>[^/]+)`);
       continue;

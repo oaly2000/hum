@@ -1,13 +1,15 @@
-import { cp, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
+import { pathToFileURL } from "node:url";
 
-import type { ProdManifest } from "@humjs/core";
+import type { GeneratedPage, ProdManifest } from "@humjs/core";
 import { islandNameOfFile } from "@humjs/core/routing";
 import { build, type Plugin, type ResolvedConfig } from "vite";
 
 import {
   ASSETS_BASE,
+  BUILD_VIRTUAL_ID,
   CLIENT_RUNTIME_ENTRY,
   ISLANDS_ENTRY,
   makeBuildId,
@@ -20,6 +22,52 @@ import { humBuildInput } from "./build_input.js";
 import { humIslandTags } from "./island_tags.js";
 import { writeBuildEntries } from "./islands.js";
 import { humRoutes } from "./routes.js";
+
+/** Bundle the app module separately so prerendering never runs its listener. */
+async function prerender(ctx: HumContext, plugins: Plugin[]): Promise<Record<string, GeneratedPage>> {
+  const { options } = ctx;
+  const tempDir = resolve(options.root, ".hum", "prerender");
+  await mkdir(tempDir, { recursive: true });
+  const entry = join(tempDir, "entry.js");
+  const appEntry = resolve(options.root, options.devEntry);
+  const loadApp = existsSync(appEntry)
+    ? `const { default: app } = await import(${JSON.stringify(appEntry.replace(/\\/g, "/"))});`
+    : `const app = await createApp(config);`;
+  await writeFile(entry, `
+import { createApp, planPages, prerenderPages } from "@humjs/core";
+import { build, config } from ${JSON.stringify(BUILD_VIRTUAL_ID)};
+export async function prerender() {
+  const plan = await planPages(build, config);
+  if (plan.length === 0) return {};
+  ${loadApp}
+  if (!app?.hum) throw new TypeError("hum: devEntry must export the mounted app for prerendering; keep the Node listener in serverEntry");
+  return await prerenderPages(app);
+}
+`, "utf8");
+  try {
+    await build({
+      root: options.root,
+      configFile: false,
+      publicDir: false,
+      plugins,
+      logLevel: "warn",
+      build: {
+        ...serverBuildConfig(options),
+        outDir: tempDir,
+        rollupOptions: {
+          input: { prerender: entry },
+          output: { codeSplitting: false, entryFileNames: "prerender.mjs" },
+        },
+      },
+      ssr: { noExternal: true },
+    });
+    const module = await import(pathToFileURL(join(tempDir, "prerender.mjs")).href + `?build=${ctx.prod!.buildId}`);
+    return await module.prerender();
+  } finally {
+    // A fixed intermediate directory inside this project's .hum tree.
+    await rm(tempDir, { recursive: true, force: true });
+  }
+}
 
 interface ClientManifestEntry {
   file: string;
@@ -265,6 +313,17 @@ export function humBuild(ctx: HumContext): Plugin {
         this.info(`hum: ${Object.keys(ctx.prod.islands).length} island chunk(s)`);
       }
 
+      const serverPlugins = () => [
+        ...userTransformPlugins,
+        humRoutes(ctx),
+        humBuildInput(ctx),
+        humIslandTags(ctx),
+      ];
+      // Client URLs are final before generating pages. The final server pass
+      // then carries their responses in virtual:hum/build, with no disk lookup.
+      ctx.pages = undefined;
+      ctx.pages = await prerender(ctx, serverPlugins());
+
       await build({
         root: options.root,
         // This pass only reuses user transform hooks: replaying complete user
@@ -277,12 +336,7 @@ export function humBuild(ctx: HumContext): Plugin {
         // recognizes, and this pass is the only thing that transforms them
         // here. Without it a production build serves islands that nothing
         // hydrates.
-        plugins: [
-          ...userTransformPlugins,
-          humRoutes(ctx),
-          humBuildInput(ctx),
-          humIslandTags(ctx),
-        ],
+        plugins: serverPlugins(),
         // The public tree was already assembled beside the server entry.
         publicDir: false,
         logLevel: "warn",

@@ -11,6 +11,7 @@ import ThemeToggle from "../_islands/ThemeToggle.js";
 const GUIDES = [
   { href: "/docs/getting-started", label: "Getting started" },
   { href: "/docs/routing", label: "Routing and rendering" },
+  { href: "/docs/generation", label: "SSR, SSG and ISG" },
   { href: "/docs/hono", label: "Hono and Hum middleware" },
   { href: "/docs/handlers", label: "Route handlers" },
   { href: "/docs/partials", label: "Partial page updates" },

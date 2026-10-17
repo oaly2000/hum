@@ -7,7 +7,7 @@ export const head = define.head(
 
 const honoMiddlewareExample = `// app.ts — the Hono app this documentation runs on
 import { Hono } from "hono";
-import { mountHum } from "@humjs/core";
+import { createPageService, mountHum } from "@humjs/core";
 import { config } from "virtual:hum/build";
 
 const app = new Hono();
@@ -19,7 +19,8 @@ app.use("*", async (c, next) => {
 
 app.get("/api/health", (c) => c.json({ status: "ok" }));
 
-await mountHum(app, config);
+const pages = createPageService();
+await mountHum(app, { ...config, pages });
 export default app;`;
 
 const humMiddlewareExample = `// routes/admin/_middleware.ts

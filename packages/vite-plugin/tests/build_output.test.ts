@@ -37,6 +37,7 @@ interface BuildOptions {
   /** Give the project a `server.ts` exporting this. */
   entry?: EntryKind;
   plugins?: Plugin[];
+  routes?: Record<string, string>;
 }
 
 /**
@@ -84,6 +85,11 @@ async function buildProject(options: BuildOptions = {}): Promise<string> {
   await mkdir(join(root, "public"), { recursive: true });
   await writeFile(join(root, "public", "robots.txt"), "User-agent: *\n");
   await writeFile(join(root, "public", "favicon.svg"), "<svg/>\n");
+  for (const [file, source] of Object.entries(options.routes ?? {})) {
+    const path = join(root, "routes", file);
+    await mkdir(resolve(path, ".."), { recursive: true });
+    await writeFile(path, source);
+  }
   if (entry !== undefined) {
     await writeFile(join(root, "server.ts"), serverSource(entry), "utf8");
   }
@@ -91,13 +97,18 @@ async function buildProject(options: BuildOptions = {}): Promise<string> {
   const humOptions: HumOptions = {};
   if (outDir !== undefined) humOptions.outDir = outDir;
 
-  await build({
-    root,
-    configFile: false,
-    plugins: [...plugins, ...hum(humOptions)],
-    logLevel: "silent",
-    ...(outDir === undefined ? {} : { build: { outDir } }),
-  });
+  try {
+    await build({
+      root,
+      configFile: false,
+      plugins: [...plugins, ...hum(humOptions)],
+      logLevel: "silent",
+      ...(outDir === undefined ? {} : { build: { outDir } }),
+    });
+  } catch (error) {
+    await rm(root, { recursive: true, force: true });
+    throw error;
+  }
 
   return root;
 }
@@ -282,5 +293,55 @@ describe("the production build layout", () => {
     } finally {
       await rm(root, { recursive: true, force: true });
     }
+  });
+
+  it("carries SSG and ISG output in a relocatable server bundle", async () => {
+    const root = await buildProject({
+      entry: "app",
+      routes: {
+        "posts/[slug].tsx": `import { define, page } from "@humjs/core";
+import { Partial } from "@humjs/core/shared";
+import Counter from "../../islands/Counter";
+export const config = define.config({ render: { mode: "ssg", slugs: ["hello"] } });
+export const handlers = { GET: () => page({ stamp: crypto.randomUUID() }) };
+export default ({ params, data }) => <Partial name="post"><p>{params.slug}:{data.stamp}</p><Counter /></Partial>;
+`,
+        "incremental/[id].tsx": `import { define } from "@humjs/core";
+export const config = define.config({ render: { mode: "isg", revalidate: 60, slugs: ["one"] } });
+export default ({ params }) => <p>incremental:{params.id}</p>;
+`,
+      },
+    });
+    const moved = join(root, "renamed-output");
+    try {
+      const { rename } = await import("node:fs/promises");
+      await rename(join(root, "dist"), moved);
+      // The deployed bundle must not load route sources or an on-disk manifest.
+      await rm(join(root, "routes"), { recursive: true });
+      const { default: app } = await import(pathToFileURL(join(moved, "server.js")).href);
+      const generated = app.hum.build.pages["/posts/hello"];
+      expect(generated.body).toContain("hum:island");
+      const full = await app.request("/posts/hello");
+      expect(await full.text()).toBe(generated.body);
+      const partial = await app.request("/posts/hello?_hum_partial=true");
+      expect(await partial.text()).toBe(generated.partialBody);
+      expect(generated.partialBody).toContain('__HUM_STATE__');
+      expect((await app.request("/posts/unknown")).status).toBe(404);
+      expect(app.hum.build.pages["/incremental/one"].body).toContain("incremental:one");
+      expect(await (await app.request("/incremental/new")).text()).toContain("incremental:new");
+      expect(await exists(join(root, ".hum", "prerender"))).toBe(false);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("fails the production build when a dynamic SSG page has no slugs", async () => {
+    await expect(buildProject({
+      entry: "app",
+      routes: {
+        "posts/[slug].tsx": `export const config = { render: { mode: "ssg" } };
+export default () => <p>missing table</p>;`,
+      },
+    })).rejects.toThrow("dynamic SSG routes require slugs");
   });
 }, 60_000);

@@ -117,11 +117,30 @@ the example where applicable.
   build and exports `config` with routesDir, islandsDir, basePath and dev mode.
   Hum owns the app-level 404 handler; page failures render `_error`, while API
   failures use the user's Hono `onError`.
+- Page modes live in page-level `define.config({ render: ... })`: SSR by
+  default, SSG with an optional slugs array (required for parameter routes), and
+  ISG with a positive revalidate interval and optional slugs/fallback. The
+  page service is configured in the application entry with createPageService
+  and passed to mountHum. It generates fresh anonymous GET requests through
+  the app, leaving application middleware on cache hits while directory
+  middleware and handlers run during generation. Never reuse a request Context
+  for background work or cache private/varying responses.
+- The client build is followed by a temporary Node prerender bundle that
+  evaluates route policies and loads devEntry only when paths need generation.
+  That entry must be the mounted app, without a listener. The final server pass
+  inlines generated responses into HumBuild.pages, with the canonical origin
+  from prerenderOrigin. The temporary bundle is deleted; runtime still performs
+  no file system lookup. Static hosting is not an output mode.
+- A generated page carries full HTML and partial metadata captured during the
+  same buffered render. Publish both representations atomically and keep their
+  shared payload graph intact. Streaming remains SSR-only. ISG storage keys
+  include the build ID; per-service generation coalesces, adapter storage owns
+  cross-instance coordination. Failed regeneration keeps the previous page.
 - `serverEntry` defaults to `server.ts` and is built directly, preserving named
   and default exports and top-level side effects. No `start(app)` protocol is
   used. Node entries call `serve()` directly; Worker entries export their app.
   `devEntry` defaults to serverEntry and must default-export the Hono app Vite
-  serves. Node templates and docs use `app.ts` for devEntry to avoid starting a
+  serves and the build prerenders. Node templates and docs use `app.ts` for devEntry to avoid starting a
   second listener. Entry-less projects still get a generated Node server.
 - An island is recognized by a tag the bundler writes onto its component — the
   `humIslandTags` transform stamps `{ name, file, exportName }` under

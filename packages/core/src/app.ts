@@ -9,6 +9,7 @@ import {
   type ResolvedConfig,
 } from "./config.js";
 import { ModuleLoader } from "./loader.js";
+import { createPageService, pagePolicy, type PageService } from "./pages.js";
 import {
   type RequestContext,
   runWithRequestContext,
@@ -48,6 +49,7 @@ export type MountedHumApp<E extends Env, S extends Schema, P extends string> =
   & { hum: HumInternals };
 
 export interface HumInternals {
+  pages: PageService;
   config: ResolvedConfig;
   /** The build this app was mounted with. */
   build: HumBuild;
@@ -119,6 +121,7 @@ async function runRouteMiddleware(
       if (called) throw new Error("next() called multiple times");
       called = true;
       downstream = await dispatch(index + 1);
+      c.res = downstream;
     };
 
     const result = await fn(c, next);
@@ -126,7 +129,7 @@ async function runRouteMiddleware(
       c.res = result;
       return result;
     }
-    if (called && downstream !== undefined) return downstream;
+    if (called && downstream !== undefined) return c.res;
     return await dispatch(index + 1);
   };
 
@@ -215,6 +218,7 @@ export async function mountHum<
   }
 
   const internals: HumInternals = {
+    pages: config.pages ?? createPageService(),
     config: resolved,
     build,
     buildCache,
@@ -226,6 +230,8 @@ export async function mountHum<
       buildCache.load(build);
     },
   };
+  internals.pages.attach(internals, (request, env, executionCtx) =>
+    app.fetch(request, env as E["Bindings"], executionCtx));
 
   // Hono's variadic `HandlerInterface` overloads cannot be satisfied by a
   // dynamically built middleware chain, so registration goes through a
@@ -326,7 +332,10 @@ function routeHandler(
         const params = c.req.param() as Record<string, string>;
         const context = c as HumContext;
         context.set("humRoute", route);
+        const generation = internals.pages.generation(c.req.raw);
+        if (generation) generation.route = route.file.file;
         const input: RouteRenderInput = {
+          capturePage: generation !== undefined,
           config: internals.config,
           buildCache: internals.buildCache,
           loader: internals.loader,
@@ -340,16 +349,32 @@ function routeHandler(
         try {
           await internals.refresh();
           const mod = (await internals.loader.load(route.file)) as RouteModule;
+          const policy = pagePolicy(route, mod.config);
+          if (
+            !internals.config.dev && !generation && policy.mode !== "ssr" &&
+            (method === "GET" || method === "HEAD")
+          ) {
+            return await internals.pages.respond(
+              context,
+              route,
+              policy,
+              async () => htmlResponse(context, await renderNotFound(input, url.pathname)),
+            );
+          }
           const routeMiddleware = await loadMiddleware(route, internals);
+          const renderPage = async (
+            data?: unknown,
+            options?: PageRenderOptions,
+          ): Promise<Response> => {
+            const outcome = await renderRoute(input, data, options);
+            if (generation) generation.partialBody = outcome.partialBody;
+            return htmlResponse(context, outcome);
+          };
           const terminal = async (): Promise<Response> => {
             const handler = pickHandler(mod.handlers, method);
             if (handler !== undefined) {
               const requestContext: Pick<RequestContext, "page"> = {
-                page: async (data?: unknown, options?: PageRenderOptions) =>
-                  htmlResponse(
-                    context,
-                    await renderRoute(input, data, options),
-                  ),
+                page: renderPage,
               };
 
               const res = await runWithRequestContext(
@@ -363,10 +388,17 @@ function routeHandler(
               return context.text("Method Not Allowed", 405);
             }
 
-            return htmlResponse(context, await renderRoute(input));
+            return await renderPage();
           };
 
-          return await runRouteMiddleware(routeMiddleware, context, terminal);
+          const response = await runRouteMiddleware(routeMiddleware, context, terminal);
+          if (generation) {
+            // Finalize prepared headers at the page boundary, before outer
+            // application middleware applies its per-request transformations.
+            if (!context.finalized) context.res = response;
+            generation.response = context.res.clone();
+          }
+          return response;
         } catch (err) {
           if (route.error === undefined) {
             internals.config.logger.error(

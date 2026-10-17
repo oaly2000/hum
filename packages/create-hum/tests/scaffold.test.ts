@@ -118,7 +118,7 @@ describe("templates", () => {
     expect(server).toContain('import app from "./app.js"');
     expect(server).toContain("serve(");
     const app = await readFile(join(target, "app.ts"), "utf8");
-    expect(app).toContain("await mountHum(app, config)");
+    expect(app).toContain("await mountHum(app, { ...config, pages })");
     expect(app).toContain("export default app");
     expect(server).toContain("@hono/node-server");
   });
@@ -159,7 +159,7 @@ describe("templates", () => {
     expect(vite).toContain('"preact/hooks"');
 
     expect(server).toContain('import { config } from "virtual:hum/build"');
-    expect(server).toContain("await mountHum(app, config)");
+    expect(server).toContain("await mountHum(app, { ...config, pages })");
 
     const pkg = JSON.parse(
       await readFile(join(target, "package.json"), "utf8"),

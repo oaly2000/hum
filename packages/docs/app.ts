@@ -1,4 +1,4 @@
-import { mountHum } from "@humjs/core";
+import { createPageService, mountHum } from "@humjs/core";
 import { config } from "virtual:hum/build";
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -28,6 +28,7 @@ if (existsSync(publicRoot)) {
 
 app.get("/api/health", (c) => c.json({ status: "ok" }));
 
-await mountHum(app, config);
+const pages = createPageService();
+await mountHum(app, { ...config, pages });
 
 export default app;

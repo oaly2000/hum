@@ -1,4 +1,4 @@
-import { ASSETS_BASE, type ProdManifest, RUNTIME_URL } from "@humjs/core";
+import { ASSETS_BASE, type GeneratedPage, type ProdManifest, RUNTIME_URL } from "@humjs/core";
 import { resolve } from "node:path";
 import type { Plugin } from "vite";
 
@@ -12,6 +12,7 @@ export interface HumContext {
    * has no manifest file to read.
    */
   prod?: ProdManifest | null;
+  pages?: Record<string, GeneratedPage>;
 }
 
 /** Counts of what Hum found, for the verbose log. */
@@ -40,8 +41,10 @@ export interface HumOptions {
   islandsDir?: string;
   /** Production entry, relative to the root. @default "server.ts" */
   serverEntry?: string;
-  /** App module loaded by Vite without starting a listener. Defaults to serverEntry. */
+  /** App module for development and prerendering, without a listener. Defaults to serverEntry. */
   devEntry?: string;
+  /** Canonical origin for generated pages. @default "http://localhost" */
+  prerenderOrigin?: string;
   /** Output directory of the production build. @default "dist" */
   outDir?: string;
   /** Base path the app is served from. @default "/" */
@@ -69,6 +72,7 @@ export interface ResolvedHumOptions {
   islandsDir: string;
   serverEntry: string;
   devEntry: string;
+  prerenderOrigin: string;
   outDir: string;
   basePath: string;
   clientEntry: string;
@@ -85,6 +89,7 @@ export function resolveHumOptions(
     islandsDir: options.islandsDir ?? "islands",
     serverEntry: options.serverEntry ?? SERVER_ENTRY_FILE,
     devEntry: options.devEntry ?? options.serverEntry ?? SERVER_ENTRY_FILE,
+    prerenderOrigin: new URL(options.prerenderOrigin ?? "http://localhost").origin,
     outDir: options.outDir ?? "dist",
     basePath: options.basePath ?? "/",
     clientEntry: options.clientEntry ?? "client/main.ts",

@@ -1,5 +1,7 @@
 import { define } from "@humjs/core";
 
+export const config = define.config({ render: { mode: "ssg" } });
+
 /** `head` as a plain JSX fragment: no props needed. */
 export const head = define.head(
   <>

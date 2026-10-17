@@ -83,6 +83,12 @@ describe("compileMatcher", () => {
     const match = re.exec("/blog/42/7");
     expect(match?.groups).toMatchObject({ id: "42", comment: "7" });
   });
+
+  it("keeps the literal prefix and suffix of a mixed parameter segment", () => {
+    const re = compileMatcher(parseUrlPath("/posts/post-[id].html"));
+    expect(re.exec("/posts/post-42.html")?.groups).toMatchObject({ id: "42" });
+    expect(re.test("/posts/42")).toBe(false);
+  });
 });
 
 describe("urlPathOf", () => {

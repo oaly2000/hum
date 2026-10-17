@@ -94,7 +94,22 @@ export interface RouteProps<State = Record<string, unknown>> {
   status?: number;
 }
 
+/** Public page generation policy. Only page modules select a render mode. */
+export type PageRenderMode =
+  | { mode: "ssr" }
+  | { mode: "ssg"; slugs?: string[] }
+  | {
+    mode: "isg";
+    slugs?: string[];
+    /** Lifetime in seconds. Must be positive and finite. */
+    revalidate: number;
+    /** Whether paths outside slugs may be generated. @default "blocking" */
+    fallback?: "blocking" | false;
+  };
+
 export interface RouteConfig {
+  /** Defaults to SSR. Static modes generate public, query-independent pages. */
+  render?: PageRenderMode;
   /** Render the page without the `_app` wrapper. */
   skipAppWrapper?: boolean;
   /** Render the page without inherited `_layout` components. */

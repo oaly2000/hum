@@ -1,4 +1,4 @@
-import { mountHum } from "@humjs/core";
+import { createPageService, mountHum } from "@humjs/core";
 import { Hono } from "hono";
 import { config } from "virtual:hum/build";
 
@@ -12,6 +12,9 @@ app.use("*", async (c, next) => {
 app.get("/api/health", (c) => c.json({ status: "ok" }));
 
 // Wrangler serves public/ through the asset binding.
-await mountHum(app, config);
+const pages = createPageService({
+  background: (task, c) => c.executionCtx.waitUntil(task),
+});
+await mountHum(app, { ...config, pages });
 
 export default app;

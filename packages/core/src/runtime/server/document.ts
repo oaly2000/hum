@@ -179,31 +179,32 @@ export interface PartialStateJson {
   props: string;
 }
 
+/** A partial representation uses the exact graph recorded by the full render. */
+export function renderPartialState(state: RenderState, payload = serializePayload(state)): string {
+  const json: PartialStateJson = {
+    islands: [...state.islands].map((island) => ({
+      name: island.name,
+      url: withBase(state.basePath, island.clientUrl),
+      exportName: island.exportName,
+    })),
+    props: payload,
+  };
+  return renderToString(h("script", {
+    id: PARTIAL_STATE_ID,
+    type: "application/json",
+    dangerouslySetInnerHTML: { __html: escapeScript(JSON.stringify(json)) },
+  }));
+}
+
 /**
  * Renders the client bootstrap (or, for partial requests, the state JSON the
  * client uses to revive newly appearing islands).
  */
-export function renderScripts(state: RenderState): string {
+export function renderScripts(state: RenderState, payload?: string): string {
   const islands = [...state.islands];
 
   if (state.partialRequest) {
-    const json: PartialStateJson = {
-      islands: islands.map((island) => ({
-        name: island.name,
-        url: withBase(state.basePath, island.clientUrl),
-        exportName: island.exportName,
-      })),
-      props: serializePayload(state),
-    };
-    return renderToString(
-      h("script", {
-        id: PARTIAL_STATE_ID,
-        type: "application/json",
-        dangerouslySetInnerHTML: {
-          __html: escapeScript(JSON.stringify(json)),
-        },
-      }),
-    );
+    return renderPartialState(state, payload);
   }
 
   if (!state.needsClientRuntime) return "";
@@ -229,7 +230,7 @@ export function renderScripts(state: RenderState): string {
   }
 
   const clientEntry = withBase(state.basePath, state.buildCache.clientEntry);
-  const props = escapeScript(JSON.stringify(serializePayload(state)));
+  const props = escapeScript(JSON.stringify(payload ?? serializePayload(state)));
   const content = `import { boot } from "${clientEntry}";${
     imports.join("")
   }boot({${entries.join(",")}},${props},{${loaders.join(",")}});`;
@@ -329,7 +330,10 @@ function injectDocumentFragments(
     if (result.includes(token)) {
       result = replaceOnce(result, token, scriptsHtml);
     } else if (state.renderedHtmlBody) {
-      result = replaceOnce(result, "</body>", scriptsHtml + "</body>");
+      // A script in the body may contain a literal closing tag. In buffered
+      // HTML the document's actual closing body tag is the last occurrence.
+      const end = result.lastIndexOf("</body>");
+      if (end !== -1) result = result.slice(0, end) + scriptsHtml + result.slice(end);
     }
   }
 
@@ -341,9 +345,12 @@ function injectDocumentFragments(
  * fragments into their placeholders. Both can only be computed once the whole
  * tree has rendered, which is why they are not part of the initial render.
  */
-function assembleDocument(state: RenderState, pageHtml: string): string {
-  const headHtml = renderHead(state);
-  const scriptsHtml = renderScripts(state);
+function assembleDocument(
+  state: RenderState,
+  pageHtml: string,
+  headHtml: string,
+  scriptsHtml: string,
+): string {
 
   if (
     !state.renderedHtmlTag || !state.renderedHtmlHead ||
@@ -366,7 +373,15 @@ function assembleDocument(state: RenderState, pageHtml: string): string {
  * Renders a vnode with the Hum hooks active and returns the document HTML. The
  * head tags of the request must already be merged into the render state.
  */
-export function renderDocument(vnode: VNode): string {
+export function renderDocument(vnode: VNode): string;
+export function renderDocument(vnode: VNode, capturePartial: true): {
+  body: string;
+  partialBody: string;
+};
+export function renderDocument(vnode: VNode, capturePartial = false): string | {
+  body: string;
+  partialBody: string;
+} {
   const state = getRenderState();
   if (state === null) {
     throw new Error(
@@ -376,7 +391,16 @@ export function renderDocument(vnode: VNode): string {
     );
   }
   const pageHtml = renderToString(vnode);
-  return assembleDocument(state, pageHtml);
+  const headHtml = renderHead(state);
+  const payload = capturePartial ? serializePayload(state) : undefined;
+  const body = assembleDocument(state, pageHtml, headHtml, renderScripts(state, payload));
+  if (!capturePartial) return body;
+  // Fill the original placeholders again instead of searching the finished
+  // HTML, where a literal closing tag may also occur inside an inline script.
+  return {
+    body,
+    partialBody: assembleDocument(state, pageHtml, headHtml, renderPartialState(state, payload)),
+  };
 }
 
 // Preact moves deferred Suspense content when this custom element connects.

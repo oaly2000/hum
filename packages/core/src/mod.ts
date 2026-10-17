@@ -7,6 +7,19 @@
  */
 
 export { createApp, mountHum } from "./app.js";
+export {
+  createMemoryPageStore,
+  createPageService,
+  planPages,
+  prerenderPages,
+} from "./pages.js";
+export type {
+  GeneratedPage,
+  PageService,
+  PageServiceOptions,
+  PageStore,
+  PlannedPage,
+} from "./pages.js";
 export type {
   HumApp,
   HumInternals,
@@ -47,6 +60,7 @@ export type {
   ModuleThunk,
   PageFn,
   PageRenderOptions,
+  PageRenderMode,
   PageViewProps,
   RouteConfig,
   RouteFileSpec,

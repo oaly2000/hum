@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 
 import type { Logger } from "./types.js";
+import type { PageService } from "./pages.js";
 
 /**
  * URL Hum publishes its client assets under. It is a framework constant rather
@@ -13,6 +14,8 @@ export const ASSETS_BASE = "/_hum";
 export const RUNTIME_URL = `${ASSETS_BASE}/runtime.js`;
 
 export interface HumConfig {
+  /** Page generation storage and scheduling. Defaults to an in-memory service. */
+  pages?: PageService;
   /**
    * Project root. Defaults to `process.cwd()`.
    */

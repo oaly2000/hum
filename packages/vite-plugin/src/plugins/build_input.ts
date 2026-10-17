@@ -44,6 +44,8 @@ import { manifest } from "${ROUTES_VIRTUAL_ID}";
 export const config = ${JSON.stringify(config)};
 
 export const build = defineBuild({
+  origin: ${JSON.stringify(ctx.options.prerenderOrigin)},
+  pages: ${JSON.stringify(ctx.pages ?? {})},
   routes: manifest.routes,
   islands: manifest.islands,
   prod: ${JSON.stringify(prod)},

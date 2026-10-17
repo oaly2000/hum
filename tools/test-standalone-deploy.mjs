@@ -36,7 +36,7 @@ try {
   );
   assert.match(scaffoldServer, /export default app/);
   // App setup explicitly mounts Hum before the Node entry starts listening.
-  assert.match(scaffoldServer, /await mountHum\(app, config\)/);
+  assert.match(scaffoldServer, /await mountHum\(app, \{ \.\.\.config, pages \}\)/);
   assert.match(scaffoldServer, /app\.get\("\/api\/health"/);
   // The scaffold serves the sibling public directory, including after the
   // output directory has been renamed.
@@ -132,6 +132,7 @@ try {
     const [path, heading] of [
       ["/docs/routing", "Routing and rendering"],
       ["/docs/hono", "Hono and Hum middleware"],
+      ["/docs/generation", "SSR, SSG and ISG"],
     ]
   ) {
     const guide = await fetch(`${origin}${path}`);

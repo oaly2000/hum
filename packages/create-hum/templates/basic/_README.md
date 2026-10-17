@@ -35,7 +35,7 @@ is public — the server entry sits next to it and stays unreachable. Node.js
 ## Hono server
 
 `app.ts` creates the Hono app, registers middleware and APIs, then explicitly
-calls `await mountHum(app, config)`. The config comes from `virtual:hum/build`,
+calls `await mountHum(app, { ...config, pages })`. The config comes from `virtual:hum/build`,
 which also registers the discovered routes, islands and client assets.
 Hum handles unmatched requests with `_404`; page errors use `_error`, while API
 errors use the app's Hono `onError`.
@@ -70,6 +70,27 @@ Anything in `public/` is served from the site root in development and copied int
 the build's `public/` directory, so `/favicon.svg` means the same file before and
 after a build. Hum's own client assets (the runtime, island chunks, stylesheets)
 are handled for you and do not belong there.
+
+## Page generation
+
+The `/seo` page uses `define.config({ render: { mode: "ssg" } })` and is generated
+at build time. Dynamic routes require a `slugs` table, for example
+`{ mode: "ssg", slugs: ["hello", "world"] }` for `/posts/[slug]`. Multiple
+parameters require full paths. Unlisted SSG paths return 404.
+
+Use `{ mode: "isg", revalidate: 60, slugs: ["hello"] }` for incremental generation;
+unlisted paths generate on demand unless `fallback: false` is set. The entry's
+`createPageService()` controls storage and scheduling. Its default memory store
+lasts for the process lifetime; provide a store for persistent ISG output.
+A background executor returns stale output while updating; without one the
+update blocks. Failed updates retain the last successful page.
+
+Generation runs public GET requests without cookies, authorization or query
+parameters. Keep personalized pages on SSR. Configure `prerenderOrigin` on the
+Hum Vite plugin for absolute URLs. The build evaluates the application and route
+configuration in Node; generated handlers must work without deployment bindings.
+Full HTML and Partial responses are bundled into the server output and served
+by Hono. Development always renders fresh output.
 
 ## Tailwind CSS
 

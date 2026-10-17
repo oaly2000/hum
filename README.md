@@ -125,6 +125,72 @@ it, never inside it. Everything Hum itself publishes — the client runtime,
 island chunks, stylesheets — is already covered by the framework and does not
 belong in `public/`.
 
+## SSR, SSG and ISG
+
+Select rendering on each page through `define.config`; the default is SSR:
+
+```ts
+// routes/posts/[slug].tsx
+export const config = define.config({
+  render: { mode: "ssg", slugs: ["hello", "getting-started"] },
+});
+```
+
+SSG generates listed paths during `vite build`; a route without parameters is
+included automatically. Dynamic SSG routes require `slugs`, and `[]` generates
+no pages. A single parameter accepts slug values or absolute paths. Multiple
+parameters require full paths, for example `/en/posts/hello` for
+`/[lang]/posts/[slug]`. Invalid, duplicate and shadowed paths fail the build;
+requests outside an SSG table return 404.
+
+ISG can pre-generate a table and generate other paths on their first request:
+
+```ts
+export const config = define.config({
+  render: { mode: "isg", revalidate: 60, slugs: ["hello"] },
+});
+```
+
+`revalidate` is a positive lifetime in seconds. Set `fallback: false` to return
+404 for paths outside the table. Without a background executor, expired pages
+update before the response; with one, they return the old version while updating.
+A failed update keeps the previous output. Concurrent generation of one path is
+combined within a service.
+
+Configure storage and scheduling in the application entry:
+
+```ts
+import { createPageService, mountHum } from "@humjs/core";
+import { config } from "virtual:hum/build";
+
+const pages = createPageService();
+await mountHum(app, { ...config, pages });
+```
+
+`mountHum` supplies this default in-memory service when `pages` is omitted.
+For persistent ISG output, pass a `store` with `get(key)` and `set(key, page)`;
+writes must atomically publish a whole page and keys include the build ID.
+Cross-instance generation coordination belongs to the adapter. Worker entries
+can provide `background: (task, c) => c.executionCtx.waitUntil(task)`.
+
+The build uses `devEntry` as its app module and never starts the Node listener.
+It evaluates route configuration in Node; pre-generation handlers must work
+without deployment-only bindings. Set the canonical generation origin with
+`hum({ devEntry: "app.ts", prerenderOrigin: "https://example.com" })`; it defaults
+to `http://localhost`. Generated responses travel inside the server bundle and
+are served through Hono, including Partial navigation with the same shared
+payload graph. This output format requires the app server; it is not a pure
+static-hosting export.
+
+Static modes generate public GET pages without cookies, authorization or query
+parameters. Hono app middleware wraps every request; directory middleware and
+page handlers run when generating a page. Keep personalized content and
+request-specific route guards on SSR. Generation rejects non-200 responses,
+`Set-Cookie`, `Vary`, encoded responses and private or non-cacheable output.
+Streaming is supported only in SSR. Other HTTP methods retain their normal
+handlers. Development renders fresh pages regardless of mode; use a production
+build to verify static behavior.
+
 ## File-based routing
 
 Every file under `routes/` produces a URL based on its relative path.

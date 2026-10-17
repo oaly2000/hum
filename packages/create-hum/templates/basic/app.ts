@@ -1,4 +1,4 @@
-import { mountHum } from "@humjs/core";
+import { createPageService, mountHum } from "@humjs/core";
 import { config } from "virtual:hum/build";
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -10,7 +10,8 @@ import { Hono } from "hono";
 const app = new Hono();
 configure(app);
 
-await mountHum(app, config);
+const pages = createPageService();
+await mountHum(app, { ...config, pages });
 
 export default app;
 
