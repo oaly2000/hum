@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 
 import {
   createApp,
@@ -14,6 +14,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   createServerModuleRunner,
   type DevEnvironment,
+  type EnvironmentModuleNode,
   type Plugin,
   type ViteDevServer,
 } from "vite";
@@ -211,6 +212,28 @@ export function humDevServer(ctx: HumContext): Plugin {
     // plugin is what keeps that true whatever order the plugins are listed in.
     enforce: "pre",
 
+    hotUpdate({ file, server }) {
+      if (
+        this.environment.name !== "client" ||
+        !rendersHere(server) ||
+        !isSsrPageModule(
+          file,
+          server,
+          resolve(ctx.options.root, ctx.options.routesDir),
+          resolve(ctx.options.root, ctx.options.islandsDir),
+          resolve(ctx.options.root, ctx.options.serverEntry),
+        )
+      ) {
+        return;
+      }
+
+      server.ws.send({
+        type: "full-reload",
+        path: "*",
+        triggeredBy: resolve(file),
+      });
+    },
+
     configureServer(server) {
       // Registered before Vite's own middlewares, and before any other plugin's
       // (this plugin half is `enforce: "pre"`), so this URL is answered here and
@@ -287,6 +310,55 @@ export function humDevServer(ctx: HumContext): Plugin {
       };
     },
   };
+}
+
+function isSsrPageModule(
+  file: string,
+  server: ViteDevServer,
+  routesDir: string,
+  islandsDir: string,
+  serverEntry: string,
+): boolean {
+  const changedFile = resolve(file);
+  if (isPathWithin(changedFile, islandsDir)) return false;
+  if (
+    isPathWithin(changedFile, routesDir) ||
+    changedFile === serverEntry
+  ) {
+    return true;
+  }
+
+  const modules = server.environments.ssr.moduleGraph.getModulesByFile(
+    changedFile.replace(/\\/g, "/"),
+  );
+  if (modules === undefined) return false;
+
+  const seen = new Set<EnvironmentModuleNode>();
+  const pending = [...modules];
+  while (pending.length > 0) {
+    const mod = pending.pop()!;
+    if (seen.has(mod)) continue;
+    seen.add(mod);
+
+    if (mod.file !== null) {
+      const importer = resolve(mod.file);
+      if (
+        isPathWithin(importer, routesDir) ||
+        importer === serverEntry
+      ) {
+        return true;
+      }
+    }
+    pending.push(...mod.importers);
+  }
+
+  return false;
+}
+
+function isPathWithin(file: string, directory: string): boolean {
+  const path = relative(directory, file);
+  return path === "" ||
+    (path !== ".." && !path.startsWith(`..${sep}`) && !isAbsolute(path));
 }
 
 async function toRequest(req: IncomingMessage): Promise<Request> {
