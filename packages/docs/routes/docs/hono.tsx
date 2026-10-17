@@ -5,8 +5,10 @@ export const head = define.head(
   <title>Hono and Hum middleware — Hum Guides</title>,
 );
 
-const honoMiddlewareExample = `// server.ts — the Hono app this documentation runs on
+const honoMiddlewareExample = `// app.ts — the Hono app this documentation runs on
 import { Hono } from "hono";
+import { mountHum } from "@humjs/core";
+import { config } from "virtual:hum/build";
 
 const app = new Hono();
 
@@ -17,6 +19,7 @@ app.use("*", async (c, next) => {
 
 app.get("/api/health", (c) => c.json({ status: "ok" }));
 
+await mountHum(app, config);
 export default app;`;
 
 const humMiddlewareExample = `// routes/admin/_middleware.ts
@@ -36,8 +39,8 @@ export default function HonoGuide(_props: RouteProps) {
         Hono and Hum middleware
       </h1>
       <p class="mt-5 text-lg leading-8 text-muted">
-        Hum mounts its file routes onto the Hono app exported by{" "}
-        <code>server.ts</code>. Both middleware systems run in the same request
+        Explicitly mount Hum’s file routes onto the Hono app created in{" "}
+        <code>app.ts</code>. Both middleware systems run in the same request
         pipeline, but their scopes are different.
       </p>
 
@@ -73,7 +76,7 @@ export default function HonoGuide(_props: RouteProps) {
         toward the matched route. It also wraps that route’s handlers and the{" "}
         <code>_404</code>{" "}
         render for unmatched paths under the same directory, but it does not
-        apply to Hono API routes declared in <code>server.ts</code>.
+        apply to Hono API routes declared in <code>app.ts</code>.
       </p>
       <CodeBlock code={humMiddlewareExample} />
       <p class="mt-4 leading-7 text-muted">
@@ -84,7 +87,7 @@ export default function HonoGuide(_props: RouteProps) {
       </p>
 
       <div class="mt-6 rounded-2xl border border-line bg-surface-2 p-5 leading-7 text-muted">
-        Reach for <code>app.use()</code> in <code>server.ts</code> first: it is
+        Reach for <code>app.use()</code> in <code>app.ts</code> first: it is
         the general alternative and covers both Hum pages and Hono API routes by
         path pattern. Use <code>_middleware.ts</code>{" "}
         only when the policy belongs to a branch of Hum’s route tree—for example

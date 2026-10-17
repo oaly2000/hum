@@ -112,21 +112,17 @@ the example where applicable.
 - The Vite plugin defaults its optional user client entry to `client/main.ts`;
   keep that default, the scaffold, and example projects in sync when changing
   client-entry conventions.
-- If a project has `server.ts`, it default-exports a configured Hono app. The
-  Vite plugin calls `mountHum(app, config)` after loading it. Hum mounts file
-  routes directly onto that app, takes ownership of the app-level 404 handler,
-  and does not replace the app-level `onError`: Hum route failures render
-  `_error`, while Hono API failures use the user's Hono error handler. Register
-  app middleware before routes so it wraps those routes; Vite owns the dev
-  listener and HMR.
-- Whether a production build runs itself is the entry's business, not a plugin
-  option: the generated entry always exports the app — a Hono instance *is* its
-  fetch handler, so a Worker or an edge runtime can import the bundle as it is —
-  and it calls the entry's optional `start(app)` export when the project has one,
-  which is the build's entry point. Nothing in the plugin records a platform, and
-  no option selects one: the Cloudflare template exports no `start`, the Node
-  templates and `packages/docs` do, and a project without `server.ts` gets an app
-  of its own that serves itself on Node.
+- Applications explicitly call `mountHum(app, config)` after registering Hono
+  middleware and API routes. `virtual:hum/build` registers the bundler-produced
+  build and exports `config` with routesDir, islandsDir, basePath and dev mode.
+  Hum owns the app-level 404 handler; page failures render `_error`, while API
+  failures use the user's Hono `onError`.
+- `serverEntry` defaults to `server.ts` and is built directly, preserving named
+  and default exports and top-level side effects. No `start(app)` protocol is
+  used. Node entries call `serve()` directly; Worker entries export their app.
+  `devEntry` defaults to serverEntry and must default-export the Hono app Vite
+  serves. Node templates and docs use `app.ts` for devEntry to avoid starting a
+  second listener. Entry-less projects still get a generated Node server.
 - An island is recognized by a tag the bundler writes onto its component — the
   `humIslandTags` transform stamps `{ name, file, exportName }` under
   `Symbol.for("hum.island")`, and the renderer reads it back and looks the name
@@ -151,13 +147,13 @@ the example where applicable.
   in. The Vite dev script is emitted by the document render
   (development only, never in a partial response) rather than spliced into the
   response, because a runtime rendering elsewhere has no response to splice.
-- An app is mounted once. Such a runtime re-evaluates the module that mounts the
-  app on every change while the app module it imports stays in the module cache,
-  and Hono takes no route once a request has matched on its router, so the entry
-  mounts onto an app of its own — `new Hono()`, the project's app routed into it
-  — which is what the Cloudflare template's `dev-worker.ts` does and what Hum's
-  dev server does internally. `mountHum` refuses a second mount of the same app
-  and names that shape, instead of letting Hono fail without explanation.
+- An app is mounted once. Create the Hono instance in the module that mounts
+  it, so invalidating the build dependency recreates the application. The Node
+  dev server re-evaluates devEntry after route discovery changes and relevant
+  dependency edits; it never mounts onto or wraps the user's cached app.
+  Worker templates use their application entry in both development and
+  production, without a separate dev-worker module. `mountHum` refuses a second
+  mount of the same instance because Hono freezes routing after a match.
 - `createApp(config)` creates the Hono app for projects that do not have their
   own `server.ts`. Keep it a wrapper around `mountHum(app, config)` so both
   paths share routing behavior.

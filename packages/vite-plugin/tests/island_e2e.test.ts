@@ -84,8 +84,11 @@ export default function App(props: { children?: ComponentChildren }) {
   await writeFile(
     join(root, "server.ts"),
     `import { Hono } from "hono";
+import { mountHum } from "@humjs/core";
+import { config } from "virtual:hum/build";
 
 const app = new Hono();
+await mountHum(app, config);
 
 export default app;
 `,

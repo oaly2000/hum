@@ -98,9 +98,9 @@ export default function RoutingGuide(_props: RouteProps) {
       <p class="mt-4 leading-7 text-muted">
         Guarding an admin branch is the usual reason to add one, because the
         directory the file lives in is its scope. For app-wide or URL-prefix
-        policy use <code>app.use()</code> in <code>server.ts</code> instead—the
+        policy use <code>app.use()</code> in <code>app.ts</code> instead—the
         general alternative. This site has no <code>_middleware.ts</code>; the
-        middleware it does run is Hono middleware in <code>server.ts</code>,
+        middleware it does run is Hono middleware in <code>app.ts</code>,
         covered in the{" "}
         <a
           class="font-semibold text-accent hover:underline"

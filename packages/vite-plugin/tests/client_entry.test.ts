@@ -1,5 +1,5 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -38,6 +38,7 @@ describe("hum server entry option", () => {
   it("defaults to server.ts", () => {
     const opts = resolveHumOptions("/tmp/project");
     expect(opts.serverEntry).toBe("server.ts");
+    expect(opts.devEntry).toBe("server.ts");
   });
 
   it("lets the user select a runtime-specific entry", () => {
@@ -45,7 +46,14 @@ describe("hum server entry option", () => {
       serverEntry: "server.cloudflare.ts",
     });
     expect(opts.serverEntry).toBe("server.cloudflare.ts");
+    expect(opts.devEntry).toBe("server.cloudflare.ts");
   });
+  it("loads a separate app module in development", () => {
+    const opts = resolveHumOptions("/tmp/project", { devEntry: "app.ts" });
+    expect(opts.serverEntry).toBe("server.ts");
+    expect(opts.devEntry).toBe("app.ts");
+  });
+
 });
 
 describe("humClientEntry plugin", () => {
@@ -130,59 +138,11 @@ describe("writeBuildEntries", () => {
     rmSync(root, { recursive: true, force: true });
   });
 
-  it("mounts Hum onto the entry's app and exports it", async () => {
+  it("leaves a supplied production entry to the bundler", async () => {
     const root = tempProject();
-    writeFileSync(
-      join(root, "server.ts"),
-      "export default function start() {}\n",
-    );
-    const ctx = { options: resolveHumOptions(root) };
-
-    await writeBuildEntries(ctx);
-    const entry = await readFile(join(root, SERVER_ENTRY), "utf8");
-
-    // The entry's exports are the API: the app answers `fetch`, and its own
-    // `start(app)` — if it has one — is what makes the build serve itself.
-    expect(entry).toContain(
-      'import * as entry from "' +
-        join(root, "server.ts").replace(/\\/g, "/") + '"',
-    );
-    expect(entry).toContain("const app = entry.default;");
-    expect(entry).toContain("await mountHum(app, humConfig);");
-    expect(entry).toContain("export default app;");
-    expect(entry).toContain('const start = Reflect.get(entry, "start");');
-    expect(entry).toContain('if (typeof start === "function") await start(app);');
-    // Nothing binds a port unless the project said so, so the Node adapter is
-    // not the framework's to import.
-    expect(entry).not.toContain("@hono/node-server");
-    expect(entry).not.toContain("process.env.PORT");
-    // The build is the entry's input: importing the generated module registers
-    // the routes, the islands and the client assets with the runtime, so
-    // mounting needs no configuration of its own.
-    expect(entry).toContain('import "virtual:hum/build";');
-    expect(entry).not.toContain("startServer");
-    rmSync(root, { recursive: true, force: true });
-  });
-
-  it("uses the configured server entry", async () => {
-    const root = tempProject();
-    writeFileSync(
-      join(root, "server.cloudflare.ts"),
-      "export default function app() {}\n",
-    );
-    const ctx = {
-      options: resolveHumOptions(root, {
-        serverEntry: "server.cloudflare.ts",
-      }),
-    };
-
-    await writeBuildEntries(ctx);
-    const entry = await readFile(join(root, SERVER_ENTRY), "utf8");
-
-    expect(entry).toContain(
-      'import * as entry from "' +
-        join(root, "server.cloudflare.ts").replace(/\\/g, "/") + '"',
-    );
+    writeFileSync(join(root, "server.ts"), "console.log('user entry');\n");
+    await writeBuildEntries({ options: resolveHumOptions(root) });
+    await expect(access(join(root, SERVER_ENTRY))).rejects.toThrow();
     rmSync(root, { recursive: true, force: true });
   });
 

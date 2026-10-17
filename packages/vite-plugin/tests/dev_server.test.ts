@@ -53,7 +53,7 @@ export default function Layout({ children }) {
     const server = await createServer({
       configFile: false,
       root,
-      plugins: hum({ routesDir }),
+      plugins: hum({ routesDir, serverEntry: "no-server.ts" }),
       logLevel: "silent",
       server: { host: "127.0.0.1", port: 0, strictPort: true },
     });
@@ -91,7 +91,7 @@ export default function Layout({ children }) {
     const server = await createServer({
       configFile: false,
       root,
-      plugins: [preactSsrPrecompile(), ...hum({ routesDir })],
+      plugins: [preactSsrPrecompile(), ...hum({ routesDir, serverEntry: "no-server.ts" })],
       logLevel: "silent",
       server: { host: "127.0.0.1", port: 0, strictPort: true },
     });
@@ -151,10 +151,26 @@ export default define.page<PageData>(({ data }) => (
 `,
     );
 
+    const appFile = join(routesRoot, "_app-entry.ts");
+    const dependencyFile = join(routesRoot, "_message.ts");
+    await writeFile(dependencyFile, 'export const message = "initial";\n');
+    await writeFile(appFile, `import { Hono } from "hono";
+import { mountHum } from "@humjs/core";
+import { config } from "virtual:hum/build";
+import { message } from "./_message";
+const app = new Hono();
+app.use("*", async (c, next) => { c.header("x-powered-by", "Hum + Hono"); await next(); });
+app.onError((err, c) => c.text("api-error", 503));
+app.get("/api/health", c => c.text(message));
+app.get("/api/error", () => { throw new Error("api failure"); });
+await mountHum(app, config);
+export default app;
+`);
+
     const server = await createServer({
       configFile: false,
       root,
-      plugins: hum({ routesDir }),
+      plugins: hum({ routesDir, devEntry: relative(root, appFile) }),
       logLevel: "silent",
       server: { host: "127.0.0.1", port: 0, strictPort: true },
     });
@@ -215,6 +231,13 @@ export default define.page<PageData>(({ data }) => (
       const routeHtml = await route?.text();
       expect(route?.status, routeHtml).toBe(200);
       expect(routeHtml).toContain("new route");
+      await rm(join(routesRoot, "new-page.tsx"));
+      await expect.poll(async () => (await fetch(`${origin}/new-page`)).status).toBe(404);
+      await writeFile(dependencyFile, 'export const message = "updated";\n');
+      await expect.poll(async () => (await fetch(`${origin}/api/health`)).text()).toBe("updated");
+      const apiError = await fetch(`${origin}/api/error`);
+      expect(apiError.status).toBe(503);
+      expect(await apiError.text()).toBe("api-error");
       expect((await fetch(origin)).status).toBe(200);
     } finally {
       await server.close();
@@ -249,7 +272,7 @@ export default function Boom() {
     const server = await createServer({
       configFile: false,
       root,
-      plugins: hum({ routesDir }),
+      plugins: hum({ routesDir, serverEntry: "no-server.ts" }),
       logLevel: "silent",
       server: { host: "127.0.0.1", port: 0, strictPort: true },
     });

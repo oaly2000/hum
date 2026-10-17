@@ -113,11 +113,13 @@ describe("templates", () => {
   it("scaffolds a self-hosting project from the basic template", async () => {
     const target = await scaffoldInto("node-app", await templatePath("basic"));
 
-    // The build serves itself because the entry says how: `start(app)` is its
-    // entry point, and it is what pulls the Node adapter into the project.
+    // The Node entry starts its listener directly, separately from app setup.
     const server = await readFile(join(target, "server.ts"), "utf8");
-    expect(server).toContain("export default app");
-    expect(server).toContain("export function start(app: Hono)");
+    expect(server).toContain('import app from "./app.js"');
+    expect(server).toContain("serve(");
+    const app = await readFile(join(target, "app.ts"), "utf8");
+    expect(app).toContain("await mountHum(app, config)");
+    expect(app).toContain("export default app");
     expect(server).toContain("@hono/node-server");
   });
 
@@ -129,11 +131,11 @@ describe("templates", () => {
       .sort();
     expect(files).toContain("wrangler.jsonc");
     expect(files).toContain("server.ts");
-    expect(files).toContain("dev-worker.ts");
+    expect(files).not.toContain("dev-worker.ts");
 
     // The Worker owns the entry and the platform serves the build's public
     // tree, so nothing in the project imports the Node adapter and nothing
-    // declares a `start`: the app is exported and the runtime calls it.
+    // starts a listener: the app is exported and the runtime calls it.
     const server = await readFile(join(target, "server.ts"), "utf8");
     expect(server).not.toContain("@hono/node-server");
     expect(server).toContain("export default app");
@@ -152,18 +154,12 @@ describe("templates", () => {
     // Development renders on workerd, and only while serving: the production
     // build has to stay Hum's own bundle plus its public tree.
     expect(vite).toContain('command === "serve"');
-    expect(vite).toContain('config: { main: "./dev-worker.ts" }');
+    expect(vite).toContain('config: { main: "./server.ts" }');
     // The Worker needs one copy of Preact's hooks to render with.
     expect(vite).toContain('"preact/hooks"');
 
-    const worker = await readFile(join(target, "dev-worker.ts"), "utf8");
-    expect(worker).toContain('import "virtual:hum/build"');
-    expect(worker).toContain("await mountHum(app,");
-    expect(worker).toContain("export default app");
-    // The mount goes on an app of the worker's own: the dev runtime re-runs the
-    // entry after every change while the app module stays cached, and Hono
-    // takes no further route once a request has matched on its router.
-    expect(worker).toContain('app.route("/", userApp)');
+    expect(server).toContain('import { config } from "virtual:hum/build"');
+    expect(server).toContain("await mountHum(app, config)");
 
     const pkg = JSON.parse(
       await readFile(join(target, "package.json"), "utf8"),

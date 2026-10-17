@@ -3,5 +3,5 @@ import { defineConfig } from "vite";
 import { hum } from "@humjs/vite-plugin";
 
 export default defineConfig({
-  plugins: [hum(), tailwindcss()],
+  plugins: [hum({ devEntry: "app.ts" }), tailwindcss()],
 });

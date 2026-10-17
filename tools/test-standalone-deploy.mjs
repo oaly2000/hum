@@ -31,13 +31,12 @@ try {
     `create-hum should scaffold a project:\n${scaffold.stderr}`,
   );
   const scaffoldServer = await readFile(
-    join(scaffoldRoot, "server.ts"),
+    join(scaffoldRoot, "app.ts"),
     "utf8",
   );
   assert.match(scaffoldServer, /export default app/);
-  // The scaffolded build serves itself, so its entry declares the entry point
-  // Hum calls once the routes are mounted.
-  assert.match(scaffoldServer, /export function start\(app: Hono\)/);
+  // App setup explicitly mounts Hum before the Node entry starts listening.
+  assert.match(scaffoldServer, /await mountHum\(app, config\)/);
   assert.match(scaffoldServer, /app\.get\("\/api\/health"/);
   // The scaffold serves the sibling public directory, including after the
   // output directory has been renamed.

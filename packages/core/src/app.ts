@@ -296,8 +296,8 @@ export async function mountHum<
  * change, while the app module it imports keeps coming from the module cache.
  * An entry that mounts the app it imported therefore mounts an app Hum already
  * mounted — and a plain mount onto the app is what broke, so the message names
- * the shape that works, which is the one Hum's dev server and the scaffold's
- * `dev-worker.ts` use.
+ * the shape that works. Creating and mounting the app in the same module also
+ * lets a build dependency change recreate the application.
  */
 const ALREADY_MOUNTED =
   "hum: this Hono app is already mounted, and Hono takes no further route once " +

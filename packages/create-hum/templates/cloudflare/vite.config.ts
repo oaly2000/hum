@@ -4,9 +4,6 @@ import { defineConfig } from "vite";
 import { hum } from "@humjs/vite-plugin";
 
 export default defineConfig(({ command }) => ({
-  // No platform option: `server.ts` says how the app runs. It exports the app
-  // and no `start`, so the build is a Worker module the platform calls instead
-  // of a process that binds a port.
   plugins: [
     hum(),
     // Serving runs the app inside workerd, with the project's bindings and the
@@ -17,11 +14,7 @@ export default defineConfig(({ command }) => ({
       ? [
         cloudflare({
           viteEnvironment: { name: "ssr" },
-          // `wrangler.jsonc` points the deployment at the built server entry.
-          // The dev server needs a module it can load instead, which is what
-          // `dev-worker.ts` is; this override is the only difference between
-          // the two.
-          config: { main: "./dev-worker.ts" },
+          config: { main: "./server.ts" },
         }),
       ]
       : []),

@@ -64,11 +64,15 @@ function serverBuildConfig(options: ResolvedHumOptions): Record<string, unknown>
     ssr: true,
     // One syntax target for every build: the same bundle is imported by a
     // Worker runtime and started by Node, depending on whether the project's
-    // entry exported `start`, so the syntax it is emitted with cannot depend on
+    // entry starts a listener, so the syntax it is emitted with cannot depend on
     // where it ends up running. Node 20 is the strictest of the two.
     target: "node20",
     rollupOptions: {
-      input: { [SERVER_ENTRY_NAME]: SERVER_ENTRY },
+      input: {
+        [SERVER_ENTRY_NAME]: existsSync(resolve(options.root, options.serverEntry))
+          ? resolve(options.root, options.serverEntry)
+          : SERVER_ENTRY,
+      },
       // Routes are discovered through dynamic imports; disabling splitting
       // keeps the deployment to the single server entry.
       output: { codeSplitting: false },

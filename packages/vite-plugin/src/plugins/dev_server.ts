@@ -5,11 +5,8 @@ import {
   createApp,
   type HumApp,
   type HumBuild,
-  type HumVariables,
-  mountHum,
 } from "@humjs/core";
 import { serveStatic } from "@hono/node-server/serve-static";
-import { Hono } from "hono";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   createServerModuleRunner,
@@ -113,7 +110,7 @@ async function loadBuild(runner: ModuleRunner): Promise<HumBuild> {
  * Mounts the Hum SSR handler into the Vite dev server.
  *
  * Vite owns every request it can answer itself (island modules, assets, HMR);
- * everything else is handled by Hum mounted on the user Hono app (or a
+ * everything else is handled by the exported user Hono app (or a
  * standalone app), whose `ModuleLoader` re-imports route modules per request —
  * unless a platform plugin runs the app in a runtime of its own, in which case
  * that runtime answers those requests and this half only keeps them moving.
@@ -136,7 +133,16 @@ export function humDevServer(ctx: HumContext): Plugin {
   }
 
   async function buildApp(server: ViteDevServer): Promise<RequestApp> {
-    // Importing the build module registers it, so mounting needs nothing else.
+    // Route discovery changes require a fresh app, never another mount on a
+    // Hono instance that has already handled requests.
+    const moduleRunner = ssrRunner(server);
+    const entryFile = resolve(ctx.options.root, ctx.options.devEntry)
+      .replace(/\\/g, "/");
+    const entryModules = moduleRunner.evaluatedModules.getModulesByFile(entryFile);
+    for (const mod of entryModules ?? []) {
+      moduleRunner.evaluatedModules.invalidateModule(mod);
+    }
+    // Importing the build module registers it for entry-less applications.
     const build = await loadBuild(ssrRunner(server));
     if (ctx.options.verbose) {
       server.config.logger.info(projectSummary({
@@ -170,7 +176,7 @@ export function humDevServer(ctx: HumContext): Plugin {
       publicFiles = null;
     }
 
-    const serverEntry = resolve(ctx.options.root, ctx.options.serverEntry);
+    const serverEntry = resolve(ctx.options.root, ctx.options.devEntry);
     if (!existsSync(serverEntry)) {
       return withPublicFiles(await createApp(humConfig));
     }
@@ -184,10 +190,7 @@ export function humDevServer(ctx: HumContext): Plugin {
       );
     }
 
-    const userApp = serverModule.default as HumApp;
-    const app = new Hono<{ Variables: HumVariables }>();
-    app.route("/", userApp);
-    return withPublicFiles(await mountHum(app, humConfig));
+    return withPublicFiles(serverModule.default);
   }
 
   /**
@@ -221,7 +224,7 @@ export function humDevServer(ctx: HumContext): Plugin {
           server,
           resolve(ctx.options.root, ctx.options.routesDir),
           resolve(ctx.options.root, ctx.options.islandsDir),
-          resolve(ctx.options.root, ctx.options.serverEntry),
+          resolve(ctx.options.root, ctx.options.devEntry),
         )
       ) {
         return;
@@ -266,8 +269,8 @@ export function humDevServer(ctx: HumContext): Plugin {
       });
 
       // Adding or removing a route/island file changes the route table, so the
-      // app has to be rebuilt. Plain edits do not, they are picked up by the
-      // per-request module reload.
+      // app has to be rebuilt. Application dependency edits also rebuild it,
+      // so middleware and API handlers update together with page views.
       const invalidate = (file: string) => {
         if (file.includes("node_modules")) return;
         app = null;
@@ -275,7 +278,15 @@ export function humDevServer(ctx: HumContext): Plugin {
       server.watcher.on("add", (file) => invalidate(file));
       server.watcher.on("unlink", (file) => invalidate(file));
       server.watcher.on("change", (file) => {
-        if (file === resolve(ctx.options.root, ctx.options.serverEntry)) {
+        if (
+          isSsrPageModule(
+            file,
+            server,
+            resolve(ctx.options.root, ctx.options.routesDir),
+            resolve(ctx.options.root, ctx.options.islandsDir),
+            resolve(ctx.options.root, ctx.options.devEntry),
+          )
+        ) {
           app = null;
         }
       });
@@ -298,7 +309,13 @@ export function humDevServer(ctx: HumContext): Plugin {
               }
 
               if (app === null) app = buildApp(server);
-              const instance = await app;
+              let instance: RequestApp;
+              try {
+                instance = await app;
+              } catch (error) {
+                app = null;
+                throw error;
+              }
 
               const response = await instance.fetch(await toRequest(req));
               await writeResponse(res, response, server);

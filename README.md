@@ -50,8 +50,9 @@ client/
   main.ts        client entry; imports global CSS
   style.css      global styles
 public/          served from / in dev; copied into the build's public/
-server.ts        Hono app with middleware and API routes
-vite.config.ts   plugins: [hum(), tailwindcss()]
+app.ts           Hono app with middleware, APIs and explicit Hum mounting
+server.ts        Node entry; calls serve()
+vite.config.ts   plugins: [hum({ devEntry: "app.ts" }), tailwindcss()]
 ```
 
 Projects use Vite for dev/build, and the build output can be run directly with
@@ -71,22 +72,49 @@ The directory itself is never addressed: Hum's client assets live in
 `public/_hum` next to the server entry, so the same build runs whether it is
 deployed as `dist`, `wwwroot` or anything else. Production emits a single server
 JavaScript file with npm dependencies bundled; Node built-ins remain external.
-The app serves its `public/` tree (see `server.ts`, which mounts
+The app serves its `public/` tree (see `app.ts`, which mounts
 `@hono/node-server/serve-static` for it) — in production that is normally
 delegated to a reverse proxy, a CDN, or a platform asset binding.
 
-Whether a build runs itself is up to the selected server entry, not a platform
-option. It default-exports the app — a Hono instance *is* its fetch handler —
-and the build exports that app; when it also exports `start(app)`, Hum calls it
-once the file routes are mounted, and that is the build's entry point.
-`pnpm dlx create-hum
-my-worker --template cloudflare` scaffolds a project whose `server.ts` exports no
-`start`: the built module is a Worker the runtime calls, and `wrangler.jsonc`
-points `main` at `dist/server.js` and publishes `dist/public` through the
-Worker's static asset binding. A Node deployment exports `start` and binds a
-port there. If an app needs different Hono entry files per runtime, the Vite
-configuration can select one with `hum({ serverEntry: "server.cloudflare.ts" })`;
-the default remains `server.ts`. Development is Vite on Node in both templates.
+The production build bundles your entry directly, preserving its exports and
+running its top-level code. Node's `server.ts` imports the app and calls
+`serve({ fetch: app.fetch })`; a Worker exports its app for the platform to call.
+Hum does not invoke a special startup export or mount routes on your behalf.
+
+Create the application explicitly:
+
+```ts
+// app.ts
+import { Hono } from "hono";
+import { mountHum } from "@humjs/core";
+import { config } from "virtual:hum/build";
+
+const app = new Hono();
+app.get("/api/health", (c) => c.json({ status: "ok" }));
+await mountHum(app, config);
+export default app;
+```
+
+The virtual build module registers routes, islands and client assets, and exports
+`config` with the plugin's route directory, island directory, base path and dev
+mode. Register middleware and API routes before mounting Hum. Hum owns the app's
+404 handler; Hono API errors keep using the app's `onError`.
+
+The plugin defaults `serverEntry` to `server.ts`. For Node, configure
+`hum({ devEntry: "app.ts" })` so Vite loads the app without executing the Node
+listener. `devEntry` defaults to `serverEntry` and must default-export a Hono app;
+the production entry can use ordinary named exports or have no exports.
+
+`pnpm dlx create-hum my-worker --template cloudflare` scaffolds a Worker whose
+`server.ts` explicitly mounts Hum and exports the app. Development uses that same
+entry inside workerd. `wrangler.jsonc` points production at `dist/server.js` and
+publishes `dist/public` through the platform's asset binding. Select another
+production entry with `hum({ serverEntry: "server.cloudflare.ts" })`.
+
+Existing projects should move their app setup into `app.ts`, add the explicit
+`mountHum` call above, set `devEntry`, and replace `export function start(app)`
+with a normal top-level `serve()` call in `server.ts`. Worker entries only need
+the explicit mount; a separate `dev-worker.ts` is no longer needed.
 
 ## Static files
 
@@ -127,8 +155,8 @@ Every file under `routes/` produces a URL based on its relative path.
 - `_error.tsx` (alias `_500.tsx`) — renders route errors.
 - `_404.tsx` — handles unmatched paths under its directory subtree.
 
-Two files outside `routes/` configure the project rather than the route tree:
-`server.ts` is your Hono app, and `client/main.ts` is the default client entry.
+Outside `routes/`, `app.ts` creates your Hono app, `server.ts` starts it on Node,
+and `client/main.ts` is the default client entry.
 The `public/` directory is the third: it is where static files the app serves
 unchanged live.
 
@@ -196,7 +224,7 @@ file routes in that directory and below, parent middleware is inherited, and the
 chain runs from the routes root down to the matched route, wrapping the route's
 `handlers` and its default view. It also wraps the `_404` render for unmatched
 paths under its directory, so a branch guard covers typos in that branch too. It
-does not apply to Hono API routes declared in `server.ts`.
+does not apply to Hono API routes declared in `app.ts`.
 
 ```ts
 // routes/admin/_middleware.ts
@@ -213,14 +241,17 @@ export default define.middleware(async (c, next) => {
 ```
 
 For app-wide or URL-prefix policy, register Hono middleware with `app.use()` in
-`server.ts` instead. That is the general alternative: it wraps both Hum pages and
+`app.ts` instead. That is the general alternative: it wraps both Hum pages and
 Hono API routes, and a path pattern selects what it applies to. Reach for
 `_middleware.ts` only when the policy belongs to a branch of Hum's route tree,
 such as a URL-transparent `(group)/` directory, which a Hono path pattern cannot
 express.
 
 ```ts
-// server.ts
+// app.ts
+import { mountHum } from "@humjs/core";
+import { config } from "virtual:hum/build";
+
 const app = new Hono();
 
 app.use("/api/*", cors());
@@ -230,11 +261,12 @@ app.use("*", async (c, next) => {
   c.header("x-response-time", `${(performance.now() - start).toFixed(1)}ms`);
 });
 
+await mountHum(app, config);
 export default app;
 ```
 
-Hum is built on Hono, and the Vite plugin registers Hum after `server.ts`.
-Because of that, API errors raised by Hono are still handled by the app's
+Hum is explicitly mounted after the application middleware and API routes.
+API errors raised by Hono are still handled by the app's
 `onError`, while Hum errors render `_error.tsx`.
 
 ### Client navigation and Partial

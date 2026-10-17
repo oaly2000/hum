@@ -12,7 +12,7 @@ export default defineConfig({
       preserveInteractiveElements: false,
       preserveElements: [isHumInteractiveElement],
     }),
-    ...hum(),
+    ...hum({ devEntry: "app.ts" }),
     tailwindcss(),
   ],
 });

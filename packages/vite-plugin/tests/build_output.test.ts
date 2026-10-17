@@ -16,36 +16,20 @@ import { preactSsrPrecompile } from "@humjs/preact-ssr-precompile";
 
 import { hum, type HumOptions } from "../src/mod.js";
 
-/**
- * What the project's `server.ts` exports: only the app, or the app plus the
- * `start` the build enters through.
- */
 type EntryKind = "app" | "start";
 
-/** Source of a `server.ts` exporting `kind`. */
 function serverSource(kind: EntryKind): string {
-  const start = kind === "start" ? `
-/**
- * The build's entry point: Hum calls it once the routes are mounted, and it is
- * what makes this deployment serve itself instead of being imported.
- */
-export function start(app) {
-  serve(
-    { fetch: app.fetch, port: Number(process.env.PORT ?? 3000), overrideGlobalObjects: false },
-  );
-}
-` : "";
-
-  const adapter = kind === "start"
-    ? 'import { serve } from "@hono/node-server";\n'
-    : "";
-
-  return `${adapter}import { Hono } from "hono";
-
+  return `${kind === "start" ? 'import { serve } from "@hono/node-server";' : ""}
+import { Hono } from "hono";
+import { mountHum } from "@humjs/core";
+import { config } from "virtual:hum/build";
 const app = new Hono();
-
-export default app;
-${start}`;
+await mountHum(app, config);
+export const customExport = "preserved";
+export function start() { throw new Error("start is an ordinary export"); }
+${kind === "app" ? "export default app;" : ""}
+${kind === "start" ? 'serve({ fetch: app.fetch, port: Number(process.env.PORT ?? 3000), overrideGlobalObjects: false });' : ""}
+`;
 }
 
 interface BuildOptions {
@@ -226,7 +210,7 @@ describe("the production build layout", () => {
       const entry = await readFile(join(root, "dist", "server.js"), "utf8");
       // Nothing binds a port and nothing reaches for the Node adapter: the
       // build is handed to whatever calls its fetch, and the project said so by
-      // not exporting `start`.
+      // exporting the application without starting a listener.
       expect(entry).not.toContain("overrideGlobalObjects");
       expect(entry).not.toContain("process.env.PORT");
       expect(entry).not.toContain("@hono/node-server");
@@ -235,7 +219,8 @@ describe("the production build layout", () => {
       // — a Worker, an edge runtime, a test — can import the bundle as it is.
       const built = await import(
         pathToFileURL(join(root, "dist", "server.js")).href
-      ) as { default: { fetch: typeof fetch } };
+      ) as { default: { fetch: typeof fetch }; customExport: string };
+      expect(built.customExport).toBe("preserved");
       const response = await built.default.fetch(
         new Request("http://localhost/"),
       );
@@ -285,12 +270,12 @@ describe("the production build layout", () => {
     }
   });
 
-  it("enters the build through the entry's start export", async () => {
+  it("runs the entry's top-level Node listener", async () => {
     const root = await buildProject({ entry: "start" });
 
     try {
       const entry = await readFile(join(root, "dist", "server.js"), "utf8");
-      // The project's own `start` owns the listener, so its adapter and its
+      // The project's own entry owns the listener, so its adapter and its
       // port are in the bundle and nothing else put them there.
       expect(entry).toContain("overrideGlobalObjects");
       expect(entry).toContain("process.env.PORT");

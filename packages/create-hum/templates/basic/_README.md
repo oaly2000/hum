@@ -24,7 +24,7 @@ dist/
 ```
 
 Hum renders the client asset URLs the build recorded (under `/_hum/`, next to
-the server entry) but does not serve them itself: `server.ts` answers the
+the server entry) but does not serve them itself: `app.ts` answers the
 requests for the sibling `public/` directory with
 `@hono/node-server/serve-static`. The path is resolved relative to the server
 entry, so a renamed or relocated output directory needs no extra configuration.
@@ -34,14 +34,16 @@ is public — the server entry sits next to it and stays unreachable. Node.js
 
 ## Hono server
 
-`server.ts` exports a Hono app. Configure middleware and API routes with the
-normal Hono API; Hum mounts its file-based routes directly onto that app and
-handles unmatched requests with its `_404` page.
-Hum page errors use `_error`; API errors keep using the app's Hono `onError`.
-Vite owns the development listener, preserving SSR and HMR. In production the
-generated entry calls the app's `start(app)` export — this template's — which is
-what binds the port; a project that exports no `start` hands the app to whatever
-calls its `fetch` instead. The example includes a `/api/health` route.
+`app.ts` creates the Hono app, registers middleware and APIs, then explicitly
+calls `await mountHum(app, config)`. The config comes from `virtual:hum/build`,
+which also registers the discovered routes, islands and client assets.
+Hum handles unmatched requests with `_404`; page errors use `_error`, while API
+errors use the app's Hono `onError`.
+
+`server.ts` imports that app and calls `serve()` directly. The production build
+bundles this entry without invoking any special exports. Development uses
+`hum({ devEntry: "app.ts" })` so Vite owns the listener and does not run the Node
+startup code. The example includes `/api/health`.
 
 ## Layout
 
@@ -58,7 +60,8 @@ client/
   main.ts       client entry; imports global CSS
   style.css     Tailwind CSS entry point
 public/         files served from / in dev, and copied into the build
-server.ts       Hono app with middleware and API routes
+app.ts          Hono app with explicit Hum mounting
+server.ts       Node listener
 ```
 
 ## Static files

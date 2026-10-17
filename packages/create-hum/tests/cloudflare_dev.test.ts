@@ -87,12 +87,8 @@ describe("the Cloudflare template in development", () => {
       expect(runtime.status, runtimeHtml).toBe(200);
       expect(runtimeHtml).toContain("workerd");
 
-      // A change re-runs the worker's entry module while `server.ts` stays in
-      // the module cache, so the mount is made again — and it is made on an app
-      // of the entry's own, which is what lets an edited page and a page added
-      // while the server runs both answer without restarting it. Mounting the
-      // cached app directly fails here: Hono takes no route once a request has
-      // matched on its router.
+      // The application entry owns its Hono instance. Invalidating its build
+      // dependency recreates the app when the route table changes.
       await writeFile(
         join(target, "routes", "index.tsx"),
         'export default function Home() { return <p>edited-home</p>; }\n',

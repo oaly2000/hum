@@ -18,7 +18,7 @@ export default defineConfig(({ command }) => ({
       ? [
           cloudflare({
             viteEnvironment: { name: "ssr" },
-            config: { main: "./dev-worker.ts" },
+            config: { main: "./server.cloudflare.ts" },
           }),
         ]
       : []),

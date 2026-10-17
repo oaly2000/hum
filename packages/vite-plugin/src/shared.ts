@@ -38,8 +38,10 @@ export interface HumOptions {
   routesDir?: string;
   /** Islands directory, relative to the root. @default "islands" */
   islandsDir?: string;
-  /** Hono app entry, relative to the root. @default "server.ts" */
+  /** Production entry, relative to the root. @default "server.ts" */
   serverEntry?: string;
+  /** App module loaded by Vite without starting a listener. Defaults to serverEntry. */
+  devEntry?: string;
   /** Output directory of the production build. @default "dist" */
   outDir?: string;
   /** Base path the app is served from. @default "/" */
@@ -66,6 +68,7 @@ export interface ResolvedHumOptions {
   routesDir: string;
   islandsDir: string;
   serverEntry: string;
+  devEntry: string;
   outDir: string;
   basePath: string;
   clientEntry: string;
@@ -81,6 +84,7 @@ export function resolveHumOptions(
     routesDir: options.routesDir ?? "routes",
     islandsDir: options.islandsDir ?? "islands",
     serverEntry: options.serverEntry ?? SERVER_ENTRY_FILE,
+    devEntry: options.devEntry ?? options.serverEntry ?? SERVER_ENTRY_FILE,
     outDir: options.outDir ?? "dist",
     basePath: options.basePath ?? "/",
     clientEntry: options.clientEntry ?? "client/main.ts",
@@ -143,8 +147,8 @@ export function virtualModule(
 }
 
 /**
- * Project file that default-exports the app's Hono instance. Optional: without
- * it the build makes an app of its own and serves it on Node.
+ * Default production entry. Optional: without it the build makes an app of
+ * its own and serves it on Node.
  */
 export const SERVER_ENTRY_FILE = "server.ts";
 

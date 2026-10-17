@@ -42,7 +42,7 @@ export default define.page<{ notice: string }>(({ data }) => (
   </form>
 ));`;
 
-const directResponseExample = `// server.ts of this site, reachable at /api/health
+const directResponseExample = `// app.ts of this site, reachable at /api/health
 app.get("/api/health", (c) => c.json({ status: "ok" }));`;
 
 export default define.page<HandlerPageData>(({ data }: HandlerPageProps) => {
