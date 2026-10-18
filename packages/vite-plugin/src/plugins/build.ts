@@ -1,11 +1,12 @@
-import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, readFile, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { join, resolve, sep } from "node:path";
+import { spawn } from "node:child_process";
+import { dirname, join, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import type { GeneratedPage, ProdManifest } from "@humjs/core";
 import { islandNameOfFile } from "@humjs/core/routing";
-import { build, type Plugin, type ResolvedConfig } from "vite";
+import { createBuilder, type Plugin, type UserConfig, type ViteBuilder } from "vite";
 
 import {
   ASSETS_BASE,
@@ -13,27 +14,74 @@ import {
   CLIENT_RUNTIME_ENTRY,
   ISLANDS_ENTRY,
   makeBuildId,
+  PAGES_VIRTUAL_ID,
   SERVER_ENTRY,
   SERVER_ENTRY_NAME,
+  GENERATED_DIR,
   type HumContext,
   type ResolvedHumOptions,
 } from "../shared.js";
-import { humBuildInput } from "./build_input.js";
-import { humIslandTags } from "./island_tags.js";
 import { writeBuildEntries } from "./islands.js";
-import { humRoutes } from "./routes.js";
 
-/** Bundle the app module separately so prerendering never runs its listener. */
-async function prerender(ctx: HumContext, plugins: Plugin[]): Promise<Record<string, GeneratedPage>> {
+const PRERENDER_ENTRY = ".hum/prerender-entry.js";
+const PAGES_OUTPUT = "_generated/hum-pages.js";
+
+function comparisonPath(path: string): string {
+  const absolute = resolve(path);
+  return process.platform === "win32" ? absolute.toLowerCase() : absolute;
+}
+
+function containsPath(parent: string, path: string): boolean {
+  return path === parent || path.startsWith(parent.endsWith(sep) ? parent : parent + sep);
+}
+
+/** Keep application modules, globals and native addons out of Vite's process. */
+async function prerender(entry: string): Promise<Record<string, GeneratedPage>> {
+  const script = `
+try {
+  const module = await import(${JSON.stringify(pathToFileURL(entry).href)});
+  const pages = await module.prerender();
+  process.send({ pages }, () => process.exit(0));
+} catch (error) {
+  process.send({ error: { message: error instanceof Error ? error.message : String(error), stack: error?.stack } }, () => process.exit(1));
+}
+`;
+  const child = spawn(process.execPath, [...process.execArgv, "--input-type=module", "--eval", script], {
+    stdio: ["ignore", "inherit", "inherit", "ipc"],
+    serialization: "advanced",
+  });
+  try {
+    return await new Promise((resolve, reject) => {
+      child.once("message", (message: {
+        pages?: Record<string, GeneratedPage>;
+        error?: { message: string; stack?: string };
+      }) => {
+        if (message.error) {
+          const error = new Error(message.error.message);
+          error.stack = message.error.stack;
+          reject(error);
+        } else {
+          resolve(message.pages!);
+        }
+      });
+      child.once("error", reject);
+      child.once("exit", (code, signal) => reject(new Error(
+        `hum: prerender exited before returning pages (${signal ?? code})`,
+      )));
+    });
+  } finally {
+    child.kill();
+  }
+}
+
+/** This entry loads the compiled app only when route policies need generation. */
+async function writePrerenderEntry(ctx: HumContext): Promise<void> {
   const { options } = ctx;
-  const tempDir = resolve(options.root, ".hum", "prerender");
-  await mkdir(tempDir, { recursive: true });
-  const entry = join(tempDir, "entry.js");
   const appEntry = resolve(options.root, options.devEntry);
   const loadApp = existsSync(appEntry)
     ? `const { default: app } = await import(${JSON.stringify(appEntry.replace(/\\/g, "/"))});`
     : `const app = await createApp(config);`;
-  await writeFile(entry, `
+  await writeFile(resolve(options.root, PRERENDER_ENTRY), `
 import { createApp, planPages, prerenderPages } from "@humjs/core";
 import { build, config } from ${JSON.stringify(BUILD_VIRTUAL_ID)};
 export async function prerender() {
@@ -44,29 +92,6 @@ export async function prerender() {
   return await prerenderPages(app);
 }
 `, "utf8");
-  try {
-    await build({
-      root: options.root,
-      configFile: false,
-      publicDir: false,
-      plugins,
-      logLevel: "warn",
-      build: {
-        ...serverBuildConfig(options),
-        outDir: tempDir,
-        rollupOptions: {
-          input: { prerender: entry },
-          output: { codeSplitting: false, entryFileNames: "prerender.mjs" },
-        },
-      },
-      ssr: { noExternal: true },
-    });
-    const module = await import(pathToFileURL(join(tempDir, "prerender.mjs")).href + `?build=${ctx.prod!.buildId}`);
-    return await module.prerender();
-  } finally {
-    // A fixed intermediate directory inside this project's .hum tree.
-    await rm(tempDir, { recursive: true, force: true });
-  }
 }
 
 interface ClientManifestEntry {
@@ -99,31 +124,43 @@ function buildPaths(options: ResolvedHumOptions) {
 }
 
 /**
- * Build options shared by the two SSR passes. Both write the same server entry
- * into the same directory without emptying it, and both rely on the dynamic
- * route imports being bundled so the deployment stays a single entry.
+ * Compile the application to ESM modules. Framework virtual modules become
+ * ordinary generated modules and npm imports remain available to Node.
  */
-function serverBuildConfig(options: ResolvedHumOptions): Record<string, unknown> {
+function serverBuildConfig(options: ResolvedHumOptions, outDir: string, standalone = false) {
+  const entry = existsSync(resolve(options.root, options.serverEntry))
+    ? options.serverEntry : SERVER_ENTRY;
   return {
-    // The build's public tree sits in the same directory, so this pass writes
-    // its entry next to it without emptying it.
-    outDir: options.outDir,
+    outDir,
     emptyOutDir: false,
     ssr: true,
-    // One syntax target for every build: the same bundle is imported by a
-    // Worker runtime and started by Node, depending on whether the project's
-    // entry starts a listener, so the syntax it is emitted with cannot depend on
-    // where it ends up running. Node 20 is the strictest of the two.
     target: "node20",
-    rollupOptions: {
+    manifest: false,
+    minify: false,
+    rolldownOptions: {
       input: {
-        [SERVER_ENTRY_NAME]: existsSync(resolve(options.root, options.serverEntry))
-          ? resolve(options.root, options.serverEntry)
-          : SERVER_ENTRY,
+        [SERVER_ENTRY_NAME]: resolve(options.root, entry),
+        ...(standalone ? {} : {
+          "_generated/prerender": resolve(options.root, PRERENDER_ENTRY),
+          "_generated/hum-build": BUILD_VIRTUAL_ID,
+          "_generated/hum-pages": PAGES_VIRTUAL_ID,
+        }),
       },
-      // Routes are discovered through dynamic imports; disabling splitting
-      // keeps the deployment to the single server entry.
-      output: { codeSplitting: false },
+      preserveEntrySignatures: "strict" as const,
+      treeshake: standalone,
+      output: standalone ? {
+        format: "es" as const,
+        preserveModules: false,
+        codeSplitting: false,
+        entryFileNames: "[name].js",
+      } : {
+        format: "es" as const,
+        preserveModules: true,
+        preserveModulesRoot: options.root,
+        virtualDirname: "_generated",
+        entryFileNames: "[name].js",
+        chunkFileNames: "[name].js",
+      },
     },
   };
 }
@@ -225,66 +262,79 @@ async function assembleBuild(ctx: HumContext): Promise<ProdManifest> {
 /**
  * Build plugin: makes a plain `vite build` produce a complete Hum build.
  *
- * Both environments discover their own files: the routes come from the
- * `virtual:hum/routes` glob, and the islands entry makes the client build emit
- * one chunk per island. Once the client half is written, the production assets
- * are derived from Vite's own manifest and carried into the SSR pass — the
- * second, independent build — where `virtual:hum/build` inlines them into the
- * server bundle.
+ * Vite environments retain the complete user configuration and plugin hooks.
+ * Both deployment modes prerender the same compiled application modules; only
+ * standalone adds a final bundling environment.
  */
 export function humBuild(ctx: HumContext): Plugin {
-  let isSsr = false;
-  let chained = false;
-  let userTransformPlugins: Plugin[] = [];
+  let sourceConfig: UserConfig;
+  let orchestrating = false;
+  let clientFailed = false;
+  let standalonePass = false;
+  const compilationId = makeBuildId();
+  const moduleDir = () => ctx.options.standalone
+    ? resolve(ctx.options.root, ".hum", `server-${compilationId}`)
+    : resolve(ctx.options.root, ctx.options.outDir);
+
+  async function finishBuild(builder: ViteBuilder) {
+    const { options } = ctx;
+    const paths = buildPaths(options);
+    ctx.prod = await assembleBuild(ctx);
+    ctx.pages = undefined;
+    if (options.verbose) {
+      builder.config.logger.info(`hum: ${Object.keys(ctx.prod.islands).length} island chunk(s)`);
+    }
+    try {
+      await builder.build(builder.environments.ssr!);
+      await writeFile(join(moduleDir(), "package.json"), '{"type":"module"}\n');
+      const prerenderFile = join(moduleDir(), "_generated", "prerender.js");
+      ctx.pages = await prerender(prerenderFile);
+      await writeFile(join(moduleDir(), PAGES_OUTPUT), `export default ${JSON.stringify(ctx.pages)};\n`);
+      await rm(prerenderFile);
+      await rm(prerenderFile + ".map", { force: true });
+      await rm(join(moduleDir(), PAGES_OUTPUT + ".map"), { force: true });
+      if (options.standalone) {
+        // Resolve a fresh SSR environment so native resolvers use the final
+        // dependency policy. User transforms see original source, and plugins
+        // scoped to the standard ssr environment keep working.
+        standalonePass = true;
+        try {
+          const standalone = await createBuilder({ ...sourceConfig, configFile: false });
+          await standalone.build(standalone.environments.ssr!);
+        } finally {
+          standalonePass = false;
+        }
+      }
+      await writeFile(resolve(options.root, paths.packageJson), '{"type":"module"}\n');
+    } finally {
+      if (options.standalone) {
+        // This directory is created solely for this build inside .hum.
+        await rm(moduleDir(), { recursive: true, force: true });
+      }
+    }
+  }
 
   return {
     name: "hum:build",
     apply: "build",
+    sharedDuringBuild: true,
 
-    configResolved(config: ResolvedConfig) {
-      userTransformPlugins = config.plugins
-        .filter((plugin) =>
-          !plugin.name.startsWith("hum:") &&
-          !plugin.name.startsWith("vite:") &&
-          plugin.transform !== undefined
-        )
-        .map((plugin) => ({
-          name: `hum:ssr-transform:${plugin.name}`,
-          ...(plugin.enforce === undefined ? {} : { enforce: plugin.enforce }),
-          ...(plugin.apply === undefined ? {} : { apply: plugin.apply }),
-          transform: plugin.transform,
-        }));
-    },
-
-    async config(_config, env) {
+    async config(config) {
       const options = ctx.options;
       const paths = buildPaths(options);
-
+      sourceConfig ??= { ...config, build: { ...config.build }, environments: { ...config.environments } };
       await writeBuildEntries(ctx);
-
-      isSsr = env.isSsrBuild === true;
-
-      if (isSsr) {
-        return { build: serverBuildConfig(options) };
-      }
+      await writePrerenderEntry(ctx);
 
       return {
         appType: "custom",
-        // Public files are copied once during assembly, beside the server
-        // entry. Vite's automatic copy would also place them in .hum-client.
         publicDir: false,
+        builder: { sharedConfigBuild: true, sharedPlugins: true },
+        environments: { ssr: { consumer: "server" } },
         build: {
-          // The client output is assembled into `<outDir>/public/_hum` once the
-          // pass is done, so this directory is an implementation detail.
           outDir: paths.client,
           emptyOutDir: true,
           manifest: true,
-          // Entry exports are consumed from outside the bundle by the
-          // server-inlined boot script (see the tree-shaking note in
-          // `@humjs/core/runtime/client`), so `preserveEntrySignatures` keeps
-          // them — and, for the islands entry, the lazy imports its glob result
-          // holds — in the emitted chunks. In Vite 8 the input map and the
-          // Rolldown options both live under `rolldownOptions`.
           rolldownOptions: {
             input: { runtime: CLIENT_RUNTIME_ENTRY, islands: ISLANDS_ENTRY },
             preserveEntrySignatures: "exports-only",
@@ -293,64 +343,94 @@ export function humBuild(ctx: HumContext): Plugin {
       };
     },
 
-    async closeBundle() {
-      // The SSR pass is chained from the client one; nothing to do for it and
-      // never chain twice.
-      if (isSsr || chained) return;
-      chained = true;
-
+    configEnvironment(name, config) {
       const options = ctx.options;
-      const paths = buildPaths(options);
-
-      // The client pass just wrote the assets and the build's public tree is
-      // assembled from them, so the runtime's input is complete:
-      // `virtual:hum/build` inlines it into the server bundle below, which is
-      // why the deployed app has no manifest file to read.
-      ctx.prod = await assembleBuild(ctx);
-      if (options.verbose) {
-        // The routes are resolved by the bundler now, so only the islands are
-        // known here.
-        this.info(`hum: ${Object.keys(ctx.prod.islands).length} island chunk(s)`);
+      if (name === "ssr") {
+        const server = serverBuildConfig(options, standalonePass ? options.outDir : moduleDir(), standalonePass);
+        const output = config.build?.rolldownOptions?.output;
+        config.build = {
+          ...config.build,
+          ...server,
+          target: config.build?.target ?? server.target,
+          minify: config.build?.minify ?? server.minify,
+          rolldownOptions: {
+            ...config.build?.rolldownOptions,
+            ...server.rolldownOptions,
+            output: { ...(Array.isArray(output) ? {} : output), ...server.rolldownOptions.output },
+          },
+        };
+        config.resolve = {
+          ...config.resolve,
+          external: config.resolve?.external ?? (standalonePass ? [] : true),
+          ...(standalonePass ? { noExternal: true } : {}),
+        };
       }
+    },
 
-      const serverPlugins = () => [
-        ...userTransformPlugins,
-        humRoutes(ctx),
-        humBuildInput(ctx),
-        humIslandTags(ctx),
-      ];
-      // Client URLs are final before generating pages. The final server pass
-      // then carries their responses in virtual:hum/build, with no disk lookup.
-      ctx.pages = undefined;
-      ctx.pages = await prerender(ctx, serverPlugins());
+    resolveId(id) {
+      return id === PAGES_VIRTUAL_ID ? "\0" + PAGES_VIRTUAL_ID : null;
+    },
+    load(id) {
+      return id === "\0" + PAGES_VIRTUAL_ID ? `export default ${JSON.stringify(ctx.pages ?? {})};` : null;
+    },
 
-      await build({
-        root: options.root,
-        // This pass only reuses user transform hooks: replaying complete user
-        // plugins would also run their build/server lifecycle hooks a second
-        // time. The generated server entry imports the build from its virtual
-        // module, so the Hum plugins that resolve it are included explicitly.
-        configFile: false,
-        // The island tags belong to the server bundle as much as to the dev
-        // server: the island modules a page imports are the ones the renderer
-        // recognizes, and this pass is the only thing that transforms them
-        // here. Without it a production build serves islands that nothing
-        // hydrates.
-        plugins: serverPlugins(),
-        // The public tree was already assembled beside the server entry.
-        publicDir: false,
-        logLevel: "warn",
-        build: serverBuildConfig(options),
-        // SSR builds externalize dependencies by default, which makes the
-        // deployed server depend on the project's node_modules. Bundle npm
-        // dependencies into the server file; Node built-ins remain external.
-        ssr: { noExternal: true },
-      });
-      await writeFile(
-        join(options.root, paths.packageJson),
-        JSON.stringify({ type: "module" }, null, 2) + "\n",
-        "utf8",
-      );
+    async buildStart() {
+      if (this.environment.name !== "client") return;
+      clientFailed = false;
+      const { options } = ctx;
+      const root = resolve(options.root);
+      const outDir = resolve(root, options.outDir);
+      const rootPath = comparisonPath(root);
+      const outputPath = comparisonPath(outDir);
+      if (containsPath(outputPath, rootPath)) {
+        throw new Error("hum: outDir must not contain the project root");
+      }
+      const sourceDirectories = [GENERATED_DIR, PROJECT_PUBLIC, options.routesDir, options.islandsDir];
+      const clientDir = dirname(options.clientEntry);
+      if (clientDir !== ".") sourceDirectories.push(clientDir);
+      for (const directory of sourceDirectories) {
+        const source = comparisonPath(resolve(root, directory));
+        if (containsPath(source, outputPath) || containsPath(outputPath, source)) {
+          throw new Error(`hum: outDir must not overlap the source directory "${directory}"`);
+        }
+      }
+      for (const entry of [options.serverEntry, options.devEntry, options.clientEntry]) {
+        const source = comparisonPath(resolve(root, entry));
+        if (containsPath(outputPath, source)) {
+          throw new Error(`hum: outDir must not contain the source entry "${entry}"`);
+        }
+      }
+      // Match Vite's protection of output directories outside the project.
+      if (containsPath(rootPath, outputPath) || sourceConfig.build?.emptyOutDir === true) {
+        await rm(outDir, { recursive: true, force: true });
+      }
+    },
+
+    buildEnd(error) {
+      if (this.environment.name === "client" && error) clientFailed = true;
+    },
+
+    async buildApp(builder) {
+      orchestrating = true;
+      try {
+        await builder.build(builder.environments.client!);
+        await finishBuild(builder);
+      } finally {
+        orchestrating = false;
+      }
+    },
+
+    async closeBundle() {
+      // Vite's programmatic build() builds one environment instead of invoking
+      // buildApp. Reuse its original user config and full plugin pipeline.
+      if (this.environment.name !== "client" || orchestrating || clientFailed) return;
+      orchestrating = true;
+      try {
+        const builder = await createBuilder({ ...sourceConfig, configFile: false });
+        await finishBuild(builder);
+      } finally {
+        orchestrating = false;
+      }
     },
   };
 }

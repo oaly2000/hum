@@ -36,8 +36,8 @@ function serveClientAssets(app: Hono) {
   const publicRoot = resolve(dirname(fileURLToPath(import.meta.url)), "public");
 
   // Dev serves the project's public files through Vite, so this only matters
-  // once the public directory exists. The server bundle lives next to
-  // `public/` rather than inside it, so it can never be reached over HTTP.
+  // once the public directory exists. The server modules live next to
+  // `public/` rather than inside it, so they can never be reached over HTTP.
   if (!existsSync(publicRoot)) return;
 
   app.use("*", serveStatic({ root: publicRoot }));

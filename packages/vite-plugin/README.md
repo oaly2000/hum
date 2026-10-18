@@ -11,7 +11,7 @@ For a complete project setup, use
 ## Install
 
 ```sh
-npm install @humjs/core @humjs/vite-plugin hono preact
+npm install @humjs/core @humjs/vite-plugin @hono/node-server hono preact
 npm install --save-dev vite
 ```
 
@@ -27,6 +27,8 @@ export default defineConfig({
 ```
 
 Hum renders its own document and does not use Vite's `index.html`.
+Projects without `server.ts` receive a generated Node listener, which requires
+`@hono/node-server` in the application's production dependencies.
 
 ## Options
 
@@ -39,6 +41,10 @@ noted.
 | `routesDir` | `"routes"` | Route-file directory. |
 | `islandsDir` | `"islands"` | Global island directory. Route-local `_islands/` directories are also discovered. |
 | `outDir` | `"dist"` | Production output directory. |
+| `standalone` | `false` | Bundle server dependencies for deployment without `node_modules`. By default, emit ESM modules with npm dependencies external. |
+| `serverEntry` | `"server.ts"` | Production application entry. Its exports and top-level code are preserved. |
+| `devEntry` | `serverEntry` | App module for development and prerendering; must default-export a mounted Hono app without starting a listener. |
+| `prerenderOrigin` | `"http://localhost"` | Canonical origin for build-time SSG/ISG generation. |
 | `basePath` | `"/"` | URL path prefix for the application. |
 | `clientEntry` | `"client/main.ts"` | Optional client entry, commonly used to import global CSS or client event factories. |
 | `verbose` | `false` | Log discovered route/island information and build island chunks. |
@@ -90,17 +96,32 @@ production build, Hum emits `<outDir>/server.js`, `<outDir>/package.json`, and
 `<outDir>/public/`; the latter contains Hum's client assets under `/_hum` and
 the project's public files.
 
-If `server.ts` default-exports a Hono app, Hum mounts file routes on that app.
-An optional `start(app)` export is called by the generated Node server entry
-after mounting, for apps that start their own listener. Without `start`, the
-generated entry exports the app for a platform that calls its `fetch` handler.
-For example, the Cloudflare scaffold uses that form. See the
-[Hono and deployment guide](https://hum.runasp.net/docs/hono).
+Create the Hono app in `app.ts`, register middleware and API routes, then call
+`await mountHum(app, config)` using `config` from `virtual:hum/build`. Export the
+app as the module's default. A Node `server.ts` imports this app and calls
+`serve()` directly; configure `hum({ devEntry: "app.ts" })` so development and
+prerendering load the app without starting its listener. Hum preserves the
+production entry as written. See the
+[Hono guide](https://hum.runasp.net/docs/hono).
 
-The server build bundles npm dependencies; it does not serve `public/` by
-itself. Node applications can mount static serving (as the basic scaffold
-does), or a reverse proxy/CDN/platform binding can serve the output's `public/`
-directory.
+The default server build emits an ESM module tree, preserving application paths
+such as `app.js` and `routes/index.js`; Hum's generated modules live under
+`_generated/`. npm dependencies stay external. Deploy this tree with the
+application's production dependencies, installed using its package manifest and
+lockfile. The output's `package.json` only marks ESM and is not a dependency
+manifest. Node loads native addons and package resources from the installed
+packages as usual. Application files loaded through runtime-computed paths and
+other runtime resources must also be included in the deployment.
+
+Select `hum({ standalone: true })` to bundle server dependencies into a relocatable
+ESM `server.js` that runs without `node_modules`. Dependencies must support bundling.
+The Cloudflare scaffold selects this mode and exports its mounted Hono app from
+`server.ts` for the platform to call. Both modes use the same client build and
+page-generation pipeline; prerendering loads the compiled app in Node.
+
+Hum does not serve `public/` by itself. Node applications can mount static
+serving (as the basic scaffold does), or a reverse proxy/CDN/platform binding
+can serve the output's `public/` directory.
 
 ## Common checks
 

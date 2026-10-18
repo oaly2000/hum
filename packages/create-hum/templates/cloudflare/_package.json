@@ -13,8 +13,8 @@
     "deploy": "wrangler deploy"
   },
   "dependencies": {
-    "@humjs/core": "^0.4.0",
-    "@humjs/vite-plugin": "^0.3.0",
+    "@humjs/core": "^0.5.0",
+    "@humjs/vite-plugin": "^0.5.0",
     "@preact/signals": "^2.11.3",
     "hono": "^4.13.13",
     "preact": "^11.0.1"

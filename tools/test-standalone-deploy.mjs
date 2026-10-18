@@ -49,7 +49,14 @@ try {
     ),
     false,
   );
+  const scaffoldConfig = await readFile(
+    join(scaffoldRoot, "vite.config.ts"),
+    "utf8",
+  );
+  assert.match(scaffoldConfig, /hum\(\{ devEntry: "app\.ts" \}\)/);
+  assert.doesNotMatch(scaffoldConfig, /standalone:\s*true/);
 
+  // test:standalone explicitly selects Vite's standalone mode for this build.
   // The output directory holds the server entry, its package.json and the
   // public tree: `server.js`, `package.json`, `public/_hum`, `public/…`.
   assert.deepEqual(

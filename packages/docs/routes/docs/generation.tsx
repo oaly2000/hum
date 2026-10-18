@@ -66,8 +66,8 @@ export default function GenerationGuide() {
       <h2 class="mt-12 text-xl font-extrabold">Build and request behavior</h2>
       <p class="mt-4 leading-7 text-muted">
         Configure <code>hum({"{ devEntry: \"app.ts\", prerenderOrigin: \"https://example.com\" }"})</code>.
-        The build loads the app module without starting the Node listener. Route
-        configuration is evaluated in Node; build-time handlers must work there
+        The build loads the compiled app module without starting the Node
+        listener. Route configuration is evaluated in Node; build-time handlers must work there
         without deployment-only bindings. The canonical origin defaults to
         <code> http://localhost</code>.
       </p>
@@ -81,10 +81,12 @@ export default function GenerationGuide() {
         SSR option. Non-GET methods continue through the normal handler chain.
       </p>
       <p class="mt-4 leading-7 text-muted">
-        Development always renders fresh output. Production bundles generated
-        pages into the server artifact and serves them through Hono, so the
-        output can move without a runtime file lookup. Pure static hosting is
-        not provided by this output format.
+        Development always renders fresh output. Production embeds generated
+        pages in the generated Hum build module and serves them through Hono.
+        Standalone builds bundle that module with the server; ordinary builds
+        keep it in the ESM module tree alongside the compiled app. Neither mode
+        discovers page files at runtime. Pure static hosting is not provided by
+        this output format.
       </p>
     </article>
   );

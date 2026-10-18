@@ -121,6 +121,13 @@ describe("templates", () => {
     expect(app).toContain("await mountHum(app, { ...config, pages })");
     expect(app).toContain("export default app");
     expect(server).toContain("@hono/node-server");
+
+    const vite = await readFile(join(target, "vite.config.ts"), "utf8");
+    expect(vite).toContain('hum({ devEntry: "app.ts" })');
+    expect(vite).not.toContain("standalone: true");
+    const readme = await readFile(join(target, "README.md"), "utf8");
+    expect(readme).toContain("production dependencies");
+    expect(readme).toContain("standalone: true");
   });
 
   it("scaffolds a Worker project from the Cloudflare template", async () => {
@@ -148,7 +155,7 @@ describe("templates", () => {
 
     // Nothing tells the plugin which runtime this is: the entry's exports do.
     const vite = await readFile(join(target, "vite.config.ts"), "utf8");
-    expect(vite).toContain("hum()");
+    expect(vite).toContain("hum({ standalone: true })");
     expect(vite).not.toContain("platform:");
 
     // Development renders on workerd, and only while serving: the production

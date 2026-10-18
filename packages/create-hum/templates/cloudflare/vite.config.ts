@@ -5,7 +5,7 @@ import { hum } from "@humjs/vite-plugin";
 
 export default defineConfig(({ command }) => ({
   plugins: [
-    hum(),
+    hum({ standalone: true }),
     // Serving runs the app inside workerd, with the project's bindings and the
     // runtime the deployment uses. The production build stays Hum's own — one
     // server bundle and a public tree — so the plugin is only loaded while the

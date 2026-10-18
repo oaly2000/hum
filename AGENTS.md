@@ -125,12 +125,13 @@ the example where applicable.
   the app, leaving application middleware on cache hits while directory
   middleware and handlers run during generation. Never reuse a request Context
   for background work or cache private/varying responses.
-- The client build is followed by a temporary Node prerender bundle that
-  evaluates route policies and loads devEntry only when paths need generation.
-  That entry must be the mounted app, without a listener. The final server pass
-  inlines generated responses into HumBuild.pages, with the canonical origin
-  from prerenderOrigin. The temporary bundle is deleted; runtime still performs
-  no file system lookup. Static hosting is not an output mode.
+- The client build is followed by server compilation. Prerendering evaluates
+  route policies from the compiled modules and loads devEntry only when paths
+  need generation. That entry must be the mounted app, without a listener.
+  Generated responses are embedded in HumBuild.pages in the generated build
+  module, with the canonical origin from prerenderOrigin. Both deployment modes
+  use this path rather than a separate temporary prerender bundle; runtime still
+  performs no file system discovery. Static hosting is not an output mode.
 - A generated page carries full HTML and partial metadata captured during the
   same buffered render. Publish both representations atomically and keep their
   shared payload graph intact. Streaming remains SSR-only. ISG storage keys
@@ -176,7 +177,7 @@ the example where applicable.
 - `createApp(config)` creates the Hono app for projects that do not have their
   own `server.ts`. Keep it a wrapper around `mountHum(app, config)` so both
   paths share routing behavior.
-- Every build has the same shape: `<outDir>/server.js`, `<outDir>/package.json`
+- Every build includes `<outDir>/server.js`, `<outDir>/package.json`
   and `<outDir>/public/`, where `public/_hum` holds the client assets and the
   project's `public/` files are copied in beside them. `/_hum` addresses them, so
   the output directory is never part of an asset URL — it may be `dist`,
@@ -185,12 +186,19 @@ the example where applicable.
   (`<outDir>/.hum-client`, including Vite's manifest) is copied into
   `<outDir>/public/_hum` and then deleted, so the deployed output directory
   carries nothing that is not published. `outDir` defaults to `dist`.
-- Production server builds bundle npm dependencies into relocatable ESM chunks.
-  Verify the built tree runs from a different directory, and under a different
-  directory name, without `node_modules`. The server entry locates nothing on
-  disk — the build is inlined into the bundle — and the client asset URL comes
-  from `assetsBase` in that build, so neither may be derived from a directory
-  name at runtime.
+- Production server builds default to an ESM module tree with npm dependencies
+  external. Preserve application paths (`app.ts` becomes `<outDir>/app.js`) and
+  place generated Hum modules under `<outDir>/_generated/`. Deploy the tree
+  alongside installed production dependencies; its `package.json` only marks
+  ESM and does not replace the application's dependency manifest and lockfile.
+  Do not bundle native addons or packages that need their installed files in
+  this mode. Runtime-computed application resources still need to be deployed.
+- `hum({ standalone: true })` bundles server dependencies into relocatable ESM
+  output. Cloudflare uses this mode. Verify standalone output runs from a
+  different directory, and under a different directory name, without
+  `node_modules`. Normal builds instead retain Node's dependency resolution.
+  Both modes embed the build rather than discovering files at runtime; client
+  asset URLs come from `assetsBase`, independent of the output directory name.
 - The output directory's `public/` tree is served from the deployment root: it is
   what the dev server answers for the project's `public/` directory and what a
   built app mounts `@hono/node-server/serve-static` for (see
@@ -198,7 +206,7 @@ the example where applicable.
   directory as a sibling of its server entry, so renaming or moving the output
   needs no runtime environment variable. Normally static requests are delegated
   to a reverse proxy, a CDN, or a platform asset binding. Only that tree is
-  public: the server bundle sits next to it and must stay unreachable over HTTP,
+  public: the server modules sit next to it and must stay unreachable over HTTP,
   which `tools/test-standalone-deploy.mjs` asserts in both directions.
 
 ## Development and Validation

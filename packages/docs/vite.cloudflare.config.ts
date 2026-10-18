@@ -13,7 +13,7 @@ export default defineConfig(({ command }) => ({
       preserveInteractiveElements: false,
       preserveElements: [isHumInteractiveElement],
     }),
-    ...hum({ serverEntry: "server.cloudflare.ts" }),
+    ...hum({ serverEntry: "server.cloudflare.ts", standalone: true }),
     ...(command === "serve"
       ? [
           cloudflare({

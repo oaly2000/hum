@@ -55,13 +55,19 @@ server.ts        Node entry; calls serve()
 vite.config.ts   plugins: [hum({ devEntry: "app.ts" }), tailwindcss()]
 ```
 
-Projects use Vite for dev/build, and the build output can be run directly with
-`node dist/server.js`. The output directory has one shape wherever it is
-deployed:
+Projects use Vite for dev/build, and the build output runs with
+`node dist/server.js`. By default, server code is compiled to ESM modules and
+npm dependencies stay external, so deploy the output with the application's
+production dependencies installed. Native modules and packages that read their
+own resources keep using Node's normal package resolution.
 
 ```
 dist/                 the output directory; `outDir` in the plugin options
-  server.js           the app, with npm dependencies bundled
+  server.js           the compiled server entry
+  app.js              the compiled Hono application
+  routes/             compiled route modules
+  islands/            compiled server-side island modules
+  _generated/         Hum's generated build and route modules
   package.json        {"type": "module"}, so Node runs server.js as ESM
   public/             served from the deployment root
     _hum/             Hum's client assets (runtime, islands, styles)
@@ -69,17 +75,26 @@ dist/                 the output directory; `outDir` in the plugin options
 ```
 
 The directory itself is never addressed: Hum's client assets live in
-`public/_hum` next to the server entry, so the same build runs whether it is
-deployed as `dist`, `wwwroot` or anything else. Production emits a single server
-JavaScript file with npm dependencies bundled; Node built-ins remain external.
+`public/_hum` next to the server entry, so the output can be renamed or relocated
+alongside its production dependencies.
 The app serves its `public/` tree (see `app.ts`, which mounts
 `@hono/node-server/serve-static` for it) — in production that is normally
 delegated to a reverse proxy, a CDN, or a platform asset binding.
 
-The production build bundles your entry directly, preserving its exports and
-running its top-level code. Node's `server.ts` imports the app and calls
+The production build preserves your entry's exports and top-level code.
+Node's `server.ts` imports the app and calls
 `serve({ fetch: app.fetch })`; a Worker exports its app for the platform to call.
 Hum does not invoke a special startup export or mount routes on your behalf.
+
+For deployment without `node_modules`, select `hum({ standalone: true })`.
+This bundles server dependencies into a relocatable ESM `server.js`; Node built-ins
+remain external. Dependencies must support bundling, so use the default mode for
+native addons or packages that need their installed files. Both modes bundle the
+client assets, discover routes at build time, and keep server files outside
+`public/`. The generated output's `package.json` marks ESM; use the application's
+own package manifest and lockfile to install production dependencies.
+Application resources loaded through runtime-computed paths must also be
+included in the deployment.
 
 Create the application explicitly:
 
@@ -106,10 +121,12 @@ listener. `devEntry` defaults to `serverEntry` and must default-export a Hono ap
 the production entry can use ordinary named exports or have no exports.
 
 `pnpm dlx create-hum my-worker --template cloudflare` scaffolds a Worker whose
-`server.ts` explicitly mounts Hum and exports the app. Development uses that same
+`server.ts` explicitly mounts Hum and exports the app. Its Vite configuration
+selects `standalone: true`. Development uses that same
 entry inside workerd. `wrangler.jsonc` points production at `dist/server.js` and
 publishes `dist/public` through the platform's asset binding. Select another
-production entry with `hum({ serverEntry: "server.cloudflare.ts" })`.
+production entry with
+`hum({ serverEntry: "server.cloudflare.ts", standalone: true })`.
 
 Existing projects should move their app setup into `app.ts`, add the explicit
 `mountHum` call above, set `devEntry`, and replace `export function start(app)`
@@ -177,8 +194,10 @@ The build uses `devEntry` as its app module and never starts the Node listener.
 It evaluates route configuration in Node; pre-generation handlers must work
 without deployment-only bindings. Set the canonical generation origin with
 `hum({ devEntry: "app.ts", prerenderOrigin: "https://example.com" })`; it defaults
-to `http://localhost`. Generated responses travel inside the server bundle and
-are served through Hono, including Partial navigation with the same shared
+to `http://localhost`. The build loads the compiled app module and embeds
+generated responses in the generated build module; standalone output bundles
+that module with the server. These responses are served through Hono, including
+Partial navigation with the same shared
 payload graph. This output format requires the app server; it is not a pure
 static-hosting export.
 

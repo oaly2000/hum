@@ -41,8 +41,8 @@ export default function GettingStarted(_props: RouteProps) {
         Create and run the app
       </h2>
       <p class="mt-3 leading-7 text-muted">
-        Use Node.js 20 or later. The scaffold uses npm by default; pnpm and
-        other package managers work too.
+        Use Node.js 20.19 or later (or 22.12 or later). The scaffold uses npm by
+        default; pnpm and other package managers work too.
       </p>
       <CodeBlock code={installExample} language="bash" />
       <p class="mt-3 leading-7 text-muted">
@@ -77,10 +77,18 @@ export default function GettingStarted(_props: RouteProps) {
         Build and serve
       </h2>
       <p class="mt-3 leading-7 text-muted">
-        The basic template bundles the server app and client assets into{" "}
-        <code>dist/</code>. Build and run the Node server with:
+        The basic template compiles the server app to ESM modules and bundles
+        client assets into <code>dist/</code>. npm dependencies stay external.
+        Build and run the Node server with:
       </p>
       <CodeBlock code={buildExample} language="bash" />
+      <p class="mt-3 leading-7 text-muted">
+        Deploy <code>dist/</code> with the application's package manifest and
+        lockfile, and install its production dependencies. For a build that runs
+        without <code>node_modules</code>, set <code>standalone: true</code> in
+        the Hum plugin options; dependencies must support bundling. The
+        Cloudflare template selects this mode.
+      </p>
       <p class="mt-3 leading-7 text-muted">
         The server listens on port <code>3000</code> by default; set{" "}
         <code>PORT</code> to change it. The{" "}
@@ -88,10 +96,9 @@ export default function GettingStarted(_props: RouteProps) {
           class="font-semibold text-accent hover:underline"
           href="/docs/hono"
         >
-          Hono and deployment guide
+          Hono guide
         </a>{" "}
-        explains the server entry, API routes, static files, and the Cloudflare
-        template.
+        explains middleware and API routes.
       </p>
 
       <p class="mt-12 border-t border-line pt-6 text-sm text-muted">

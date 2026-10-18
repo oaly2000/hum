@@ -11,7 +11,8 @@ npm run preview  # run the built Worker locally on workerd
 npm run deploy   # publish the Worker and its assets
 ```
 
-The build is one JavaScript file with its npm dependencies bundled, plus the
+The template selects `hum({ standalone: true })` so npm dependencies are bundled
+into `server.js` and no `node_modules` is deployed. The build also includes the
 public tree it publishes:
 
 ```
@@ -40,8 +41,8 @@ Vite still owns the module graph, HMR and the client assets; the Cloudflare
 plugin takes the page requests.
 
 That is why `vite.config.ts` loads `@cloudflare/vite-plugin` only while serving:
-the production build stays Hum's own, which is what keeps `npm run build` at one
-server bundle plus a public tree. It points the plugin at source `server.ts`,
+the production build stays Hum's own server output plus a public tree. It
+points the plugin at source `server.ts`,
 while `main` in `wrangler.jsonc` names the built entry. Both use the same app
 module, which creates a Hono instance and explicitly mounts Hum. Route discovery
 changes invalidate that dependency and recreate the app. `npm run preview` runs

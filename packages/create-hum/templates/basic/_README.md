@@ -5,18 +5,23 @@ A [Hum](https://github.com/) app: static HTML first, islands for interaction.
 ```bash
 npm install
 npm run dev      # Custom Hono server with Vite SSR + HMR middleware
-npm run build    # client + server bundles into dist/
+npm run build    # client assets + server ESM modules into dist/
 npm start        # run the built server
 ```
 
-The production server is emitted as one JavaScript file with its npm
-dependencies bundled, so the runtime deployment does not need the project's
-`node_modules`. The generated output directory can move or even be renamed — it
-holds everything the deployment needs:
+The production server is emitted as ESM modules. npm dependencies stay external,
+so deploy `dist/` with the project's `package.json` and lockfile and install its
+production dependencies. The output's own `package.json` only marks ESM; it does
+not list dependencies. Native addons and packages that load their own resources
+use the installed `node_modules` as they would in any Node app.
 
 ```
 dist/
   server.js     the entry point
+  app.js        the Hono application
+  routes/       compiled routes
+  islands/      compiled server-side islands
+  _generated/   generated Hum build and route modules
   package.json  {"type": "module"}
   public/       served from the deployment root
     _hum/       Hum's client assets (runtime, islands, styles)
@@ -27,10 +32,17 @@ Hum renders the client asset URLs the build recorded (under `/_hum/`, next to
 the server entry) but does not serve them itself: `app.ts` answers the
 requests for the sibling `public/` directory with
 `@hono/node-server/serve-static`. The path is resolved relative to the server
-entry, so a renamed or relocated output directory needs no extra configuration.
+module, so a renamed or relocated output directory needs no extra configuration
+when its production dependencies remain available to Node.
 Delegate static files to a reverse proxy or a CDN in production. Only `public/`
 is public — the server entry sits next to it and stays unreachable. Node.js
 20.19 or newer (or 22.12 or newer) is required.
+
+For deployment without `node_modules`, set `standalone: true` in the Hum plugin
+options. This bundles server dependencies into a relocatable ESM `server.js` and
+requires dependencies that support bundling. The client assets are bundled in
+both modes. Include any application resources loaded through runtime-computed
+paths in your deployment as well.
 
 ## Hono server
 
@@ -41,7 +53,7 @@ Hum handles unmatched requests with `_404`; page errors use `_error`, while API
 errors use the app's Hono `onError`.
 
 `server.ts` imports that app and calls `serve()` directly. The production build
-bundles this entry without invoking any special exports. Development uses
+compiles this entry without invoking any special exports. Development uses
 `hum({ devEntry: "app.ts" })` so Vite owns the listener and does not run the Node
 startup code. The example includes `/api/health`.
 
@@ -89,8 +101,8 @@ Generation runs public GET requests without cookies, authorization or query
 parameters. Keep personalized pages on SSR. Configure `prerenderOrigin` on the
 Hum Vite plugin for absolute URLs. The build evaluates the application and route
 configuration in Node; generated handlers must work without deployment bindings.
-Full HTML and Partial responses are bundled into the server output and served
-by Hono. Development always renders fresh output.
+Full HTML and Partial responses are embedded in the generated build module and
+served by Hono. Development always renders fresh output.
 
 ## Tailwind CSS
 

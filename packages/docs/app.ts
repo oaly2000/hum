@@ -21,7 +21,7 @@ app.use("*", async (c, next) => {
 // to the project root there and to the output directory in a production build.
 // The whole public tree is served —
 // Hum's client assets under `/_hum` and the project's own files beside them —
-// while the server bundle itself stays outside it and unreachable.
+// while the server modules stay outside it and unreachable.
 if (existsSync(publicRoot)) {
   app.use("*", serveStatic({ root: publicRoot }));
 }

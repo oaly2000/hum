@@ -47,6 +47,8 @@ export interface HumOptions {
   prerenderOrigin?: string;
   /** Output directory of the production build. @default "dist" */
   outDir?: string;
+  /** Bundle the server and its npm dependencies for deployment without node_modules. @default false */
+  standalone?: boolean;
   /** Base path the app is served from. @default "/" */
   basePath?: string;
   /**
@@ -74,6 +76,7 @@ export interface ResolvedHumOptions {
   devEntry: string;
   prerenderOrigin: string;
   outDir: string;
+  standalone: boolean;
   basePath: string;
   clientEntry: string;
   verbose: boolean;
@@ -91,6 +94,7 @@ export function resolveHumOptions(
     devEntry: options.devEntry ?? options.serverEntry ?? SERVER_ENTRY_FILE,
     prerenderOrigin: new URL(options.prerenderOrigin ?? "http://localhost").origin,
     outDir: options.outDir ?? "dist",
+    standalone: options.standalone ?? false,
     basePath: options.basePath ?? "/",
     clientEntry: options.clientEntry ?? "client/main.ts",
     verbose: options.verbose ?? false,
@@ -127,6 +131,9 @@ export const RESOLVED_ROUTES_VIRTUAL_ID = "\0" + ROUTES_VIRTUAL_ID;
  */
 export const BUILD_VIRTUAL_ID = "virtual:hum/build";
 export const RESOLVED_BUILD_VIRTUAL_ID = "\0" + BUILD_VIRTUAL_ID;
+
+/** Generated pages are replaced after prerendering without recompiling the app. */
+export const PAGES_VIRTUAL_ID = "virtual:hum/pages";
 
 /**
  * Builds a plugin half that serves one virtual module: `resolveId` maps the

@@ -13,7 +13,7 @@
     "start": "pnpm --filter hum-docs start",
     "typecheck": "pnpm -r exec tsc --noEmit",
     "test": "vitest run",
-    "test:standalone": "pnpm build && node tools/test-standalone-deploy.mjs"
+    "test:standalone": "pnpm build:pkgs && pnpm --filter hum-docs exec vite build --mode standalone && node tools/test-standalone-deploy.mjs"
   },
   "devDependencies": {
     "@changesets/cli": "^3.0.3",

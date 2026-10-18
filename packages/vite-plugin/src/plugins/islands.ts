@@ -49,8 +49,7 @@ export function humIslands(): Plugin {
 /**
  * Writes the entry files the production build needs into `.hum/`. The client
  * build bundles the runtime once, plus one chunk per island that the islands
- * entry makes the bundler emit; the server build uses the application entry, or generates a Node listener for a
- * project without one.
+ * entry makes the bundler emit.
  */
 export async function writeBuildEntries(ctx: HumContext): Promise<void> {
   const dir = join(ctx.options.root, GENERATED_DIR);

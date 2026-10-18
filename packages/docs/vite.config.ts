@@ -6,13 +6,13 @@ import {
 import { defineConfig } from "vite";
 import { hum } from "@humjs/vite-plugin";
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [
     preactSsrPrecompile({
       preserveInteractiveElements: false,
       preserveElements: [isHumInteractiveElement],
     }),
-    ...hum({ devEntry: "app.ts" }),
+    ...hum({ devEntry: "app.ts", standalone: mode === "standalone" }),
     tailwindcss(),
   ],
-});
+}));
