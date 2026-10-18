@@ -1,5 +1,17 @@
 # @humjs/core
 
+## 0.5.0
+
+### Minor Changes
+
+- Add typed request-scoped resources shared across route middleware, layouts, and pages.
+- `server.ts` is now the server build's entry as written: Hum no longer generates one. It creates its Hono app, imports `virtual:hum/build`, calls `await mountHum(app)` and default-exports the app, and starts its own listener (for example `serve(...)` guarded by `import.meta.env.PROD`). The `start(app)` export and the `cache`/`waitUntil` export convention are removed; pass them to `mountHum` instead. A project without `server.ts` is an error. The Cloudflare template drops `dev-worker.ts`.
+- Add unified SSR, SSG and ISG page generation with per-route render configuration and slugs tables. Pre-generate pages during builds, retain shared Partial payloads, and configure incremental storage and background regeneration in the application entry.
+
+### Patch Changes
+
+- Unify build-time static generation and incremental regeneration on a portable response-cache contract.
+
 ## 0.4.1
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # create-hum
 
+## 0.2.0
+
+### Minor Changes
+
+- `server.ts` is now the server build's entry as written: Hum no longer generates one. It creates its Hono app, imports `virtual:hum/build`, calls `await mountHum(app)` and default-exports the app, and starts its own listener (for example `serve(...)` guarded by `import.meta.env.PROD`). The `start(app)` export and the `cache`/`waitUntil` export convention are removed; pass them to `mountHum` instead. A project without `server.ts` is an error. The Cloudflare template drops `dev-worker.ts`.
+- Build ordinary Hono entries directly and add devEntry for applications with separate Node startup modules. Applications now mount Hum explicitly; replace the special start export with a top-level listener call. Simplify Worker templates to use the same application entry in development and production.
+- Add unified SSR, SSG and ISG page generation with per-route render configuration and slugs tables. Pre-generate pages during builds, retain shared Partial payloads, and configure incremental storage and background regeneration in the application entry.
+
 ## 0.1.0
 
 ### Minor Changes
