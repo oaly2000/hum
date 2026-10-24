@@ -50,8 +50,8 @@ export default function GettingStarted(_props: RouteProps) {
         Create and run the app
       </h2>
       <p class="mt-3 leading-7 text-muted">
-        Use Node.js 20.19 or later (or 22.12 or later). The scaffold uses npm by
-        default; pnpm and other package managers work too.
+        Use Node.js 22.18 or later. The scaffold uses npm by default; pnpm and
+        other package managers work too.
       </p>
       <CodeBlock code={installExample} language="bash" />
       <p class="mt-3 leading-7 text-muted">

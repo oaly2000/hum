@@ -36,7 +36,7 @@ module, so a renamed or relocated output directory needs no extra configuration
 when its production dependencies remain available to Node.
 Delegate static files to a reverse proxy or a CDN in production. Only `public/`
 is public — the server entry sits next to it and stays unreachable. Node.js
-20.19 or newer (or 22.12 or newer) is required.
+22.18 or later is required.
 
 For deployment without `node_modules`, set `standalone: true` in the Hum plugin
 options. This bundles server dependencies into a relocatable ESM `server.js` and

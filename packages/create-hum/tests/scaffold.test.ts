@@ -59,6 +59,7 @@ describe("scaffold", () => {
       await readFile(join(target, "package.json"), "utf8"),
     );
     expect(pkg.name).toBe("my-app");
+    expect(pkg.engines.node).toBe(">=22.18");
   });
 
   it("renames the files that cannot keep their template name", async () => {
@@ -182,7 +183,9 @@ describe("templates", () => {
     ) as {
       dependencies: Record<string, string>;
       devDependencies: Record<string, string>;
+      engines: { node: string };
     };
+    expect(pkg.engines.node).toBe(">=22.18");
     expect(pkg.dependencies["@hono/node-server"]).toBeUndefined();
     expect(pkg.dependencies["@cloudflare/vite-plugin"]).toBeUndefined();
     expect(pkg.devDependencies.wrangler).toBeDefined();

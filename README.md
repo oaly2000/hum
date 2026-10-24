@@ -6,9 +6,8 @@
 Hum is a server-side rendering framework built on [Preact](https://preactjs.com)
 and [Hono](https://hono.dev).
 
-Hum's Vite build requires Node.js 20.19 or later (or 22.12 or later). Workspace
-development and the precompiled documentation site require Node.js 22.18 or
-later and pnpm.
+Hum's Vite build requires Node.js 22.18 or later. Workspace development and
+the precompiled documentation site require Node.js 22.18 or later and pnpm.
 
 Most of its inspiration and a good part of its code come from
 [Fresh](https://usefresh.dev). It keeps Fresh's distinctive
@@ -46,9 +45,7 @@ routes/
   ...
 islands/
   Counter.tsx    interactive component
-client/
-  main.ts        client entry; imports global CSS
-  style.css      global styles
+styles.css       global styles; imported by routes/_app.tsx
 public/          served from / in dev; copied into the build's public/
 app.ts           Hono app with middleware, APIs and explicit Hum mounting
 server.ts        Node entry; calls serve()
@@ -241,8 +238,9 @@ Every file under `routes/` produces a URL based on its relative path.
 - `_404.tsx` — handles unmatched paths under its directory subtree.
 
 Outside `routes/`, `app.ts` creates your Hono app and `server.ts` starts it on Node.
-The `public/` directory holds static files served unchanged. Stylesheets are
-linked from route `head` exports; no user client entry is needed.
+The `public/` directory holds static files served unchanged. Import stylesheets
+directly from `_app.tsx`, layouts, pages or components; Hum discovers and links
+them automatically. No user client entry is needed.
 
 Directories named `_components/` and `_islands/` are excluded from route
 discovery, so you can co-locate reusable components with a route branch and
@@ -426,73 +424,32 @@ client navigation off for that subtree.
 ### Interactive runtime model
 
 Hum coordinates interactive DOM ownership through one client-side
-`InteractionManager`. Islands, Partial roots, and page-level element facets act
-as hosts; signals and handlers are reactive bindings that can live inside any
-host. A signal outside every host gets a standalone binding range. The
+`InteractionManager`. All three unit kinds (`island`, `partial`, and `binding`)
+use Preact VNode trees; `@preact/signals` provides signal tracking and reactive
+updates within those trees. Islands, Partial roots, and page-level element facets
+act as hosts; signals and handlers are reactive bindings that can live inside
+any host. A signal outside every host gets a standalone binding range. The
 InteractionManager treats page-level element facets and unhosted signal ranges
 alike as `binding` units; signal children inside a host are revived as part of
 its tree. Each signal use gets a `SignalText` VNode boundary around the shared
 signal value, so multiple trees can subscribe independently without sharing
-VNode bookkeeping. Island and Partial Preact roots remain root units. All units
-share ownership checks, mount ordering, update routing, scheduling, and cleanup.
+VNode bookkeeping. Island and Partial roots mount before binding units. The
+manager coordinates ownership checks, mounting, Partial update routing,
+scheduling, and cleanup; Preact and Signals handle rendering and reactive updates.
 
 ```mermaid
 flowchart TD
-  SSR["Server render"] --> HTML["HTML markers + serialized props and facets"]
-  HTML --> BOOT["Client boot: scan markers and payload"]
-  BOOT --> PLAN["Plan exclusive DOM ownership<br/>drop nested roots/facets covered by a host"]
-  PLAN --> MANAGER["Register units in InteractionManager"]
-  MANAGER --> ROOTS["Root phase"]
-  MANAGER --> BINDINGS["Binding phase"]
+  SSR["Server render"] --> HTML["HTML + shared payload"]
+  HTML --> MANAGER["InteractionManager<br/>DOM ownership, scheduling and cleanup"]
+  MANAGER --> ISLAND["island"]
+  MANAGER --> PARTIAL["partial"]
+  MANAGER --> BINDING["binding"]
+  ISLAND --> PREACT["Preact + @preact/signals<br/>Rendering and reactive updates"]
+  PARTIAL --> PREACT
+  BINDING --> PREACT
+  PREACT --> DOM["Interactive DOM"]
 
-  ROOTS --> ISLAND["Island host"]
-  ROOTS --> PARTIAL["Partial host"]
-  BINDINGS --> ELEMENT["Element facet host<br/>adopted subtree"]
-  BINDINGS --> STANDALONE_SIGNAL["Standalone binding range<br/>(currently an unhosted signal)"]
-
-  ROOTS --> ORDER["Schedule roots before bindings"]
-  ORDER --> ISLAND
-  ORDER --> PARTIAL
-  ORDER --> ELEMENT
-  ORDER --> STANDALONE_SIGNAL
-
-  ISLAND --> TREE["Host-owned interactive tree"]
-  PARTIAL --> TREE
-  ELEMENT --> TREE
-  TREE --> SIGNAL_BINDING["Signal binding"]
-  TREE --> HANDLER_BINDING["Handler binding"]
-  SIGNAL_BINDING --> SIGNAL_TEXT["SignalText VNode boundary<br/>one per rendered signal use"]
-  STANDALONE_SIGNAL --> SIGNAL_TEXT
-  SIGNAL_TEXT --> SIGNAL_VALUE["Shared signal value<br/>@preact/signals updates its text node"]
-
-  ISLAND --> VISIBLE{"Standalone island<br/>near viewport?"}
-  VISIBLE -->|"yes, or eager fallback"| LOAD["Load island module and hydrate"]
-  VISIBLE -->|"not yet"| WAIT["Keep server HTML visible"]
-  WAIT --> VISIBLE
-
-  SIGNAL_VALUE --> REACTIVE["Signal subscriptions drive text and prop updates"]
-  HANDLER_BINDING --> REACTIVE
-  ISLAND --> REACTIVE
-  PARTIAL --> REACTIVE
-
-  REACTIVE --> OWNER["Resolve owning unit and delegate"]
-  OWNER --> QUEUE["Queue or schedule update"]
-  QUEUE --> DOM["Apply update with the unit's renderer"]
-  DOM --> REACTIVE
-
-  NAV["Opted-in link or GET/POST form"] --> FETCH["Fetch partial response"]
-  FETCH --> PARSE["Parse response markers, payload and island modules"]
-  PARSE --> CURRENT{"Still the current navigation?"}
-  CURRENT -->|"yes"| ROUTE["Route each partial update to its owner<br/>warn and skip unmatched regions"]
-  ROUTE --> TRANSITION{"View Transitions API<br/>available?"}
-  TRANSITION -->|"yes"| VT["Apply routed updates and URL-link state<br/>inside transition callback; await DOM commit"]
-  TRANSITION -->|"no"| UPDATE["Schedule routed updates normally"]
-  VT --> HISTORY["Commit destination URL after success"]
-  UPDATE --> HISTORY
-  CURRENT -->|"no"| SKIP["Drop stale response"]
-  FETCH -->|"network/error"| KEEP["Keep current page and URL; report failure"]
-
-  DETACH["Owned DOM removed / manager disposed"] --> CLEAN["Run unit cleanup and disconnect observers"]
+  NAV["Client navigation<br/>Partial response"] -->|"Update owning unit"| MANAGER
 ```
 
 On successful client navigation, link clicks add a history entry, while form

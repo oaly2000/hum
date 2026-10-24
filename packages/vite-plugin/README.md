@@ -171,8 +171,6 @@ can serve the output's `public/` directory.
 - If an island is missing, use a module-level `defineIsland(Component)`
   declaration with browser-safe dependencies. Directory placement does not
   register islands.
-- If global styles are missing, confirm the CSS is imported by the configured
-  client entry.
 - Declare project event factories at module scope; Hum loads
   their extracted modules automatically. Factories outside project sources still
   need to be reachable through a browser import.

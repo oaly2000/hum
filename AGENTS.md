@@ -15,9 +15,10 @@ registered islands.
 - `packages/core` (`@humjs/core`): file-route matching, Hono request handling,
   SSR and the document shell, island markers/props, client runtime, and shared
   framework types.
-- `packages/vite-plugin` (`@humjs/vite-plugin`): file discovery (routes, islands,
-  client entry), Vite integration, development SSR/HMR, island/client entry
-  generation, asset and CSS handling, and production client/server builds.
+- `packages/vite-plugin` (`@humjs/vite-plugin`): file discovery (routes and
+  island declarations), Vite integration, development SSR/HMR, internal client
+  runtime and island entry generation, asset and CSS handling, and production
+  client/server builds.
 - `packages/create-hum` (`create-hum`): project scaffolder and its templates in
   `templates/basic`.
 - `packages/docs`: documentation site and integration example exercising the
@@ -244,8 +245,7 @@ the example where applicable.
 ## Development and Validation
 
 Workspace development and documentation builds require Node.js 22.18 or later
-and pnpm. Hum's published Vite build plugin itself supports Node.js 20.19 or
-later (or 22.12 or later).
+and pnpm. Hum's published Vite build plugin supports Node.js 22.18 or later.
 
 ```bash
 pnpm install
