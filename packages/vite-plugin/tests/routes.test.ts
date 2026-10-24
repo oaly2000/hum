@@ -63,6 +63,23 @@ describe("routesModuleSource", () => {
     expect(source).toContain('routesDir: "src/routes"');
   });
 
+  it("reuses collected declarations and the shared style map in production", () => {
+    const source = routesModuleSource(resolveHumOptions("/tmp/project"), [{
+      kind: "island", name: "i_counter", file: "views/Counter.tsx", exportName: "default",
+    }, {
+      kind: "factory", name: "f_handler", file: "events.ts", exportName: "handler", binding: "handler",
+    }]);
+    expect(source).toContain('import styles from "virtual:hum/styles"');
+    expect(source).toContain('styles[file.slice(1)] ?? []');
+    expect(source).toContain('import("/views/Counter.tsx")');
+    expect(source).toContain('import("/events.ts")');
+    expect(source).toContain('"clientFile":"events.ts?hum-client"');
+    expect(source).not.toContain("hum-client-metadata");
+    expect(source).not.toContain("hum-route-styles");
+    expect(source).not.toContain("styleModules");
+    expect(routesModuleSource(resolveHumOptions("/tmp/project"), [])).toContain("const declarations = [];");
+  });
+
   it("stays free of Node built-ins, so it can run anywhere", () => {
     const source = routesModuleSource(resolveHumOptions("/tmp/project"));
 

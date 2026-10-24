@@ -1,4 +1,4 @@
-import { readFile, rm } from "node:fs/promises";
+import { readdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -82,6 +82,8 @@ export default ({ data }) => <main><p>{data.message}</p><Counter /></main>;
         expect(await exists(join(output, file)), file).toBe(true);
       }
       expect(await exists(join(output, "_generated"))).toBe(true);
+      const generated = await readdir(join(output, "_generated"), { recursive: true });
+      expect(generated.filter(file => /hum[_:-](?:route-styles|client-metadata)/.test(file))).toEqual([]);
       expect(await exists(join(output, "_generated", "prerender.js"))).toBe(false);
       const source = await readFile(join(output, "app.js"), "utf8");
       expect(source).toContain('"hum-runtime-resource"');

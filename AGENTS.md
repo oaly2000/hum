@@ -50,8 +50,11 @@ the example where applicable.
   bindings and extracts declarations plus their same-file dependencies into
   `?hum-client` modules. SSR metadata imports original sources, keeping server
   output paths intact. Client metadata imports slices; production maps their
-  manifest keys to island/factory IDs. External modules are normal imports
-  and must be browser-safe. Unsupported mutable/effectful dependencies and
+  manifest keys to island/factory IDs.
+  Production routes reuse the declarations collected by the client build and
+  read the shared stylesheet map directly, avoiding per-source metadata and
+  per-route stylesheet wrapper modules in the preserved server tree.
+  External modules are normal imports and must be browser-safe. Unsupported mutable/effectful dependencies and
   non-CSS bare side-effect imports fail compilation rather than guessing.
   Serialized factory markers collect the factory IDs actually used by a
   response; full HTML imports their modules before boot, partial metadata lists
