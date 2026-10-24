@@ -143,6 +143,9 @@ importers:
       '@humjs/preact-ssr-precompile':
         specifier: workspace:*
         version: link:../preact-ssr-precompile
+      '@preact/signals':
+        specifier: ^2.11.3
+        version: 2.11.3(preact@11.0.1)
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5

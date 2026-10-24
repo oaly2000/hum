@@ -3,8 +3,8 @@ import { h, type ComponentType } from "preact";
 import { tagIsland, type IslandTag } from "./routing/island_tag.js";
 
 /**
- * Declares an island at module scope. Export the result from a browser-safe
- * module; the Hum Vite plugin supplies its identity and client build entry.
+ * Declares an island at module scope. The Hum Vite plugin supplies its identity
+ * and client build entry; exporting the declaration is optional.
  */
 export function defineIsland<Props>(
   component: ComponentType<Props>,
@@ -15,7 +15,7 @@ export function defineIsland<Props>(
 ): ComponentType<Props> {
   if (tag === undefined) {
     throw new Error(
-      "Hum: defineIsland() needs the Hum Vite plugin. Declare and export " +
+      "Hum: defineIsland() needs the Hum Vite plugin. Declare " +
         "the island at module scope so the plugin can generate its identity.",
     );
   }

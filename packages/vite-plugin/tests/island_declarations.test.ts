@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { islandDeclarations, islandId } from "../src/plugins/island_declarations.js";
+import { interactionDeclarations, factoryId, islandDeclarations, islandId } from "../src/plugins/client_declarations.js";
 
 describe("explicit island declarations", () => {
   const source = `import { defineIsland as island } from "@humjs/core/shared";
@@ -46,11 +46,32 @@ function other() { const defineIsland = () => null; return defineIsland(); }`, "
   });
 
   it.each([
-    ['import { defineIsland } from "@humjs/core/shared"; const Counter = defineIsland(() => null);', /must be exported/],
     ['import { defineIsland } from "@humjs/core/shared"; export function Page() { return defineIsland(() => null); }', /module-level/],
     ['import { defineIsland } from "@humjs/core/shared"; export const Counter = defineIsland(() => null, "manual");', /generated automatically/],
     ['import { defineIsland } from "@humjs/core/shared"; export const Counter = memo(defineIsland(() => null));', /module-level/],
   ])("rejects declarations that cannot be registered statically", (code, error) => {
     expect(() => islandDeclarations(code, "counter.tsx")).toThrow(error);
+  });
+});
+
+describe("automatic client identities", () => {
+  const file = "routes/index.tsx";
+  const imports = 'import {defineIsland} from "@humjs/core/shared"; import {defineFactory as factory} from "@humjs/core/events";';
+  it("supports private declarations and preserves identity across export changes", () => {
+    const code = imports + 'const Counter = defineIsland(() => null); const bump = factory(() => () => {});';
+    const privateDefs = interactionDeclarations(code, file);
+    expect(privateDefs.map(d => d.name)).toEqual([islandId(file, "Counter"), factoryId(file, "bump")]);
+    expect(privateDefs.map(d => d.exportName)).toEqual(privateDefs.map(d => `__hum_${d.name}`));
+    expect(interactionDeclarations(code + 'export {Counter, bump};', file).map(d => d.name)).toEqual(privateDefs.map(d => d.name));
+    expect(factoryId(file, "bump")).not.toBe(factoryId("routes/other.tsx", "bump"));
+    expect(factoryId(file, "bump")).not.toBe(islandId(file, "bump"));
+    expect(factoryId("routes\\index.tsx", "bump")).toBe(factoryId(file, "bump"));
+  });
+  it("supports namespace factories and default declarations", () => {
+    expect(interactionDeclarations('import * as events from "@humjs/core/events"; export default events.defineFactory(() => () => {});', file))
+      .toMatchObject([{kind: "factory", name: factoryId(file, "default"), exportName: "default"}]);
+  });
+  it("rejects manual factory IDs", () => {
+    expect(() => interactionDeclarations(imports + 'const bump = factory("manual", () => () => {});', file)).toThrow(/generated automatically/);
   });
 });

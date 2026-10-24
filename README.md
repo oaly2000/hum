@@ -249,7 +249,7 @@ Directories named `_components/` and `_islands/` are excluded from route
 discovery, so you can co-locate reusable components with a route branch and
 import them by relative path.
 
-Declare an island explicitly in a browser-safe project module:
+Declare an island explicitly at module scope:
 
 ```tsx
 // components/Counter.tsx
@@ -265,9 +265,18 @@ export const Counter = defineIsland(({ start = 0 }: { start?: number }) => {
 Import `Counter` into a page and use `<Counter start={3} />`. The Vite plugin
 generates its ID and client registration; there is no ID argument or manual
 import in `client/main.ts`. Named and default exports work, and one module can
-declare multiple islands. Declare and export islands at module scope, in modules
-that can run in the browser; server-only code is not automatically extracted.
-Use props for request-specific data instead of declaring islands inside a page.
+declare multiple islands. Exporting is optional for declarations used within the
+same module. Declarations can share a route file with server handlers:
+Hum extracts their same-file helpers, constants and used imports into a browser
+module, leaving unrelated handlers and server imports on the server. Dependencies
+of the extracted declaration must be browser-safe; external modules are imported
+normally and are not recursively split. Use props for request-specific data.
+
+The first version supports top-level functions and `const` dependencies. Effectful
+constant initializers, module-level mutable state, local classes/runtime TypeScript
+enums, and non-CSS bare side-effect imports require moving the dependency into a
+browser-safe imported module or initialization into the component/factory. Hum
+reports unsupported dependencies during client compilation.
 
 IDs follow the project-relative module path and declaration binding (`default`
 for an inline default export). Body edits and re-export aliases retain the ID;
@@ -523,20 +532,19 @@ export default function Checkout() {
 }
 ```
 
-A handler is rebuilt in the browser, so it travels as a factory name plus the
+A handler is rebuilt in the browser, so it travels as a factory ID plus the
 arguments it was called with; a closure cannot be serialized and throws at render
 time. `@humjs/core/events` ships `add(signal, delta, options)`,
 `setValue(signal, value)`, `toggle(signal)` and `setFromProp(signal, key)`; a
-handler of your own is a factory created with `defineFactory(name, fn)`.
+handler of your own is a factory created with `defineFactory(fn)`.
 
 ```ts
-// client/factories.ts — imported by client/main.ts as well, so the browser has it
+// routes/checkout.tsx — alongside its page and server handlers
 import { defineFactory } from "@humjs/core/events";
 import type { Signal } from "@preact/signals";
 
 /** Resets both options at once; each built-in factory drives one signal. */
-export const resetOrder = defineFactory(
-  "resetOrder",
+const resetOrder = defineFactory(
   (
     tickets: Signal<number>,
     giftWrap: Signal<boolean>,
@@ -549,10 +557,12 @@ export const resetOrder = defineFactory(
 );
 ```
 
-The name is what travels to the client, so keep it unique and stable. Import the
-module that defines the factory from the client entry or from an island—otherwise
-the page throws
-`Hum: the handler factory "…" is not registered on the client`.
+Declare the factory at module scope; exporting is optional. Hum generates its ID
+from the project-relative file path and variable name, and uses the same code
+extraction as islands and automatically loads modules for factories used by the
+response before restoring its payload, including partial navigation. No manual
+client-entry import is needed for project declarations. Pass request-specific
+data and signals as arguments instead of capturing them in a module closure.
 
 See Hum's [documentation](https://hum.runasp.net/docs/facets) and its
 [source](./packages/docs/routes/docs/facets.tsx).

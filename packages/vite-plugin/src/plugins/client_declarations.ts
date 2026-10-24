@@ -7,27 +7,34 @@ import { generateTransform, rolldownString } from "rolldown-string";
 import type { Plugin } from "vite";
 
 import {
-  ISLAND_METADATA_QUERY,
-  type DeclaredIsland,
+  CLIENT_SLICE_QUERY,
+  CLIENT_METADATA_QUERY,
+  type DeclaredClientDefinition,
   type HumContext,
 } from "../shared.js";
 
-interface Declaration extends DeclaredIsland {
+import { clientSlice } from "./client_slice.js";
+
+interface Declaration extends DeclaredClientDefinition {
   end: number;
   separator: string;
 }
 
-function definitionOf({ name, file, exportName }: DeclaredIsland): DeclaredIsland {
-  return { name, file, exportName };
+function definitionOf({ kind, name, file, exportName, binding }: DeclaredClientDefinition): DeclaredClientDefinition {
+  return { kind, name, file, exportName, binding };
 }
 
-const METADATA_PREFIX = "\0hum:island-metadata:";
+const METADATA_PREFIX = "\0hum:client-metadata:";
 
 /** A definition ID is independent of source text, evaluation order and output. */
 export function islandId(file: string, binding: string): string {
   return "i_" + createHash("sha256")
     .update(JSON.stringify([file.replace(/\\/g, "/"), binding]))
     .digest("hex").slice(0, 24);
+}
+
+export function factoryId(file: string, binding: string): string {
+  return "f_" + islandId(file, binding).slice(2);
 }
 
 export function projectFile(root: string, id: string): string | null {
@@ -39,8 +46,8 @@ export function projectFile(root: string, id: string): string | null {
 }
 
 /** Analyze declarations without executing the module or any of its imports. */
-export function islandDeclarations(code: string, file: string): Declaration[] {
-  if (!code.includes("@humjs/core/shared")) return [];
+export function interactionDeclarations(code: string, file: string): Declaration[] {
+  if (!code.includes("@humjs/core/shared") && !code.includes("@humjs/core/events")) return [];
   const parsed = parseSync(file, code, {
     lang: file.endsWith("x") ? "tsx" : "ts",
     sourceType: "module",
@@ -49,16 +56,18 @@ export function islandDeclarations(code: string, file: string): Declaration[] {
     throw new Error(`hum: cannot analyze "${file}": ${parsed.errors[0]!.message}`);
   }
   const body = parsed.program.body;
-  const functions = new Set<string>();
-  const namespaces = new Set<string>();
+  const functions = new Map<string, "island" | "factory">();
+  const namespaces = new Map<string, "island" | "factory">();
   for (const node of body) {
-    if (node.type !== "ImportDeclaration" || node.source.value !== "@humjs/core/shared" || node.importKind === "type") continue;
+    if (node.type !== "ImportDeclaration" || !["@humjs/core/shared", "@humjs/core/events"].includes(String(node.source.value)) || node.importKind === "type") continue;
+    const kind = node.source.value === "@humjs/core/shared" ? "island" : "factory";
+    const helper = kind === "island" ? "defineIsland" : "defineFactory";
     for (const spec of node.specifiers) {
       if (spec.type === "ImportSpecifier" && spec.importKind !== "type" &&
-        (spec.imported.type === "Identifier" ? spec.imported.name : spec.imported.value) === "defineIsland") {
-        functions.add(spec.local.name);
+        (spec.imported.type === "Identifier" ? spec.imported.name : spec.imported.value) === helper) {
+        functions.set(spec.local.name, kind);
       } else if (spec.type === "ImportNamespaceSpecifier") {
-        namespaces.add(spec.local.name);
+        namespaces.set(spec.local.name, kind);
       }
     }
   }
@@ -70,7 +79,7 @@ export function islandDeclarations(code: string, file: string): Declaration[] {
     return callee.type === "Identifier" ? functions.has(callee.name) :
       callee.type === "MemberExpression" && !callee.computed &&
       callee.object.type === "Identifier" && namespaces.has(callee.object.name) &&
-      callee.property.type === "Identifier" && callee.property.name === "defineIsland";
+      callee.property.type === "Identifier" && callee.property.name === (namespaces.get(callee.object.name) === "island" ? "defineIsland" : "defineFactory");
   };
   const exported = new Map<string, string[]>();
   const candidates: Array<{ binding: string; call: ESTree.CallExpression }> = [];
@@ -139,7 +148,7 @@ export function islandDeclarations(code: string, file: string): Declaration[] {
     const binding = callee?.type === "Identifier" ? callee.name :
       callee?.type === "MemberExpression" && callee.object.type === "Identifier" ? callee.object.name : null;
     if (isDeclaration(node) && binding !== null && !scope.has(binding) && !accepted.has(node)) {
-      throw new Error(`hum: defineIsland() in "${file}" must directly initialize an exported module-level declaration.`);
+      throw new Error(`hum: client declaration in "${file}" must directly initialize a module-level declaration.`);
     }
     for (const [key, value] of Object.entries(node)) {
       if (key === "parent") continue;
@@ -156,23 +165,37 @@ export function islandDeclarations(code: string, file: string): Declaration[] {
 
   return candidates.map(({ binding, call }) => {
     const names = exported.get(binding) ?? [];
-    if (names.length === 0) {
-      throw new Error(`hum: island "${binding}" in "${file}" must be exported.`);
-    }
-    if (call.arguments.length !== 1 || call.arguments[0]?.type === "SpreadElement") {
+    const callee = call.callee;
+    const kind = callee.type === "Identifier" ? functions.get(callee.name)! :
+      callee.type === "MemberExpression" && callee.object.type === "Identifier" ? namespaces.get(callee.object.name)! : "island";
+    if (kind === "island" && (call.arguments.length !== 1 || call.arguments[0]?.type === "SpreadElement")) {
       throw new Error(`hum: defineIsland() in "${file}" takes one component; its ID is generated automatically.`);
     }
-    const exportName = names.includes("default") ? "default" : names.sort()[0]!;
+    if (kind === "factory" && (call.arguments.length !== 1 || call.arguments[0]?.type === "SpreadElement")) {
+      throw new Error(`hum: defineFactory() in "${file}" takes one factory function; its ID is generated automatically.`);
+    }
+    const name = kind === "island" ? islandId(file, binding) : factoryId(file, binding);
+    let exportName = names.includes("default") ? "default" : names.sort()[0];
+    if (exportName === undefined) {
+      exportName = `__hum_${name}`;
+      const used = new Set([...exported.values()].flat());
+      while (used.has(exportName)) exportName += "_";
+    }
     if (!/^[A-Za-z_$][\w$]*$/.test(exportName)) {
-      throw new Error(`hum: island export "${exportName}" in "${file}" must be an identifier.`);
+      throw new Error(`hum: client export "${exportName}" in "${file}" must be an identifier.`);
     }
     const tail = code.slice(call.arguments[0]!.end, call.end - 1)
       .replace(/\/\*[\s\S]*?\*\/|\/\/[^\r\n]*/g, "").trimEnd();
     return {
-      name: islandId(file, binding), file, exportName, end: call.end - 1,
+      kind, name, file, exportName, binding: binding === "default" ? undefined : binding, end: call.end - 1,
       separator: tail.endsWith(",") ? "" : ",",
     };
   });
+}
+
+/** Island-only analysis retained for tools that consume island descriptors. */
+export function islandDeclarations(code: string, file: string): Declaration[] {
+  return interactionDeclarations(code, file).filter((entry) => entry.kind === "island");
 }
 
 /**
@@ -180,14 +203,18 @@ export function islandDeclarations(code: string, file: string): Declaration[] {
  * descriptors and lazy imports, so even server-only sources are never executed
  * or pulled into the browser just to find declarations.
  */
-export function humIslandDeclarations(ctx: HumContext): Plugin {
-  const definitions = ctx.islandDeclarations ??= new Map<string, DeclaredIsland[]>();
+export function humClientDeclarations(ctx: HumContext): Plugin {
+  const definitions = ctx.clientDeclarations ??= new Map<string, DeclaredClientDefinition[]>();
   function analyze(code: string, file: string): Declaration[] {
-    const declarations = islandDeclarations(code, file);
+    const declarations = interactionDeclarations(code, file);
+    const seen = new Set<string>();
     for (const declaration of declarations) {
+      const key = declaration.kind + ":" + declaration.name;
+      if (seen.has(key)) throw new Error(`hum: duplicate client declaration identity in "${file}".`);
+      seen.add(key);
       for (const [otherFile, others] of definitions) {
-        if (otherFile !== file && others.some((other) => other.name === declaration.name)) {
-          throw new Error(`hum: generated island ID collision in "${file}" and "${otherFile}".`);
+        if (otherFile !== file && others.some((other) => other.kind === declaration.kind && other.name === declaration.name)) {
+          throw new Error(`hum: duplicate client declaration identity in "${file}" and "${otherFile}".`);
         }
       }
     }
@@ -195,24 +222,32 @@ export function humIslandDeclarations(ctx: HumContext): Plugin {
     return declarations;
   }
   return {
-    name: "hum:island-declarations",
+    name: "hum:client-declarations",
     enforce: "pre",
     sharedDuringBuild: true,
     async resolveId(source, importer) {
-      if (!source.split("?")[1]?.split("&").includes(ISLAND_METADATA_QUERY)) return null;
+      const query = source.split("?")[1]?.split("&");
+      if (!query?.includes(CLIENT_METADATA_QUERY) && !query?.includes(CLIENT_SLICE_QUERY)) return null;
       const resolved = await this.resolve(source.split("?")[0]!, importer, { skipSelf: true });
       if (resolved === null) return null;
       const file = projectFile(ctx.options.root, resolved.id);
-      return file === null ? null : METADATA_PREFIX + file;
+      return file === null ? null : query.includes(CLIENT_SLICE_QUERY) ? resolved.id + "?" + CLIENT_SLICE_QUERY : METADATA_PREFIX + file;
     },
     async load(id) {
+      if (id.endsWith("?" + CLIENT_SLICE_QUERY)) {
+        const file = projectFile(ctx.options.root, id)!;
+        const source = resolve(ctx.options.root, file);
+        this.addWatchFile(source);
+        const code = await readFile(source, "utf8");
+        return clientSlice(code, file, analyze(code, file));
+      }
       if (!id.startsWith(METADATA_PREFIX)) return null;
       const file = id.slice(METADATA_PREFIX.length);
       const source = resolve(ctx.options.root, file);
       this.addWatchFile(source);
       const declarations = analyze(await readFile(source, "utf8"), file);
       const entries = declarations.map((declaration) =>
-        `{...${JSON.stringify(definitionOf(declaration))},load:()=>import(${JSON.stringify("/" + file)})}`
+        `{...${JSON.stringify({...definitionOf(declaration), clientFile: file + "?" + CLIENT_SLICE_QUERY})},load:()=>import(${JSON.stringify("/" + file + (this.environment.name === "client" ? "?" + CLIENT_SLICE_QUERY : ""))})}`
       );
       return `export default [${entries.join(",")}];`;
     },
@@ -223,14 +258,14 @@ export function humIslandDeclarations(ctx: HumContext): Plugin {
       if (metadata !== undefined) return [...modules, metadata];
     },
     transform(code, id) {
-      if (id.includes("?") || !/\.[jt]sx?$/.test(id)) return null;
+      if ((id.includes("?") && !id.endsWith("?" + CLIENT_SLICE_QUERY)) || !/\.[jt]sx?$/.test(id.split("?")[0]!)) return null;
       const file = projectFile(ctx.options.root, id);
       if (file === null || file.split("/").includes("node_modules")) return null;
       const declarations = analyze(code, file);
       if (declarations.length === 0) return null;
       const result = rolldownString(code, id);
       for (const declaration of declarations) {
-        result.appendLeft(declaration.end, declaration.separator + JSON.stringify(definitionOf(declaration)));
+        result.appendLeft(declaration.end, declaration.separator + JSON.stringify(declaration.kind === "island" ? definitionOf(declaration) : declaration.name));
       }
       return generateTransform(result, id, true);
     },

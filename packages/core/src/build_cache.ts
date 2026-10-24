@@ -17,6 +17,7 @@ import type { Island } from "./types.js";
 export class BuildCache {
   /** Islands by name, as their markers and the boot script name them. */
   readonly islands = new Map<string, Island>();
+  readonly factories = new Map<string, Island>();
   /** URL of the client runtime entry, imported by the boot script. */
   clientEntry: string;
   /** Stylesheets that belong to the client entry itself. */
@@ -40,27 +41,30 @@ export class BuildCache {
   load(build: HumBuild): void {
     const prod = this.dev ? null : build.prod;
     this.islands.clear();
+    this.factories.clear();
     // The URL is the build's, not the configuration's: the client assets are
     // published under it wherever the output directory ends up on disk.
     this.#assetsBase = (prod?.assetsBase ?? ASSETS_BASE).replace(/\/+$/, "");
 
-    for (const spec of build.islands) {
-      // In dev the modules are served straight from Vite, so the assets of a
-      // build must never win over the dev URLs.
-      const prodInfo = prod?.islands[spec.name];
-      const island: Island = {
-        name: spec.name,
-        exportName: spec.exportName,
-        file: spec.file,
-        // In dev Vite serves the island module by its source path, which is why
-        // the build's assets must never win over it.
-        clientUrl: prodInfo === undefined
-          ? `/${spec.file}`
-          : this.#assetUrl(prodInfo.file),
-        css: (prodInfo?.css ?? []).map((css) => this.#assetUrl(css)),
-      };
+    for (const [kind, specs] of [["islands", build.islands], ["factories", build.factories ?? []]] as const) {
+      for (const spec of specs) {
+        // In dev the modules are served straight from Vite, so the assets of a
+        // build must never win over the dev URLs.
+        const prodInfo = prod?.[kind]?.[spec.name];
+        const island: Island = {
+          name: spec.name,
+          exportName: spec.exportName,
+          file: spec.file,
+          // In dev Vite serves the island module by its source path, which is why
+          // the build's assets must never win over it.
+          clientUrl: prodInfo === undefined
+            ? `/${spec.clientFile ?? spec.file}`
+            : this.#assetUrl(prodInfo.file),
+          css: (prodInfo?.css ?? []).map((css) => this.#assetUrl(css)),
+        };
 
-      this.islands.set(island.name, island);
+        this[kind].set(island.name, island);
+      }
     }
 
     if (!this.dev && prod !== null) {

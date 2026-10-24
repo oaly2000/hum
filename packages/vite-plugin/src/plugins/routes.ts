@@ -3,7 +3,7 @@ import type { Plugin } from "vite";
 
 import {
   globCall,
-  islandMetadataGlob,
+  clientMetadataGlob,
   ROUTES_VIRTUAL_ID,
   type HumContext,
   type ResolvedHumOptions,
@@ -40,12 +40,14 @@ export function routesModuleSource(options: ResolvedHumOptions): string {
 import { specsFromGlob } from "@humjs/core/routing";
 
 const routeModules = ${globCall(patterns.routes)};
-const declaredModules = ${islandMetadataGlob(options)};
+const declaredModules = ${clientMetadataGlob(options)};
+const declarations = Object.values(declaredModules).flat();
 
 export const manifest = specsFromGlob({
   routesDir: ${JSON.stringify(options.routesDir)},
   routeModules,
-  declaredIslands: Object.values(declaredModules).flat(),
+  declaredIslands: declarations.filter((entry) => entry.kind === "island"),
+  factories: declarations.filter((entry) => entry.kind === "factory"),
 });
 
 export const routes = manifest.routes;

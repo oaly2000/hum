@@ -327,7 +327,7 @@ export async function applyPartials(
   const stateScript = doc.querySelector(`#${PARTIAL_STATE_ID}`);
   if (stateScript !== null && stateScript.textContent !== null) {
     const json = JSON.parse(stateScript.textContent) as PartialStateJson;
-    payload = parse<Payload>(json.props, CUSTOM_PARSER);
+    await Promise.all((json.factories ?? []).map((url) => import(/* @vite-ignore */ url)));
     await Promise.all(
       json.islands.map(async (island) => {
         const mod = await import(/* @vite-ignore */ island.url) as Record<
@@ -340,6 +340,8 @@ export async function applyPartials(
         );
       }),
     );
+    if (generation !== lastNavigation) return;
+    payload = parse<Payload>(json.props, CUSTOM_PARSER);
   }
 
   // Loading the island modules is awaited as well, so the generation can have

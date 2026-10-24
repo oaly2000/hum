@@ -4,12 +4,12 @@ import type { Signal } from "@preact/signals";
  * Property stamped on every value a factory produced. It is what lets the
  * server serialize a handler that would otherwise be an un-serializable
  * closure, and what lets the client rebuild it: the marker carries the factory
- * name plus the arguments it was called with.
+ * ID plus the arguments it was called with.
  */
 const FACTORY_MARKER = "__humFactory";
 
 interface FactoryMarker {
-  /** Name the factory is exported under, e.g. `"setFromProp"`. */
+  /** Compiler-generated identity, or a framework-owned built-in ID. */
   factory: string;
   /** Arguments the factory was called with, in declaration order. */
   args: unknown[];
@@ -33,24 +33,32 @@ export function factoryMarkerOf(value: unknown): FactoryMarker | undefined {
 }
 
 /**
- * Wraps a handler factory so its result carries a serializable marker, and
- * registers it under `name` for the client runtime.
- *
- * `name` travels in the payload instead of the function, so it has to be unique
- * in the app and stable across versions. The module a factory is defined in
- * must also be evaluated in the browser—import it from the client entry, or
- * from an island the page loads—otherwise the client has no implementation to
- * rebuild the handler with. Arguments follow the same rules as any other page
- * level prop: plain data, signals, or other factory results.
+ * Declares a handler factory at module scope. The Hum Vite plugin generates its
+ * identity and extracts its browser implementation; exporting is optional.
+ * Arguments follow the same rules as page props: plain data, signals, or other
+ * factory results.
  */
 export function defineFactory<A extends unknown[], R>(
+  fn: (...args: A) => R,
+): (...args: A) => R;
+export function defineFactory<A extends unknown[], R>(
+  fn: (...args: A) => R,
+  id?: string,
+): (...args: A) => R {
+  if (id === undefined) {
+    throw new Error("Hum: defineFactory() needs the Hum Vite plugin. Declare the factory at module scope so the plugin can generate its identity.");
+  }
+  return registerFactory(id, fn);
+}
+
+function registerFactory<A extends unknown[], R>(
   name: string,
   fn: (...args: A) => R,
 ): (...args: A) => R {
   if (hum_factories[name] !== undefined) {
     console.warn(
       `Hum: the handler factory "${name}" was defined twice; the last ` +
-        `definition wins. Factory names travel in the payload, so they have to ` +
+        `definition wins. Factory IDs travel in the payload, so they have to ` +
         `stay unique.`,
     );
   }
@@ -101,7 +109,7 @@ interface AddOptions {
  * Returns an event handler that adds `delta` to a numeric signal, clamped to
  * `options.min` / `options.max`.
  */
-export const add = defineFactory(
+export const add = registerFactory(
   "add",
   (
     signal: Signal<number>,
@@ -117,7 +125,7 @@ export const add = defineFactory(
 );
 
 /** Returns an event handler that sets a signal to a fixed value. */
-export const setValue = defineFactory(
+export const setValue = registerFactory(
   "setValue",
   <T>(signal: Signal<T>, value: T): ((event: Event) => void) =>
     () => {
@@ -126,7 +134,7 @@ export const setValue = defineFactory(
 );
 
 /** Returns an event handler that flips a boolean signal. */
-export const toggle = defineFactory(
+export const toggle = registerFactory(
   "toggle",
   (signal: Signal<boolean>): ((event: Event) => void) => () => {
     signal.value = !signal.value;
@@ -138,7 +146,7 @@ export const toggle = defineFactory(
  * `currentTarget` (e.g. `"value"`, `"checked"`, `"open"`) into a signal, so a
  * native form control can drive a signal without a component in between.
  */
-export const setFromProp = defineFactory(
+export const setFromProp = registerFactory(
   "setFromProp",
   (
     signal: Signal<unknown>,

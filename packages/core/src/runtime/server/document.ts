@@ -95,7 +95,7 @@ function renderResourceNodes(state: RenderState): AnyVNode[] {
         withBase(state.basePath, state.buildCache.clientEntry),
       ),
     );
-    for (const island of eagerIslandModules(state)) {
+    for (const island of [...eagerIslandModules(state), ...factoryModules(state)]) {
       nodes.push(
         link("modulepreload", withBase(state.basePath, island.clientUrl)),
       );
@@ -137,9 +137,17 @@ function renderLateResources(
   return renderToString(h(Fragment, null, nodes));
 }
 
+function factoryModules(state: RenderState): Island[] {
+  return [...state.factories].flatMap((name) => {
+    const module = state.buildCache.factories.get(name);
+    return module ? [module] : [];
+  });
+}
+
 function collectIslandCss(state: RenderState): string[] {
   const out: string[] = [];
   for (const island of state.islands) out.push(...island.css);
+  for (const factory of factoryModules(state)) out.push(...factory.css);
   for (const css of state.islandAssets) out.push(css);
   return out;
 }
@@ -155,7 +163,7 @@ function eagerIslandModules(state: RenderState): Island[] {
 export function preloadLinks(state: RenderState): string[] {
   if (!state.needsClientRuntime) return [];
   const out = [withBase(state.basePath, state.buildCache.clientEntry)];
-  for (const island of eagerIslandModules(state)) {
+  for (const island of [...eagerIslandModules(state), ...factoryModules(state)]) {
     out.push(withBase(state.basePath, island.clientUrl));
   }
   return out;
@@ -175,6 +183,7 @@ function islandImport(island: Island, index: number, basePath: string): {
 }
 
 export interface PartialStateJson {
+  factories?: string[];
   islands: Array<{ name: string; url: string; exportName: string }>;
   props: string;
 }
@@ -187,6 +196,7 @@ export function renderPartialState(state: RenderState, payload = serializePayloa
       url: withBase(state.basePath, island.clientUrl),
       exportName: island.exportName,
     })),
+    factories: [...new Set(factoryModules(state).map((factory) => withBase(state.basePath, factory.clientUrl)))],
     props: payload,
   };
   return renderToString(h("script", {
@@ -201,15 +211,18 @@ export function renderPartialState(state: RenderState, payload = serializePayloa
  * client uses to revive newly appearing islands).
  */
 export function renderScripts(state: RenderState, payload?: string): string {
+  const serialized = payload ?? serializePayload(state);
   const islands = [...state.islands];
 
   if (state.partialRequest) {
-    return renderPartialState(state, payload);
+    return renderPartialState(state, serialized);
   }
 
   if (!state.needsClientRuntime) return "";
 
-  const imports: string[] = [];
+  const imports: string[] = [...new Set(factoryModules(state).map((factory) =>
+    `import ${JSON.stringify(withBase(state.basePath, factory.clientUrl))};`
+  ))];
   const entries: string[] = [];
   const loaders: string[] = [];
   const eager = new Set(eagerIslandModules(state));
@@ -230,7 +243,7 @@ export function renderScripts(state: RenderState, payload?: string): string {
   }
 
   const clientEntry = withBase(state.basePath, state.buildCache.clientEntry);
-  const props = escapeScript(JSON.stringify(payload ?? serializePayload(state)));
+  const props = escapeScript(JSON.stringify(serialized));
   const content = `import { boot } from "${clientEntry}";${
     imports.join("")
   }boot({${entries.join(",")}},${props},{${loaders.join(",")}});`;
@@ -391,8 +404,8 @@ export function renderDocument(vnode: VNode, capturePartial = false): string | {
     );
   }
   const pageHtml = renderToString(vnode);
+  const payload = serializePayload(state);
   const headHtml = renderHead(state);
-  const payload = capturePartial ? serializePayload(state) : undefined;
   const body = assembleDocument(state, pageHtml, headHtml, renderScripts(state, payload));
   if (!capturePartial) return body;
   // Fill the original placeholders again instead of searching the finished
@@ -530,8 +543,9 @@ export function renderDocumentStream(vnode: VNode): ReadableStream<Uint8Array> {
 
         if (finished) {
           const final = withRenderState(state, () => {
+            const payload = serializePayload(state);
             const resources = renderLateResources(state, alreadyRendered);
-            const scripts = renderScripts(state);
+            const scripts = renderScripts(state, payload);
             let tail = prepare(buffer);
             if (fullDocument) {
               const bodyClose = tail.lastIndexOf("</body>");

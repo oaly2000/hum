@@ -1,4 +1,4 @@
-import type { IslandManifestEntry, RouteManifestEntry } from "./types.js";
+import type { IslandManifestEntry, IslandSpec, RouteManifestEntry } from "./types.js";
 import type { GeneratedPage } from "./pages.js";
 
 /** One island chunk of a production build. */
@@ -29,6 +29,7 @@ export interface ProdManifest {
   /** Client runtime chunk path, relative to `assetsBase`. */
   clientEntry: string;
   islands: Record<string, ProdIslandEntry>;
+  factories?: Record<string, ProdIslandEntry>;
   /** Client entry stylesheet paths, relative to `assetsBase`. */
   entryAssets?: string[];
 }
@@ -43,6 +44,7 @@ export interface ProdManifest {
  * app is mounted, and the runtime boots from what it finds there.
  */
 export interface HumBuild {
+  factories?: IslandSpec[];
   /** Pre-generated responses, carried by the bundle rather than read from disk. */
   pages?: Record<string, GeneratedPage>;
   /** Canonical origin used to generate public pages. */

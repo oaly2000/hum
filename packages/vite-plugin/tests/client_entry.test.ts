@@ -111,7 +111,7 @@ describe("writeBuildEntries", () => {
 
     expect(entry).toContain("export const islandModules = import.meta.glob(");
     expect(entry).toContain('"/**/*.{ts,tsx,js,jsx}"');
-    expect(entry).toContain("hum-island-metadata");
+    expect(entry).toContain("hum-client-metadata");
     expect(entry).not.toContain('"/islands/**/*.tsx"');
     rmSync(root, { recursive: true, force: true });
   });

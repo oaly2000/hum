@@ -275,7 +275,7 @@ describe("page level handlers", () => {
   });
 
   it("round-trips a factory the app defined itself", async () => {
-    const selectRow = defineFactory(
+    const selectRow = testFactory(
       "selectRow",
       (selected: Signal<string | null>, id: string) => () => {
         selected.value = id;
@@ -300,3 +300,8 @@ describe("page level handlers", () => {
     expect(selected.value).toBeNull();
   });
 });
+
+// Model the compiler's hidden identity argument without exposing it publicly.
+function testFactory<A extends unknown[], R>(id: string, fn: (...args: A) => R): (...args: A) => R {
+  return (defineFactory as (fn: (...args: A) => R, id: string) => (...args: A) => R)(fn, id);
+}

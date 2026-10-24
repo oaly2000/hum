@@ -270,8 +270,9 @@ export const CUSTOM_PARSER: CustomParser = {
     if (fn === undefined) {
       throw new Error(
         `Hum: the handler factory "${factory}" is not registered on the ` +
-          `client. Import the module that defines it from the client entry or ` +
-          `from an island, so it is evaluated before the page hydrates.`,
+          `client. Declare the project factory at module scope so Hum can ` +
+          `load its client implementation before hydration. Factories outside ` +
+          `project discovery must be imported by browser code.`,
       );
     }
     return fn(...args);

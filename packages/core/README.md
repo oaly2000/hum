@@ -43,11 +43,20 @@ Most applications should use the
 ## Islands
 
 Declare islands with `defineIsland(Component)` from `@humjs/core/shared` in a
-browser-safe module. Export the result at module scope; the Vite plugin generates
+project module, including a route file. Declare it at module scope; exporting is optional. The Vite plugin generates
 its ID and client registration. Named and default exports are supported, with
 multiple declarations per module. No special directory or client-entry import
 is required. Directory placement never registers an island; wrap existing island
-exports with `defineIsland` when migrating.
+exports with `defineIsland` when migrating. The plugin extracts the declaration's
+same-file dependencies into a browser module and excludes unrelated server code.
+Extracted imports must be browser-safe.
+
+Top-level `defineFactory(fn)` declarations from
+`@humjs/core/events` use the same extraction. Modules for factories used in a
+response load before payload revival, including partial navigation; no manual
+client-entry import is needed. IDs are generated from file paths and declaration
+bindings; exporting is optional.
+Pass per-request data and signals as factory arguments.
 
 ## Typical route
 

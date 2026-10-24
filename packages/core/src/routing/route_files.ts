@@ -4,6 +4,7 @@
 import type {
   HumManifest,
   IslandManifestEntry,
+  IslandSpec,
   ModuleThunk,
   RouteKind,
   RouteManifestEntry,
@@ -49,6 +50,7 @@ export interface GlobModules {
 }
 
 export interface SpecsFromGlobOptions {
+  factories?: IslandSpec[];
   /** Routes directory, relative to the project root. @default "routes" */
   routesDir?: string;
   /** Glob result of the routes directory. */
@@ -155,5 +157,5 @@ export function specsFromGlob(options: SpecsFromGlobOptions): HumManifest {
     }
     seen.add(island.name);
   }
-  return { routes, islands };
+  return { routes, islands, ...(options.factories === undefined ? {} : { factories: options.factories }) };
 }

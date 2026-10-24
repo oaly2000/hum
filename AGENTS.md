@@ -34,7 +34,7 @@ the example where applicable.
   contribute behavior through the route tree.
 - Route and island discovery is bundler driven, in both environments.
   Explicit islands use `defineIsland(Component)` from `@humjs/core/shared` in
-  exported module-level declarations. `humIslandDeclarations` analyzes source
+  module-level declarations (exports optional). `humClientDeclarations` analyzes source
   metadata enumerated by Vite's glob, without evaluating application modules,
   and injects an ID derived from the project-relative module path and declaration
   binding (or `default` for an inline default export). Metadata lives in virtual
@@ -42,6 +42,19 @@ the example where applicable.
   It excludes dependencies, generated/output/public files and tests. Named and
   default exports, aliases, and multiple definitions per module are supported;
   each declaration wraps its component rather than mutating a shared view.
+  Private declarations receive generated exports in the client slice. Factory IDs
+  use the same path/binding scheme as islands, in a separate ID namespace.
+  The same compiler collects top-level `defineFactory(fn)`
+  declarations from `@humjs/core/events`. `client_slice.ts` resolves lexical
+  bindings and extracts declarations plus their same-file dependencies into
+  `?hum-client` modules. SSR metadata imports original sources, keeping server
+  output paths intact. Client metadata imports slices; production maps their
+  manifest keys to island/factory IDs. External modules are normal imports
+  and must be browser-safe. Unsupported mutable/effectful dependencies and
+  non-CSS bare side-effect imports fail compilation rather than guessing.
+  Serialized factory markers collect the factory IDs actually used by a
+  response; full HTML imports their modules before boot, partial metadata lists
+  their URLs and the client awaits them before parsing the shared payload graph.
   Directory placement never registers islands; there is no islandsDir option or
   implicit default-export tagging. `virtual:hum/routes` combines file routes
   with explicit island descriptors through `specsFromGlob`. The client build

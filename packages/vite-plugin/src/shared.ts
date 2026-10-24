@@ -14,19 +14,23 @@ export interface HumContext {
   prod?: ProdManifest | null;
   pages?: Record<string, GeneratedPage>;
   /** Explicit definitions collected from bundler metadata modules. */
-  islandDeclarations?: Map<string, DeclaredIsland[]>;
+  clientDeclarations?: Map<string, DeclaredClientDefinition[]>;
 }
 
-export interface DeclaredIsland {
+export interface DeclaredClientDefinition {
+  binding?: string;
+  kind: "island" | "factory";
   name: string;
   file: string;
   exportName: string;
 }
 
-export const ISLAND_METADATA_QUERY = "hum-island-metadata";
+export const CLIENT_SLICE_QUERY = "hum-client";
+
+export const CLIENT_METADATA_QUERY = "hum-client-metadata";
 
 /** Enumerated by Vite, never by a plugin filesystem crawler. */
-export function islandSourcePatterns(options: ResolvedHumOptions): string[] {
+export function clientSourcePatterns(options: ResolvedHumOptions): string[] {
   const output = relative(options.root, resolve(options.root, options.outDir)).replace(/\\/g, "/");
   const outputExclusion = output === ".." || output.startsWith("../") || isAbsolute(output)
     ? [] : [`!/${output}/**`];
@@ -42,9 +46,9 @@ export function islandSourcePatterns(options: ResolvedHumOptions): string[] {
   ];
 }
 
-export function islandMetadataGlob(options: ResolvedHumOptions): string {
-  return `import.meta.glob(${JSON.stringify(islandSourcePatterns(options))}, ` +
-    `{ eager: true, import: "default", query: "?${ISLAND_METADATA_QUERY}" })`;
+export function clientMetadataGlob(options: ResolvedHumOptions): string {
+  return `import.meta.glob(${JSON.stringify(clientSourcePatterns(options))}, ` +
+    `{ eager: true, import: "default", query: "?${CLIENT_METADATA_QUERY}" })`;
 }
 
 /** Counts of what Hum found, for the verbose log. */

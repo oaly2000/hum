@@ -42,7 +42,7 @@ describe("handler factories", () => {
   });
 
   it("lets an app define a factory of its own", () => {
-    const selectRow = defineFactory(
+    const selectRow = testFactory(
       "selectRow",
       (selected: Signal<string | null>, id: string) => () => {
         selected.value = id;
@@ -105,4 +105,13 @@ describe("coerceToSignalType", () => {
     expect(coerceToSignalType(true, false)).toBe(true);
     expect(coerceToSignalType(null, "a")).toBeNull();
   });
+});
+
+// Model the compiler's hidden identity argument without exposing it publicly.
+function testFactory<A extends unknown[], R>(id: string, fn: (...args: A) => R): (...args: A) => R {
+  return (defineFactory as (fn: (...args: A) => R, id: string) => (...args: A) => R)(fn, id);
+}
+
+it("requires compiler identity for application factories", () => {
+  expect(() => defineFactory(() => () => {})).toThrow(/Hum Vite plugin/);
 });

@@ -27,16 +27,30 @@ export default defineConfig({
 ```
 
 Hum renders its own document and does not use Vite's `index.html`.
-Export `defineIsland(Component)` declarations from `@humjs/core/shared` at module
-scope in browser-safe project modules. Hum generates IDs from the project-relative
+Declare `defineIsland(Component)` from `@humjs/core/shared` at module
+scope in project modules, including route files. Hum generates IDs from the project-relative
 module path and declaration binding, discovers declarations through Vite metadata
 globs, and builds their client modules without a manual client-entry import.
-Named/default exports and multiple declarations per file are supported. Source
+Exporting is optional. Named/default exports and multiple declarations per file are supported. Source
 metadata excludes dependencies, `.hum/`, the output and public directories, and
 `tests/`, `__tests__/`, `*.test.*` and `*.spec.*`. Moving a declaration or renaming
 its binding changes its ID; editing its body or re-exporting it does not.
 `defineIsland` must be the outer declaration call; wrap a memoized component with
 `defineIsland(memo(Component))`, rather than wrapping the declaration in `memo`.
+
+The same compiler extracts module-level `defineFactory(fn)` declarations
+from `@humjs/core/events`. Browser modules retain explicit declarations and their
+same-file lexical dependencies; unrelated route handlers and server imports are
+excluded. Factory modules are loaded only when a response uses them, before
+payload revival on initial load and partial navigation. Both factory and island IDs are automatic; exporting is optional.
+
+Extraction supports functions, `const` dependencies, aliases, destructuring and
+CSS side-effect imports. External imports remain normal imports and must be
+browser-safe. Effectful dependency initializers, module-level mutable state,
+local classes/runtime TypeScript declarations and non-CSS bare side-effect
+imports produce diagnostics. Move such dependencies into browser-safe imported
+modules or initialize them inside the component/factory. This is same-file
+extraction, not automatic splitting of every imported module.
 
 Projects without `server.ts` receive a generated Node listener, which requires
 `@hono/node-server` in the application's production dependencies.
@@ -136,13 +150,14 @@ can serve the output's `public/` directory.
 
 - If a route is missing, verify it is under the configured routes directory
   and follows Hum's [file naming rules](https://hum.runasp.net/docs/routing).
-- If an island is missing, export a module-level `defineIsland(Component)`
-  declaration in a browser-safe source module. Directory placement does not
+- If an island is missing, use a module-level `defineIsland(Component)`
+  declaration with browser-safe dependencies. Directory placement does not
   register islands.
 - If global styles are missing, confirm the CSS is imported by the configured
   client entry.
-- If a page uses client event factories, make sure their module is imported by
-  the client entry or an island so the browser registers them.
+- Declare project event factories at module scope; Hum loads
+  their extracted modules automatically. Factories outside project sources still
+  need to be reachable through a browser import.
 - To diagnose discovery and build output, set `verbose: true`.
 
 Documentation, source code, and issue tracking are available in the

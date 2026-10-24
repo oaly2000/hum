@@ -1,14 +1,26 @@
-import { signal } from "@preact/signals";
-import { add, setFromProp } from "@humjs/core/events";
+import { signal, type Signal } from "@preact/signals";
+import { add, defineFactory, setFromProp } from "@humjs/core/events";
 import { define } from "@humjs/core";
 import { CodeBlock } from "../_components/CodeBlock.js";
-import { resetOrder } from "../../client/factories.js";
 
 export const head = define.head(
   <title>Page-level reactivity — Hum Guides</title>,
 );
 
 const MAX_TICKETS = 8;
+
+const resetOrder = defineFactory(
+  (
+    tickets: Signal<number>,
+    giftWrap: Signal<boolean>,
+    defaults: { tickets: number; giftWrap: boolean },
+  ) =>
+    () => {
+      tickets.value = defaults.tickets;
+      giftWrap.value = defaults.giftWrap;
+    },
+);
+
 
 const checkoutExample = `import { signal } from "@preact/signals";
 import { add, setFromProp } from "@humjs/core/events";
@@ -31,13 +43,12 @@ export default function Checkout() {
   );
 }`;
 
-const customFactoryExample = `// client/factories.ts — imported by client/main.ts as well
+const customFactoryExample = `// routes/checkout.tsx — alongside the page and server handlers
 import { defineFactory } from "@humjs/core/events";
 import type { Signal } from "@preact/signals";
 
 /** Resets both options at once; each built-in factory drives one signal. */
-export const resetOrder = defineFactory(
-  "resetOrder",
+const resetOrder = defineFactory(
   (
     tickets: Signal<number>,
     giftWrap: Signal<boolean>,
@@ -122,7 +133,7 @@ export default function ReactivityPage() {
         Handlers come from factories
       </h2>
       <p class="mt-3 leading-7 text-muted">
-        A handler is rebuilt in the browser, so it travels as a factory name plus
+        A handler is rebuilt in the browser, so it travels as a factory ID plus
         the arguments it was called with—a closure cannot be serialized and throws
         at render time. <code>@humjs/core/events</code> ships{" "}
         <code>add(signal, delta, options)</code>, <code>setValue</code>,{" "}
@@ -131,11 +142,11 @@ export default function ReactivityPage() {
       </p>
       <CodeBlock code={customFactoryExample} />
       <p class="mt-4 leading-7 text-muted">
-        The <em>name</em> is what travels to the client, so keep it unique and
-        stable, and import the module that defines the factory from the client
-        entry or from an island—otherwise the browser has nothing to rebuild it
-        with and the page throws{" "}
-        <code>Hum: the handler factory … is not registered on the client</code>.
+        Hum generates the factory ID from its file path and variable name.
+        Declare it at module scope; exporting is optional. Hum extracts its browser
+        implementation and loads it before restoring handlers. It can share a
+        route file with server handlers, and needs no client-entry import.
+        Pass request-specific values and signals as factory arguments.
       </p>
 
       <section class="mt-12 rounded-3xl border border-line bg-surface p-6 sm:p-8">

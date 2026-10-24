@@ -49,6 +49,7 @@ export const build = defineBuild({
   pages: ${prod === null ? JSON.stringify(ctx.pages ?? {}) : "pages"},
   routes: manifest.routes,
   islands: manifest.islands,
+  factories: manifest.factories,
   prod: ${JSON.stringify(prod)},
 });
 `;

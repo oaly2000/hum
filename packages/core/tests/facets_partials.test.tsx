@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 // An app evaluates the framework entry before the route module that imports
 // signals, so the Hum modules are imported first here as well.
 import { BuildCache } from "../src/build_cache.js";
-import { add, setFromProp } from "../src/runtime/events.js";
+import { add, defineFactory, hum_factories, setFromProp } from "../src/runtime/events.js";
 import { Partial } from "../src/runtime/shared.js";
 import { renderScripts } from "../src/runtime/server/document.js";
 import {
@@ -101,6 +101,36 @@ function text(selector: string): string {
 }
 
 describe("pre-generated partial responses", () => {
+  it("loads a newly encountered factory before parsing the shared partial graph", async () => {
+    const initial = await renderFragment(() => h(Partial, { name: "factory-target" }, h("p", null, "initial")));
+    await hydrate(initial.html, initial.payload);
+    const factory = testFactory("partial-auto-factory", (value: ReturnType<typeof signal<number>>) => () => value.value += 2);
+    const response = await renderPartialResponse(() => {
+      const shared = signal(5);
+      return h(Fragment, null,
+        h(Partial, { name: "factory-target" },
+          h("output", { id: "factory-value" }, shared),
+          h("button", { id: "factory-button", onClick: factory(shared) }, "+")));
+    });
+    delete hum_factories["partial-auto-factory"];
+    // A module first encountered on this navigation registers its implementation.
+    const register = () => testFactory("partial-auto-factory", (value: ReturnType<typeof signal<number>>) => () => value.value += 2);
+    vi.stubGlobal("__humRegisterPartialFactory", register);
+    const module = "data:text/javascript," + encodeURIComponent("globalThis.__humRegisterPartialFactory(); export {}; ");
+    const body = (await response.text()).replace('"factories":[]', `"factories":[${JSON.stringify(module)}]`);
+    try {
+      await applyPartials(new Response(body, { headers: { "Content-Type": "text/html" } }));
+      await flush();
+      expect(text("#factory-value")).toBe("5");
+      click("#factory-button");
+      await flush();
+      expect(text("#factory-value")).toBe("7");
+    } finally {
+      delete hum_factories["partial-auto-factory"];
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("revives one shared signal for multiple cached partials and a factory handler", async () => {
     function content(value: number) {
       const shared = signal(value);
@@ -773,3 +803,8 @@ describe("overlapping partial requests", () => {
     expect(text("#panel")).toBe("second");
   });
 });
+
+// Model the compiler's hidden identity argument without exposing it publicly.
+function testFactory<A extends unknown[], R>(id: string, fn: (...args: A) => R): (...args: A) => R {
+  return (defineFactory as (fn: (...args: A) => R, id: string) => (...args: A) => R)(fn, id);
+}

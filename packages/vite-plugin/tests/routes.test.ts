@@ -47,7 +47,7 @@ describe("routesModuleSource", () => {
     expect(source).toContain("specsFromGlob");
     expect(source).toContain('routesDir: "routes"');
     expect(source).toContain("manifest");
-    expect(source).toContain("hum-island-metadata");
+    expect(source).toContain("hum-client-metadata");
     expect(source).not.toContain("const localIslandModules");
     expect(source).not.toContain("islandsDir");
   });

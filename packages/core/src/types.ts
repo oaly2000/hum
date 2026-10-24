@@ -169,6 +169,8 @@ export interface RouteFileSpec {
 }
 
 export interface IslandSpec {
+  /** Bundler-generated browser module, when separate from the SSR source. */
+  clientFile?: string;
   /** Island name as used in markers, e.g. `Counter`. */
   name: string;
   /** Named or default export to hydrate with. */
@@ -193,6 +195,7 @@ export interface IslandManifestEntry extends IslandSpec {
 }
 
 export interface HumManifest {
+  factories?: IslandSpec[];
   routes: RouteManifestEntry[];
   islands: IslandManifestEntry[];
 }

@@ -5,10 +5,10 @@ import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { build, createServer } from "vite";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { hum } from "../src/mod.js";
-import { islandId } from "../src/plugins/island_declarations.js";
+import { factoryId, islandId } from "../src/plugins/client_declarations.js";
 
 const ISLAND = `import { defineIsland } from "@humjs/core/shared";
 import { useState } from "preact/hooks";
@@ -119,6 +119,107 @@ export default function Page() {
 }`;
 
 describe("explicit declarations reach the browser", () => {
+  it.each(["dev", "production", "standalone"])("splits islands and factories from a server route (%s)", async (mode) => {
+    const route = `import { platform } from "node:os";
+import { page } from "@humjs/core";
+import { defineIsland, Partial } from "@humjs/core/shared";
+import { defineFactory } from "@humjs/core/events";
+import { signal, useSignal, type Signal } from "@preact/signals";
+if (typeof window !== "undefined") throw new Error("SSR_ROUTE_EXECUTED_IN_BROWSER");
+const serverOnly = "SERVER_ONLY_SENTINEL";
+const STEP = 2;
+function increment(value: number) { return value + STEP; }
+const bump = defineFactory((count: Signal<number>) => () => {
+  count.value = increment(count.value);
+});
+const Counter = defineIsland(({ count }: { count: Signal<number> }) => {
+  const local = useSignal(0);
+  return <button onClick={() => local.value++}>{count}:{local}</button>;
+});
+export const handlers = { GET: () => page({ server: platform() + serverOnly }) };
+export default function Page({ data }) {
+  const count = signal(3);
+  return <main><p>{data.server}</p><Partial name="content">
+    <output>{count}</output><button onClick={bump(count)}>bump</button><Counter count={count}/>
+  </Partial></main>;
+}`;
+    const root = await project("export default () => null;", route);
+    let server: Awaited<ReturnType<typeof createServer>> | undefined;
+    try {
+      let request: (path: string) => Promise<Response>;
+      let client: string;
+      if (mode === "dev") {
+        server = await createServer({ configFile: false, root, plugins: [hum()], logLevel: "silent",
+          server: { host: "127.0.0.1", port: 0, strictPort: true } });
+        await server.listen();
+        const { port } = server.httpServer?.address() as AddressInfo;
+        request = (path) => fetch(`http://127.0.0.1:${port}${path}`);
+        const response = await request("/routes/index.tsx?hum-client");
+        client = await response.text();
+        expect(response.status, client).toBe(200);
+      } else {
+        await build({ configFile: false, root, plugins: [hum({ standalone: mode === "standalone" })], logLevel: "silent" });
+        const built = await import(pathToFileURL(join(root, "dist", "server.js")).href);
+        request = (path) => built.default.fetch(new Request(`http://localhost${path}`));
+        const asset = built.default.hum.build.prod.factories[factoryId("routes/index.tsx", "bump")];
+        client = await readFile(join(root, "dist", "public", "_hum", asset.file), "utf8");
+        expect(built.default.hum.build.prod.islands[islandId("routes/index.tsx", "Counter")].file).toBe(asset.file);
+        // The server route keeps its own output path; client slices do not occupy it.
+        if (mode === "production") expect(await readFile(join(root, "dist", "routes", "index.js"), "utf8")).toContain("SERVER_ONLY_SENTINEL");
+      }
+      expect(client).toContain(factoryId("routes/index.tsx", "bump"));
+      for (const serverCode of ["node:os", "SERVER_ONLY_SENTINEL", "SSR_ROUTE_EXECUTED_IN_BROWSER", "handlers", "@humjs/core\""]) {
+        expect(client).not.toContain(serverCode);
+      }
+      const response = await request("/");
+      const html = await response.text();
+      expect(response.status, html).toBe(200);
+      expect(html).toContain("SERVER_ONLY_SENTINEL");
+      expect(html).toContain(`hum:island:${islandId("routes/index.tsx", "Counter")}:`);
+      if (mode === "production") {
+        const { Window } = await import("happy-dom");
+        const browser = new Window({ url: "http://localhost/" });
+        browser.document.write(html.replace(/<script[\s\S]*?<\/script>/g, ""));
+        const scope = globalThis as unknown as Record<string, any>;
+        for (const name of ["window", "document", "location", "history", "navigator", "Node", "Element", "HTMLElement", "DocumentFragment", "NodeFilter", "DOMParser", "Text", "Comment", "Event", "CustomEvent"]) {
+          vi.stubGlobal(name, name === "window" ? browser : (browser as unknown as Record<string, unknown>)[name]);
+        }
+        vi.stubGlobal("addEventListener", browser.addEventListener.bind(browser));
+        vi.stubGlobal("removeEventListener", browser.removeEventListener.bind(browser));
+        vi.stubGlobal("IntersectionObserver", undefined);
+        try {
+          const bootstrap = html.match(/<script type="module"[^>]*>([\s\S]*?)<\/script>/)![1]!;
+          const assets = pathToFileURL(join(root, "dist", "public", "_hum")).href + "/";
+          const script = bootstrap.replaceAll("/_hum/", assets).replace("boot({", "globalThis.__humSplitManager=boot({");
+          await import(/* @vite-ignore */ "data:text/javascript," + encodeURIComponent(script));
+          await new Promise((resolve) => setTimeout(resolve, 0));
+          await new Promise((resolve) => setTimeout(resolve, 0));
+          expect(browser.document.querySelector("output")?.textContent).toBe("3");
+          const buttons = browser.document.querySelectorAll("button");
+          buttons[0]!.click();
+          await vi.waitFor(() => {
+            expect(browser.document.querySelector("output")?.textContent).toBe("5");
+            expect(buttons[1]!.textContent).toBe("5:0");
+          });
+          buttons[1]!.click();
+          await vi.waitFor(() => expect(buttons[1]!.textContent).toBe("5:1"));
+        } finally {
+          scope.__humSplitManager?.dispose();
+          delete scope.__humSplitManager;
+          vi.unstubAllGlobals();
+          await browser.happyDOM.close();
+        }
+      }
+      const partial = await (await request("/?_hum_partial=true")).text();
+      const state = JSON.parse(partial.match(/id="__HUM_STATE__"[^>]*>([\s\S]*?)<\/script>/)![1]!);
+      expect(state.factories).toHaveLength(1);
+      expect(state.props).toContain(factoryId("routes/index.tsx", "bump"));
+    } finally {
+      await server?.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  }, 60_000);
+
   it("discovers multiple definitions, aliases and instances without a client entry in dev", async () => {
     const root = await project(DECLARED_ISLANDS, DECLARED_PAGE, "components");
     const server = await createServer({
@@ -228,7 +329,7 @@ describe("explicit declarations reach the browser", () => {
       expect(response.status, html).toBe(200);
       expect(html).toContain("<button>0</button>");
       expect(html).not.toContain("hum:island:");
-      expect(html).not.toContain('import("/islands/Counter.tsx")');
+      expect(html).not.toContain('import("/islands/Counter.tsx?hum-client")');
     } finally {
       await server?.close();
       await rm(root, { recursive: true, force: true });
@@ -265,7 +366,7 @@ describe("islands reach the client from either pass", () => {
       // In dev the island is served from its source path, so the boot script
       // pulls the module Vite transforms on demand.
       expect(html).toContain(
-        `"${islandId("islands/Counter.tsx", "default")}":()=>import("/islands/Counter.tsx").then((module)=>module["default"])`,
+        `"${islandId("islands/Counter.tsx", "default")}":()=>import("/islands/Counter.tsx?hum-client").then((module)=>module["default"])`,
       );
       expect(html).not.toMatch(
         /rel="modulepreload" href="[^"]*Counter/,
@@ -332,7 +433,7 @@ describe("islands reach the client from either pass", () => {
       const html = await response.text();
       expect(response.status, html).toBe(200);
       expect(html).toContain(
-        `"${islandId("islands/Counter.tsx", "default")}":()=>import("/islands/Counter.tsx").then((module)=>module["default"])`,
+        `"${islandId("islands/Counter.tsx", "default")}":()=>import("/islands/Counter.tsx?hum-client").then((module)=>module["default"])`,
       );
 
       const moduleResponse = await fetch(`${origin}/islands/Counter.tsx`);

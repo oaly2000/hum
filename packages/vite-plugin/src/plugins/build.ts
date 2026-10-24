@@ -11,6 +11,7 @@ import {
   ASSETS_BASE,
   BUILD_VIRTUAL_ID,
   CLIENT_RUNTIME_ENTRY,
+  CLIENT_SLICE_QUERY,
   ISLANDS_ENTRY,
   makeBuildId,
   PAGES_VIRTUAL_ID,
@@ -198,10 +199,12 @@ async function prodManifest(ctx: HumContext): Promise<ProdManifest> {
   }
 
   const islands: ProdManifest["islands"] = {};
+  const factories: NonNullable<ProdManifest["factories"]> = {};
   for (const [file, entry] of Object.entries(clientManifest)) {
-    const declarations = ctx.islandDeclarations?.get(file) ?? [];
+    if (!file.endsWith("?" + CLIENT_SLICE_QUERY)) continue;
+    const declarations = ctx.clientDeclarations?.get(file.split("?")[0]!) ?? [];
     for (const declaration of declarations) {
-      islands[declaration.name] = { file: entry.file, css: entry.css };
+      (declaration.kind === "island" ? islands : factories)[declaration.name] = { file: entry.file, css: entry.css };
     }
   }
 
@@ -210,6 +213,7 @@ async function prodManifest(ctx: HumContext): Promise<ProdManifest> {
     assetsBase: ASSETS_BASE,
     clientEntry: runtime.file,
     islands,
+    factories,
     entryAssets: runtime.css,
   };
 }

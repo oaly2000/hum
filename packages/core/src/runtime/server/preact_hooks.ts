@@ -74,6 +74,7 @@ export class RenderState {
   /** Number of page level facets that were recorded in `payload`. */
   facetCount = 0;
   islands = new Set<Island>();
+  factories = new Set<string>();
   /** Islands whose renderer must already be available to an enclosing tree. */
   eagerIslands = new Set<Island>();
   islandAssets = new Set<string>();
@@ -111,6 +112,7 @@ export class RenderState {
 
   clear(): void {
     this.islands.clear();
+    this.factories.clear();
     this.islandAssets.clear();
     this.eagerIslands.clear();
     this.encounteredPartials.clear();
@@ -706,7 +708,16 @@ function appendChild(vnode: AnyVNode, child: AnyVNode): void {
  * literal so the client can parse it again.
  */
 export function serializePayload(state: RenderState): string {
-  return stringify(state.payload, HUM_STRINGIFIERS);
+  state.factories.clear();
+  return stringify(state.payload, {
+    ...HUM_STRINGIFIERS,
+    Fn(value: unknown) {
+      const marker = factoryMarkerOf(value);
+      if (marker === undefined) return undefined;
+      state.factories.add(marker.factory);
+      return { value: [marker.factory, marker.args] };
+    },
+  });
 }
 
 // The hooks have to be active before the first `renderToString` call, so they
