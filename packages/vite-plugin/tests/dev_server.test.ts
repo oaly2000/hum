@@ -3,7 +3,7 @@ import type { AddressInfo } from "node:net";
 import { join, relative, resolve } from "node:path";
 
 import { createServer } from "vite";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { preactSsrPrecompile } from "@humjs/preact-ssr-precompile";
 
 import { hum } from "../src/mod.js";
@@ -185,15 +185,12 @@ export default app;
       expect(api.status).toBe(200);
       expect(api.headers.get("x-powered-by")).toBe("Hum + Hono");
 
-      // The inline boot script imports `boot` from the dev runtime URL, so that
-      // URL has to serve the user client entry as well: factories a page uses
-      // from its own modules are registered by the client entry, and the payload
-      // cannot be revived in the browser without them.
+      // The runtime URL serves the framework without evaluating an app entry.
       const runtime = await fetch(`${origin}/_hum/runtime.js`);
       const runtimeCode = await runtime.text();
       expect(runtime.status, runtimeCode).toBe(200);
-      expect(runtimeCode).toContain("client/main.ts");
-      expect(runtimeCode).toContain("export * from");
+      expect(runtimeCode).not.toContain("client/main.ts");
+      expect(runtimeCode).toContain("boot");
 
       const streaming = await fetch(`${origin}/streaming`);
       expect(streaming.status).toBe(200);
@@ -304,3 +301,87 @@ export default function Boom() {
     }
   }, 20_000);
 });
+
+
+it("automatically links ordinary CSS imports and updates styles during development", async () => {
+  const root = await mkdtemp(join(resolve("packages/vite-plugin"), "styles-dev-"));
+  await mkdir(join(root, "routes"));
+  await writeFile(join(root, "package.json"), '{"type":"module"}');
+  await writeFile(join(root, "tsconfig.json"), JSON.stringify({compilerOptions: {jsx: "react-jsx", jsxImportSource: "preact"}}));
+  await writeFile(join(root, "routes/index.tsx"), `import "../page.css";
+export default () => <p class="page">styles</p>;`);
+  const stylesheet = join(root, "page.css");
+  await writeFile(stylesheet, ".page { color: red; }");
+  const server = await createServer({root, configFile: false, plugins: hum(), logLevel: "silent",
+    server: {host: "127.0.0.1", port: 0, strictPort: true}});
+  try {
+    await server.listen();
+    const {port} = server.httpServer?.address() as AddressInfo;
+    const origin = `http://127.0.0.1:${port}`;
+    const html = await (await fetch(origin)).text();
+    const url = html.match(/rel="stylesheet" href="([^"]+)"/)![1]!;
+    expect(url).toContain("page.css");
+    const cssResponse = await fetch(origin + url, {headers: {Accept: "text/css"}});
+    expect(cssResponse.headers.get("content-type")).toContain("text/css");
+    expect(await cssResponse.text()).toContain("color: red");
+    const send = vi.spyOn(server.ws, "send");
+    await writeFile(stylesheet, ".page { color: blue; }");
+    await vi.waitFor(() => expect(send.mock.calls.some(([message]) =>
+      typeof message === "object" && message.type === "update" &&
+      message.updates.some(update => update.type === "css-update"))).toBe(true));
+    expect(await (await fetch(origin + url, {headers: {Accept: "text/css"}})).text()).toContain("color: blue");
+    send.mockRestore();
+  } finally {
+    await server.close();
+    await rm(root, {recursive: true, force: true});
+  }
+}, 20_000);
+
+
+it("serves route CSS Modules as scoped stylesheets and refreshes dependencies", async () => {
+  const root = await mkdtemp(join(resolve(process.cwd(), "packages/vite-plugin"), "dev-css-test-"));
+  await mkdir(join(root, "routes"));
+  await writeFile(join(root, "package.json"), '{"type":"module"}');
+  await writeFile(join(root, "tsconfig.json"), JSON.stringify({compilerOptions:{jsx:"react-jsx",jsxImportSource:"preact"}}));
+  await writeFile(join(root, "routes/index.tsx"), 'import styles from "../page.module.css"; import {Card} from "../Card"; export default () => <main class={styles.card}><Card/></main>;');
+  await writeFile(join(root, "Card.tsx"), 'import styles from "./shared.module.css"; export const Card = () => <p class={styles.base}>shared</p>;');
+  await writeFile(join(root, "page.module.css"), '.card { composes: base from "./shared.module.css"; color: red; }');
+  await writeFile(join(root, "shared.module.css"), '.base { padding: 2px; }');
+  await writeFile(join(root, "other.module.css"), '.other { color: blue; }');
+  const server = await createServer({ root, configFile:false, plugins:hum({serverEntry:"missing.ts"}), logLevel:"silent", server:{host:"127.0.0.1",port:0} });
+  try {
+    await server.listen();
+    const origin = `http://127.0.0.1:${(server.httpServer!.address() as AddressInfo).port}`;
+    const response = await fetch(origin);
+    const html = await response.text();
+    expect(response.status).toBe(200);
+    expect(html).toContain('/page.module.css?direct');
+    expect(html).toContain('/shared.module.css?direct');
+    expect(html).not.toContain('/other.module.css?direct');
+    const css = await (await fetch(origin + '/page.module.css?direct')).text();
+    for (const name of html.match(/<main class="([^"]+)"/)![1]!.split(" ")) expect(css).toContain(`.${name}`);
+    const send = vi.spyOn(server.ws, "send");
+    await writeFile(join(root, "page.module.css"), '.card { composes: base from "./shared.module.css"; color: green; }');
+    await vi.waitFor(() => expect(send.mock.calls.some(([message]) =>
+      typeof message === "object" && message.type === "full-reload")).toBe(true));
+    await vi.waitFor(async () => {
+      const next = await (await fetch(origin)).text();
+      const nextCss = await (await fetch(origin + '/page.module.css?direct')).text();
+      expect(nextCss).toContain('green');
+      for (const name of next.match(/<main class="([^"]+)"/)![1]!.split(" ")) expect(nextCss).toContain(`.${name}`);
+    });
+    send.mockRestore();
+    const updated = vi.fn();
+    server.watcher.on("change", updated);
+    await writeFile(join(root, "Card.tsx"), 'import styles from "./other.module.css"; export const Card = () => <p class={styles.other}>changed</p>;');
+    await vi.waitFor(() => expect(updated).toHaveBeenCalled(), {timeout:5000});
+    await vi.waitFor(async () => {
+      const next = await (await fetch(origin)).text();
+      expect(next).toContain('/other.module.css?direct');
+      expect(next).toContain('changed');
+    }, {timeout:5000});
+  } finally {
+    await server.close();
+    await rm(root, {recursive:true, force:true});
+  }
+}, 30_000);

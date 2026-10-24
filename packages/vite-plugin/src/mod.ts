@@ -2,11 +2,11 @@ import type { Plugin } from "vite";
 
 import { humBuildInput } from "./plugins/build_input.js";
 import { humBuild } from "./plugins/build.js";
-import { humClientEntry } from "./plugins/client_entry.js";
 import { humDevServer } from "./plugins/dev_server.js";
 import { humClientDeclarations } from "./plugins/client_declarations.js";
 import { humIslands } from "./plugins/islands.js";
 import { humRoutes } from "./plugins/routes.js";
+import { humStyles } from "./plugins/styles.js";
 import { resolveHumOptions, type HumContext, type HumOptions } from "./shared.js";
 
 /**
@@ -40,9 +40,9 @@ export function hum(userOptions: HumOptions = {}): Plugin[] {
     },
     humClientDeclarations(ctx),
     humRoutes(ctx),
+    humStyles(ctx),
     humBuildInput(ctx),
     humIslands(),
-    humClientEntry(ctx),
     humDevServer(ctx),
     humBuild(ctx),
   ];

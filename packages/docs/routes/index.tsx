@@ -1,3 +1,4 @@
+import styles from "./index.module.css";
 import Counter from "./_islands/Counter.js";
 import ThemeToggle from "./_islands/ThemeToggle.js";
 import { SyntaxCode } from "./_components/CodeBlock.js";
@@ -26,7 +27,7 @@ export default function Home() {
 
 export default function Home() {
   return (
-    <main class="min-h-screen overflow-hidden bg-bg text-fg">
+    <main class={`${styles.page} bg-bg text-fg`}>
       <header class="relative z-10 mx-auto flex max-w-7xl items-center justify-between px-5 py-5 sm:px-8">
         <a href="/" class="flex items-center gap-3" aria-label="Hum home">
           <span class="grid size-10 place-items-center rounded-2xl bg-brand text-xl font-black text-brand-fg shadow-sm">

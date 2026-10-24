@@ -185,3 +185,15 @@ describe("templates", () => {
     expect(pkg.devDependencies["@cloudflare/vite-plugin"]).toBeDefined();
   });
 });
+
+
+it.each(["basic", "cloudflare"])("imports global styles in the %s app without a client entry", async (template) => {
+  const target = await scaffoldInto("styled-app", await templatePath(template));
+  const app = await readFile(join(target, "routes/_app.tsx"), "utf8");
+  expect(app).toContain('import "../styles.css"');
+  expect(app).not.toContain('<link rel="stylesheet"');
+  expect(await readFile(join(target, "styles.css"), "utf8")).toContain('@import "tailwindcss"');
+  const files = (await walk(target)).map(file => file.slice(target.length + 1).replace(/\\/g, "/"));
+  expect(files).toContain("vite-env.d.ts");
+  expect(files.some(file => file.startsWith("client/"))).toBe(false);
+});

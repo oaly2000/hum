@@ -18,11 +18,8 @@ import {
 /**
  * Keeps the client runtime in the production bundle.
  *
- * In development the client runtime — including the optional user client entry
- * — is served through the `hum:client-entry` virtual module, and every island
- * file is served straight from Vite, so no extra entry is needed: `BuildCache`
- * points the boot script at `/islands/Foo.tsx` and Vite transforms that request
- * on the fly.
+ * In development the runtime is served directly from the framework and island
+ * client slices are served by Vite on demand.
  */
 export function humIslands(): Plugin {
   return {
@@ -55,13 +52,6 @@ export async function writeBuildEntries(ctx: HumContext): Promise<void> {
   await mkdir(dir, { recursive: true });
   const userServer = resolve(ctx.options.root, ctx.options.serverEntry);
 
-  // The runtime entry imports the optional user client entry first, so its
-  // global styles (e.g. TailwindCSS) become part of the runtime chunk and flow
-  // into the manifest's `entryAssets` in production.
-  const userEntry = resolve(ctx.options.root, ctx.options.clientEntry);
-  const userImport = existsSync(userEntry)
-    ? `import ${JSON.stringify(userEntry)};\n`
-    : "";
   // The boot script in the server-rendered HTML imports `boot` from this entry
   // and calls it, but that call lives outside the bundle, so the entry has to
   // keep the runtime's exports alive itself — see the tree-shaking note in
@@ -70,8 +60,7 @@ export async function writeBuildEntries(ctx: HumContext): Promise<void> {
   // its partial navigation side effects) in the emitted chunk.
   await writeFile(
     join(ctx.options.root, CLIENT_RUNTIME_ENTRY),
-    userImport +
-      `import { boot, revive, applyPartials, hum_island_registry } from ${
+    `import { boot, revive, applyPartials, hum_island_registry } from ${
         JSON.stringify(CORE_RUNTIME_ID)
       };\n` +
       `export { boot, revive, applyPartials, hum_island_registry };\n` +

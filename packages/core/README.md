@@ -146,3 +146,13 @@ into island props.
 
 Documentation, source code, and issue tracking are available in the
 [Hum repository](https://github.com/oaly2000/hum).
+
+## Stylesheets
+
+Import global styles in `_app`, shared styles in layouts, or page styles in
+routes and components (`import "./page.css"`). CSS Modules export scoped class
+names (`import styles from "./page.module.css"`). The Vite plugin automatically
+adds stylesheet links for the active render chain and static dependencies.
+Styles do not require a manual head link, user client entry or island. Partial
+navigation awaits new stylesheet loads before committing DOM changes and keeps
+loaded styles available for surviving regions.

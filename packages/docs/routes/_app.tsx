@@ -1,5 +1,5 @@
 import type { ComponentChildren } from "preact";
-import { define } from "@humjs/core";
+import "../styles.css";
 
 const THEME_SCRIPT = `try {
   const stored = localStorage.getItem("hum-theme");

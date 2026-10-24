@@ -1,0 +1,5 @@
+@reference "../styles.css";
+
+.page {
+  @apply min-h-screen overflow-hidden;
+}

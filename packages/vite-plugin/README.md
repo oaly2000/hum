@@ -70,7 +70,6 @@ noted.
 | `devEntry` | `serverEntry` | App module for development and prerendering; must default-export a mounted Hono app without starting a listener. |
 | `prerenderOrigin` | `"http://localhost"` | Canonical origin for build-time SSG/ISG generation. |
 | `basePath` | `"/"` | URL path prefix for the application. |
-| `clientEntry` | `"client/main.ts"` | Optional client entry, commonly used to import global CSS or client event factories. |
 | `verbose` | `false` | Log discovered route/island information and build island chunks. |
 
 Example:
@@ -80,16 +79,35 @@ export default defineConfig({
   plugins: [
     hum({
       routesDir: "src/routes",
-      clientEntry: "src/client/main.ts",
       outDir: "build",
     }),
   ],
 });
 ```
 
-The configured `clientEntry` should import global CSS and any client-side event
-factories used by server-rendered page facets. The plugin includes its CSS in
-development responses and production assets.
+Import global CSS in `_app.tsx`, shared CSS in layouts, or page CSS in routes
+and components:
+
+```tsx
+import "../styles.css";
+```
+
+Hum automatically adds stylesheet links to the document head. Vite processes the stylesheet (including Tailwind/PostCSS and referenced assets),
+serves it with HMR in development, and publishes hashed assets under `/_hum/` in
+production. No user client entry is used; the `clientEntry` option and automatic
+`client/main.ts` import are removed. Factory declarations load automatically.
+Partial navigation waits for new stylesheets before updating the DOM; loaded
+styles remain available to surviving layouts and partials.
+
+CSS Modules use ordinary imports (`import styles from "./page.module.css"`),
+just like ordinary CSS, with an additional class-name mapping. Hum discovers
+the active render chain's static stylesheet dependencies in Vite's graph and publishes separate style
+assets, including for standalone builds. CSS-only pages ship no application JS.
+Development reloads the page on CSS Module edits to refresh scoped class names.
+Tailwind/PostCSS, asset URLs and `composes` retain Vite's behavior. Cross-file
+composition can duplicate shared rules; dynamically imported SSR styles are not
+automatically discovered. Keep CSS options consistent across client and SSR
+environments so generated class names agree.
 
 To precompile supported static Preact JSX subtrees for server rendering, add
 [`@humjs/preact-ssr-precompile`](../preact-ssr-precompile) to your project and

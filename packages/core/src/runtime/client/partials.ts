@@ -361,6 +361,9 @@ export async function applyPartials(
     );
   }
 
+  await loadStylesheets(doc);
+  if (generation !== lastNavigation) return;
+
   const manager = currentInteractionManager();
   let headApplied = false;
   const updates = ctx.updates.map((update) => ({
@@ -402,6 +405,37 @@ export async function applyPartials(
   } else {
     await applyUpdates(false);
   }
+}
+
+const pendingStylesheets = new WeakMap<HTMLLinkElement, Promise<void>>();
+
+/** Load response styles before committing its partial DOM. Keep loaded styles
+ * available for layouts and partials that survive subsequent navigations. */
+async function loadStylesheets(doc: Document): Promise<void> {
+  await Promise.all(Array.from(doc.head.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')).map((link) => {
+    if (!link.getAttribute("href")) return;
+    const existing = Array.from(document.head.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]'))
+      .find((current) => current.href === link.href);
+    if (existing) return pendingStylesheets.get(existing);
+    const pending = new Promise<void>((resolve, reject) => {
+      const cleanup = () => {
+        link.removeEventListener("load", loaded);
+        link.removeEventListener("error", failed);
+        pendingStylesheets.delete(link);
+      };
+      const loaded = () => { cleanup(); resolve(); };
+      const failed = () => {
+        cleanup();
+        link.remove();
+        reject(new Error(`Hum: failed to load stylesheet "${link.href}".`));
+      };
+      link.addEventListener("load", loaded);
+      link.addEventListener("error", failed);
+    });
+    pendingStylesheets.set(link, pending);
+    document.head.appendChild(link);
+    return pending;
+  }));
 }
 
 function applyHead(doc: Document): void {

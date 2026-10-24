@@ -8,31 +8,14 @@ import { describe, expect, it } from "vitest";
 import {
   CLIENT_RUNTIME_ENTRY,
   ISLANDS_ENTRY,
-  RESOLVED_USER_ENTRY_VIRTUAL_ID,
   resolveHumOptions,
   SERVER_ENTRY,
-  USER_ENTRY_VIRTUAL_ID,
 } from "../src/shared.js";
-import { humClientEntry } from "../src/plugins/client_entry.js";
 import { writeBuildEntries } from "../src/plugins/islands.js";
 
 function tempProject(): string {
   return mkdtempSync(join(tmpdir(), "hum-vite-"));
 }
-
-describe("hum client entry option", () => {
-  it("defaults to client/main.ts", () => {
-    const opts = resolveHumOptions("/tmp/project");
-    expect(opts.clientEntry).toBe("client/main.ts");
-  });
-
-  it("lets the user override the entry path", () => {
-    const opts = resolveHumOptions("/tmp/project", {
-      clientEntry: "client/index.ts",
-    });
-    expect(opts.clientEntry).toBe("client/index.ts");
-  });
-});
 
 describe("hum server entry option", () => {
   it("defaults to server.ts", () => {
@@ -56,51 +39,6 @@ describe("hum server entry option", () => {
 
 });
 
-describe("humClientEntry plugin", () => {
-  it("resolves the virtual user entry id", () => {
-    const ctx = {
-      options: resolveHumOptions("/tmp/project"),
-    };
-    const plugin = humClientEntry(ctx);
-    const resolved = (plugin as { resolveId(id: string): unknown }).resolveId(
-      USER_ENTRY_VIRTUAL_ID,
-    );
-    expect(resolved).toBe(RESOLVED_USER_ENTRY_VIRTUAL_ID);
-  });
-
-  it("includes the user entry when the file exists and re-exports the runtime", () => {
-    const root = tempProject();
-    mkdirSync(join(root, "client"), { recursive: true });
-    writeFileSync(join(root, "client", "main.ts"), "import './style.css';\n");
-    const ctx = {
-      options: resolveHumOptions(root),
-      project: { routes: [], islands: [] },
-    };
-    const plugin = humClientEntry(ctx);
-    const code = (plugin as { load(id: string): unknown }).load(
-      RESOLVED_USER_ENTRY_VIRTUAL_ID,
-    ) as string;
-    expect(code).toContain("main.ts");
-    expect(code).toContain('export * from "@humjs/core/runtime"');
-    rmSync(root, { recursive: true, force: true });
-  });
-
-  it("falls back to a pure runtime re-export when no user entry exists", () => {
-    const root = tempProject();
-    const ctx = {
-      options: resolveHumOptions(root),
-      project: { routes: [], islands: [] },
-    };
-    const plugin = humClientEntry(ctx);
-    const code = (plugin as { load(id: string): unknown }).load(
-      RESOLVED_USER_ENTRY_VIRTUAL_ID,
-    ) as string;
-    expect(code).not.toContain("main.ts");
-    expect(code).toContain('export * from "@humjs/core/runtime"');
-    rmSync(root, { recursive: true, force: true });
-  });
-});
-
 describe("writeBuildEntries", () => {
   it("writes the islands entry as the metadata glob that emits chunks for declared modules", async () => {
     const root = tempProject();
@@ -116,7 +54,7 @@ describe("writeBuildEntries", () => {
     rmSync(root, { recursive: true, force: true });
   });
 
-  it("imports the user client entry into the generated runtime entry", async () => {
+  it("generates the framework runtime without importing a former user entry", async () => {
     const root = tempProject();
     mkdirSync(join(root, "client"), { recursive: true });
     writeFileSync(join(root, "client", "main.ts"), "export {};\n");
@@ -124,8 +62,7 @@ describe("writeBuildEntries", () => {
 
     await writeBuildEntries(ctx);
     const entry = await readFile(join(root, CLIENT_RUNTIME_ENTRY), "utf8");
-    // The user entry's global styles are pulled in first...
-    expect(entry).toContain("main.ts");
+    expect(entry).not.toContain("main.ts");
     // ...and the runtime exports are imported and re-exported so they survive
     // the production tree-shaking that otherwise drops unused entry exports
     // (the boot script that consumes them lives outside the bundle).

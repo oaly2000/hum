@@ -15,6 +15,11 @@ export interface HumContext {
   pages?: Record<string, GeneratedPage>;
   /** Explicit definitions collected from bundler metadata modules. */
   clientDeclarations?: Map<string, DeclaredClientDefinition[]>;
+  /** Source CSS dependencies collected before server chunks are combined. */
+  styleDependencies?: Map<string, string[]>;
+  styles?: Record<string, string[]>;
+  /** Independent stylesheet compilation uses the same user plugin pipeline. */
+  stylesPass?: string[];
 }
 
 export interface DeclaredClientDefinition {
@@ -86,14 +91,6 @@ export interface HumOptions {
   /** Base path the app is served from. @default "/" */
   basePath?: string;
   /**
-   * Optional user client entry, relative to the root. Use it to pull in global
-   * styles such as TailwindCSS (`import "./style.css"`). In dev its CSS is
-   * injected into the document head; in production it becomes a client build
-   * input whose CSS lands in the manifest's `entryAssets`.
-   * @default "client/main.ts"
-   */
-  clientEntry?: string;
-  /**
    * Log what Hum discovered: the routes and islands in development, and the
    * island chunks a production build emitted (the bundler resolves the routes
    * there, so their count is not known to the plugin).
@@ -111,7 +108,6 @@ export interface ResolvedHumOptions {
   outDir: string;
   standalone: boolean;
   basePath: string;
-  clientEntry: string;
   verbose: boolean;
 }
 
@@ -128,7 +124,6 @@ export function resolveHumOptions(
     outDir: options.outDir ?? "dist",
     standalone: options.standalone ?? false,
     basePath: options.basePath ?? "/",
-    clientEntry: options.clientEntry ?? "client/main.ts",
     verbose: options.verbose ?? false,
   };
 }
@@ -143,10 +138,6 @@ export const CORE_RUNTIME_ID = "@humjs/core/runtime";
  * the plugins consume them through this module.
  */
 export { ASSETS_BASE, RUNTIME_URL };
-
-/** Virtual module that imports the user client entry (if any) and the runtime. */
-export const USER_ENTRY_VIRTUAL_ID = "virtual:hum/client-entry";
-export const RESOLVED_USER_ENTRY_VIRTUAL_ID = "\0" + USER_ENTRY_VIRTUAL_ID;
 
 /**
  * Virtual module that exposes the route and island specs. It is built on

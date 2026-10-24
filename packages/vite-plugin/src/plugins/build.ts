@@ -1,7 +1,7 @@
 import { cp, readFile, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { spawn } from "node:child_process";
-import { dirname, join, resolve, sep } from "node:path";
+import { join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import type { GeneratedPage, ProdManifest } from "@humjs/core";
@@ -22,6 +22,7 @@ import {
   type ResolvedHumOptions,
 } from "../shared.js";
 import { writeBuildEntries } from "./islands.js";
+import { STYLES_ID, STYLES_OUTPUT, stylesSource } from "./styles.js";
 
 const PRERENDER_ENTRY = ".hum/prerender-entry.js";
 const PAGES_OUTPUT = "_generated/hum-pages.js";
@@ -97,6 +98,20 @@ export async function prerender() {
 interface ClientManifestEntry {
   file: string;
   css?: string[];
+  imports?: string[];
+}
+
+/** Include CSS owned by shared static chunks, in dependency order. */
+export function manifestStyles(manifest: Record<string, ClientManifestEntry>, key: string, seen = new Set<string>()): string[] {
+  if (seen.has(key)) return [];
+  seen.add(key);
+  const entry = manifest[key];
+  if (!entry) throw new Error(`hum: missing asset manifest entry ${key}`);
+  return [...new Set([
+    ...(entry.imports ?? []).flatMap(id => manifestStyles(manifest, id, seen)),
+    ...(entry.css ?? []),
+    ...(entry.file.endsWith(".css") ? [entry.file] : []),
+  ])];
 }
 
 /** Public directory of the project whose contents the client build copies. */
@@ -134,6 +149,7 @@ function serverBuildConfig(options: ResolvedHumOptions, outDir: string, standalo
     outDir,
     emptyOutDir: false,
     ssr: true,
+    emitAssets: true,
     target: "node20",
     manifest: false,
     minify: false,
@@ -144,6 +160,7 @@ function serverBuildConfig(options: ResolvedHumOptions, outDir: string, standalo
           "_generated/prerender": resolve(options.root, PRERENDER_ENTRY),
           "_generated/hum-build": BUILD_VIRTUAL_ID,
           "_generated/hum-pages": PAGES_VIRTUAL_ID,
+          "_generated/hum-styles": STYLES_ID,
         }),
       },
       preserveEntrySignatures: "strict" as const,
@@ -204,7 +221,7 @@ async function prodManifest(ctx: HumContext): Promise<ProdManifest> {
     if (!file.endsWith("?" + CLIENT_SLICE_QUERY)) continue;
     const declarations = ctx.clientDeclarations?.get(file.split("?")[0]!) ?? [];
     for (const declaration of declarations) {
-      (declaration.kind === "island" ? islands : factories)[declaration.name] = { file: entry.file, css: entry.css };
+      (declaration.kind === "island" ? islands : factories)[declaration.name] = { file: entry.file, css: manifestStyles(clientManifest, file) };
     }
   }
 
@@ -214,7 +231,7 @@ async function prodManifest(ctx: HumContext): Promise<ProdManifest> {
     clientEntry: runtime.file,
     islands,
     factories,
-    entryAssets: runtime.css,
+    entryAssets: manifestStyles(clientManifest, CLIENT_RUNTIME_ENTRY),
   };
 }
 
@@ -278,6 +295,34 @@ export function humBuild(ctx: HumContext): Plugin {
     ? resolve(ctx.options.root, ".hum", `server-${compilationId}`)
     : resolve(ctx.options.root, ctx.options.outDir);
 
+  async function compileStyles() {
+    const inputs = [...new Set([...(ctx.styleDependencies?.values() ?? [])].flat())];
+    ctx.styles = {};
+    if (!inputs.length) return;
+    const directory = resolve(ctx.options.root, ".hum/styles");
+    ctx.stylesPass = inputs;
+    try {
+      const builder = await createBuilder({ ...sourceConfig, configFile: false });
+      await builder.build(builder.environments.client!);
+      const manifest = JSON.parse(await readFile(join(directory, ".vite/manifest.json"), "utf8")) as Record<string, ClientManifestEntry>;
+      for (const [route, dependencies] of ctx.styleDependencies!) {
+        ctx.styles[route] = [...new Set(dependencies.flatMap(id => {
+          const key = relative(ctx.options.root, id).replace(/\\/g, "/");
+          return manifestStyles(manifest, key);
+        }))].map(file => ctx.options.basePath.replace(/\/$/, "") + ASSETS_BASE + "/" + file);
+      }
+      // JS class-map wrappers are compilation intermediates. Only styles and
+      // their referenced assets belong in the public deployment.
+      await cp(directory, resolve(ctx.options.root, buildPaths(ctx.options).assets), {
+        recursive: true,
+        filter: path => !path.includes(`${sep}.vite`) && !/\.[cm]?js(?:\.map)?$/.test(path),
+      });
+    } finally {
+      ctx.stylesPass = undefined;
+      await rm(directory, { recursive: true, force: true });
+    }
+  }
+
   async function finishBuild(builder: ViteBuilder) {
     const { options } = ctx;
     const paths = buildPaths(options);
@@ -290,6 +335,9 @@ export function humBuild(ctx: HumContext): Plugin {
     }
     try {
       await builder.build(builder.environments.ssr!);
+      await compileStyles();
+      // Finalize metadata before prerender captures full HTML and partials.
+      await writeFile(join(moduleDir(), STYLES_OUTPUT), stylesSource(ctx));
       await writeFile(join(moduleDir(), "package.json"), '{"type":"module"}\n');
       const prerenderFile = join(moduleDir(), "_generated", "prerender.js");
       ctx.pages = await prerender(prerenderFile);
@@ -326,12 +374,22 @@ export function humBuild(ctx: HumContext): Plugin {
     async config(config) {
       const options = ctx.options;
       const paths = buildPaths(options);
+      if (ctx.stylesPass) return {
+        base: options.basePath.replace(/\/$/, "") + ASSETS_BASE + "/",
+        publicDir: false,
+        build: {
+          outDir: ".hum/styles", emptyOutDir: true, manifest: true,
+          cssCodeSplit: true,
+          rolldownOptions: { input: ctx.stylesPass, preserveEntrySignatures: "strict" },
+        },
+      };
       sourceConfig ??= { ...config, build: { ...config.build }, environments: { ...config.environments } };
       await writeBuildEntries(ctx);
       await writePrerenderEntry(ctx);
 
       return {
         appType: "custom",
+        base: options.basePath.replace(/\/$/, "") + ASSETS_BASE + "/",
         publicDir: false,
         builder: { sharedConfigBuild: true, sharedPlugins: true },
         environments: { ssr: { consumer: "server" } },
@@ -378,7 +436,27 @@ export function humBuild(ctx: HumContext): Plugin {
       return id === "\0" + PAGES_VIRTUAL_ID ? `export default ${JSON.stringify(ctx.pages ?? {})};` : null;
     },
 
+    // Publish server-referenced assets beside client output. Rendered asset
+    // URLs already use the build's /_hum/ base. Stylesheet links are supplied
+    // by the independent style compilation before prerendering.
+    generateBundle: {
+      order: "post",
+      handler(_options, bundle) {
+        if (this.environment.name !== "ssr") return;
+        for (const [file, output] of Object.entries(bundle)) {
+          if (output.type !== "asset") continue;
+          delete bundle[file];
+          this.emitFile({
+            type: "asset",
+            fileName: `public/${HUM_ASSETS_DIR}/${file}`,
+            source: output.source,
+          });
+        }
+      },
+    },
+
     async buildStart() {
+      if (ctx.stylesPass) return;
       if (this.environment.name !== "client") return;
       clientFailed = false;
       const { options } = ctx;
@@ -390,15 +468,13 @@ export function humBuild(ctx: HumContext): Plugin {
         throw new Error("hum: outDir must not contain the project root");
       }
       const sourceDirectories = [GENERATED_DIR, PROJECT_PUBLIC, options.routesDir];
-      const clientDir = dirname(options.clientEntry);
-      if (clientDir !== ".") sourceDirectories.push(clientDir);
       for (const directory of sourceDirectories) {
         const source = comparisonPath(resolve(root, directory));
         if (containsPath(source, outputPath) || containsPath(outputPath, source)) {
           throw new Error(`hum: outDir must not overlap the source directory "${directory}"`);
         }
       }
-      for (const entry of [options.serverEntry, options.devEntry, options.clientEntry]) {
+      for (const entry of [options.serverEntry, options.devEntry]) {
         const source = comparisonPath(resolve(root, entry));
         if (containsPath(outputPath, source)) {
           throw new Error(`hum: outDir must not contain the source entry "${entry}"`);
@@ -425,6 +501,7 @@ export function humBuild(ctx: HumContext): Plugin {
     },
 
     async closeBundle() {
+      if (ctx.stylesPass) return;
       // Vite's programmatic build() builds one environment instead of invoking
       // buildApp. Reuse its original user config and full plugin pipeline.
       if (this.environment.name !== "client" || orchestrating || clientFailed) return;

@@ -124,11 +124,27 @@ the example where applicable.
   island/runtime entry generation, styles, and emitted asset metadata consistent
   between them.
 - Hum renders its own HTML document rather than relying on a Vite `index.html`.
-  Global client CSS must be reachable from the configured client entry and
-  included in both development responses and production assets.
-- The Vite plugin defaults its optional user client entry to `client/main.ts`;
-  keep that default, the scaffold, and example projects in sync when changing
-  client-entry conventions.
+  Import CSS directly: `_app` for global styles, layouts for shared styles, pages
+  and components for local styles. The plugin adds head links automatically.
+  Vite processes Tailwind/PostCSS, imports and referenced assets. The build's base is
+  basePath + `/_hum/`; SSR builds emit assets, and a final generateBundle hook
+  republishes them under `public/_hum/`, including in standalone mode.
+  No user clientEntry option or implicit client/main.ts import exists. The dev
+  runtime is served directly from the framework; responses need no CSS splicing.
+  Keep the internal framework runtime entry for hydration and partial navigation.
+  Partial navigation awaits new stylesheets before committing DOM updates, shares
+  in-flight loads, retries failures and checks navigation generation after loading.
+  Loaded styles stay available to surviving layouts/partials; no automatic unload.
+  Ordinary CSS and CSS Modules use normal imports. `humStyles` collects static source dependencies
+  from Vite's graph, and route loaders add their links through the existing head
+  merge (so app/layout skip flags and error/404 chains apply naturally). Production
+  compiles those CSS sources as independent Vite inputs using the user plugin
+  pipeline; only CSS and referenced assets are copied, never JS class-map wrappers.
+  The generated stylesheet map is finalized before prerender and embedded in the
+  standalone pass. CSS Module edits reload development HTML because scoped names
+  may change. Dynamic imports are outside automatic SSR stylesheet discovery;
+  cross-file composes can duplicate rules. Client manifest CSS includes recursive
+  static chunk dependencies.
 - Applications explicitly call `mountHum(app, config)` after registering Hono
   middleware and API routes. `virtual:hum/build` registers the bundler-produced
   build and exports `config` with routesDir, basePath and dev mode.

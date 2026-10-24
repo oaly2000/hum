@@ -68,9 +68,8 @@ routes/
   blog/[id].tsx /blog/:id
 islands/
   Counter.tsx   interactive component
-client/
-  main.ts       client entry; imports global CSS
-  style.css     Tailwind CSS entry point
+styles.css      Tailwind CSS entry point, imported by routes/_app.tsx
+vite-env.d.ts   Vite and Hum virtual module types
 public/         files served from / in dev, and copied into the build
 app.ts          Hono app with explicit Hum mounting
 server.ts       Node listener
@@ -106,8 +105,9 @@ served by Hono. Development always renders fresh output.
 
 ## Tailwind CSS
 
-The basic template includes Tailwind CSS v4. Global styles are imported from
-`client/main.ts`; add or edit utility classes in your routes and islands.
+The basic template includes Tailwind CSS v4. Global styles are linked from
+`routes/_app.tsx` using `import "../styles.css"`; add or edit utility classes in your routes
+and islands. No user client entry is needed.
 
 ## Head
 

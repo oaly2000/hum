@@ -240,10 +240,9 @@ Every file under `routes/` produces a URL based on its relative path.
 - `_error.tsx` (alias `_500.tsx`) — renders route errors.
 - `_404.tsx` — handles unmatched paths under its directory subtree.
 
-Outside `routes/`, `app.ts` creates your Hono app, `server.ts` starts it on Node,
-and `client/main.ts` is the default client entry.
-The `public/` directory is the third: it is where static files the app serves
-unchanged live.
+Outside `routes/`, `app.ts` creates your Hono app and `server.ts` starts it on Node.
+The `public/` directory holds static files served unchanged. Stylesheets are
+linked from route `head` exports; no user client entry is needed.
 
 Directories named `_components/` and `_islands/` are excluded from route
 discovery, so you can co-locate reusable components with a route branch and
@@ -264,7 +263,7 @@ export const Counter = defineIsland(({ start = 0 }: { start?: number }) => {
 
 Import `Counter` into a page and use `<Counter start={3} />`. The Vite plugin
 generates its ID and client registration; there is no ID argument or manual
-import in `client/main.ts`. Named and default exports work, and one module can
+client-entry import. Named and default exports work, and one module can
 declare multiple islands. Exporting is optional for declarations used within the
 same module. Declarations can share a route file with server handlers:
 Hum extracts their same-file helpers, constants and used imports into a browser
@@ -566,6 +565,56 @@ data and signals as arguments instead of capturing them in a module closure.
 
 See Hum's [documentation](https://hum.runasp.net/docs/facets) and its
 [source](./packages/docs/routes/docs/facets.tsx).
+
+### Stylesheets
+
+Import styles directly. Put global CSS in `_app.tsx`, shared CSS in
+`_layout.tsx`, and page-specific CSS in the page or its components:
+
+```tsx
+import "../styles.css";
+```
+
+Hum adds stylesheet links to the document head automatically. Vite processes
+Tailwind/PostCSS, `@import` and referenced assets. Production stylesheets are
+hashed and published under `/_hum/assets/`; development serves them through
+Vite with stylesheet HMR. This works for pages without islands or client-side
+JavaScript. No stylesheet `head` export or client entry is needed.
+
+Partial navigation waits for new stylesheets before updating the DOM and reuses
+loaded URLs. Existing styles remain loaded for surviving layouts and partials;
+page-level loading does not scope ordinary CSS selectors.
+
+For scoped styles, import a CSS Module directly:
+
+```tsx
+import styles from "./page.module.css";
+
+export default function Page() {
+  return <main class={`${styles.page} p-4`}>Hello</main>;
+}
+```
+
+Hum automatically links ordinary CSS and CSS Modules from the active app, layouts, page and
+static component dependencies, including error and 404 views. This works in
+SSR, streaming, SSG and ISG, with or without islands. Partial responses carry the
+same stylesheet links. Production CSS and referenced assets use the configured
+base path; server chunk merging does not combine unrelated pages' styles.
+CSS Modules edits reload the page in development so scoped class names in the
+HTML stay consistent. Ordinary linked styles retain Vite's stylesheet HMR.
+
+CSS Modules can share an element with Tailwind utilities. Tailwind v4 `@apply`
+inside a module can use `@reference "../styles.css"` to access the application's
+theme; continue importing that global stylesheet from `_app` because `@reference`
+does not emit its CSS. Vite's `composes` is supported, including across files;
+shared rules may appear in more than one emitted stylesheet. URL deduplication
+does not remove duplicate rules. Imports reachable only through dynamic
+`import()` are not included in automatic route stylesheet discovery; keep SSR
+style dependencies static.
+
+The former `clientEntry` option and automatic `client/main.ts` import are removed.
+Move global CSS imports into `_app.tsx`; project event factories are
+loaded automatically from `defineFactory` declarations.
 
 ### Streaming
 

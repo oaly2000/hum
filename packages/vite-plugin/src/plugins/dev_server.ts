@@ -31,11 +31,10 @@ type RunnableEnvironment = DevEnvironment & { readonly runner: ModuleRunner };
 import {
   ASSETS_BASE,
   BUILD_VIRTUAL_ID,
+  CORE_RUNTIME_ID,
   projectSummary,
   projectUrlPath,
-  RESOLVED_USER_ENTRY_VIRTUAL_ID,
   RUNTIME_URL,
-  USER_ENTRY_VIRTUAL_ID,
 } from "../shared.js";
 import type { HumContext } from "../shared.js";
 
@@ -240,11 +239,7 @@ export function humDevServer(ctx: HumContext): Plugin {
       // (this plugin half is `enforce: "pre"`), so this URL is answered here and
       // never reaches a runtime that answers pages.
       //
-      // The boot script imports `boot` from here, so this URL has to serve the
-      // user client entry wired to the runtime: that entry imports
-      // `client/main.ts` (global styles, factory modules) and re-exports the
-      // runtime. Serving the runtime alone would leave factories the page
-      // relies on unregistered in the browser.
+      // Serve the framework runtime independently of application modules.
       server.middlewares.use(async (req, res, next) => {
         if (
           req.url !== RUNTIME_URL && !req.url?.startsWith(RUNTIME_URL + "?")
@@ -254,9 +249,7 @@ export function humDevServer(ctx: HumContext): Plugin {
         }
 
         try {
-          const result = await server.transformRequest(
-            RESOLVED_USER_ENTRY_VIRTUAL_ID,
-          );
+          const result = await server.transformRequest(CORE_RUNTIME_ID);
           res.statusCode = 200;
           res.setHeader("Content-Type", "text/javascript; charset=utf-8");
           res.setHeader("Cache-Control", "no-store");
@@ -315,7 +308,7 @@ export function humDevServer(ctx: HumContext): Plugin {
               }
 
               const response = await instance.fetch(await toRequest(req));
-              await writeResponse(res, response, server);
+              await writeResponse(res, response);
             } catch (err) {
               next(err);
             }
@@ -403,74 +396,24 @@ async function toRequest(req: IncomingMessage): Promise<Request> {
   });
 }
 
-async function writeResponse(
-  res: ServerResponse,
-  response: Response,
-  server: ViteDevServer,
-): Promise<void> {
-  const type = response.headers.get("content-type") ?? "";
-  if (type.includes("text/html")) {
-    // The HMR client is part of the rendered document (see
-    // `@humjs/core/runtime/server/document`), so only what needs this process
-    // is spliced in here: styles are read out of the client environment's
-    // module graph, which a runtime rendering the app elsewhere cannot reach.
-    const styles = await collectCss(server);
-    const stylesHtml = styles.join("\n");
-    const reader = response.body?.getReader();
-    const decoder = new TextDecoder();
-    let buffered = "";
-    let done = reader === undefined;
-
-    while (!done && !buffered.includes("</head>")) {
-      const result = await reader!.read();
-      done = result.done;
-      if (result.value !== undefined) {
-        buffered += decoder.decode(result.value, { stream: !done });
-      }
-      if (done) buffered += decoder.decode();
-    }
-
-    const headEnd = buffered.indexOf("</head>");
-    let initial: string;
-    if (headEnd === -1) {
-      initial = buffered;
-    } else {
-      const end = headEnd + "</head>".length;
-      initial = buffered.slice(0, headEnd) +
-        `${stylesHtml}</head>` +
-        buffered.slice(end);
-    }
-
-    setResponseHeaders(res, response);
-    if (initial !== "") res.write(initial);
-    if (reader !== undefined) {
-      try {
-        while (!done) {
-          const result = await reader.read();
-          done = result.done;
-          const chunk = result.value === undefined
-            ? ""
-            : decoder.decode(result.value, { stream: !done });
-          if (chunk !== "") res.write(chunk);
-          if (done) {
-            const tail = decoder.decode();
-            if (tail !== "") res.write(tail);
-          }
-        }
-      } catch (error) {
-        res.destroy(error instanceof Error ? error : new Error(String(error)));
-        return;
-      } finally {
-        reader.releaseLock();
-      }
-    }
-    res.end();
-    return;
-  }
-
-  const payload = Buffer.from(await response.arrayBuffer());
+async function writeResponse(res: ServerResponse, response: Response): Promise<void> {
   setResponseHeaders(res, response);
-  res.end(payload);
+  const reader = response.body?.getReader();
+  if (reader !== undefined) {
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        res.write(value);
+      }
+    } catch (error) {
+      res.destroy(error instanceof Error ? error : new Error(String(error)));
+      return;
+    } finally {
+      reader.releaseLock();
+    }
+  }
+  res.end();
 }
 
 function setResponseHeaders(res: ServerResponse, response: Response): void {
@@ -479,69 +422,4 @@ function setResponseHeaders(res: ServerResponse, response: Response): void {
     if (name === "content-length") return;
     res.setHeader(name, value);
   });
-}
-
-/**
- * Collects the CSS produced by the modules of the client environment and
- * returns the inline `<style>` tags that should be injected into the document
- * head. Hum renders the document itself (there is no `index.html`), so styles
- * imported by the user client entry — such as TailwindCSS — never reach the
- * head through Vite's normal index.html pipeline.
- */
-async function collectCss(server: ViteDevServer): Promise<string[]> {
-  const env = server.environments.client;
-  const seen = new Set<string>();
-  const queue: string[] = [
-    RESOLVED_USER_ENTRY_VIRTUAL_ID,
-    USER_ENTRY_VIRTUAL_ID,
-  ];
-  const out: string[] = [];
-
-  let current: string | undefined;
-  while ((current = queue.pop()) !== undefined) {
-    if (seen.has(current)) continue;
-    seen.add(current);
-
-    let mod = env.moduleGraph.idToModuleMap.get(current);
-    if (mod === undefined || mod.transformResult === null) {
-      // During development assets are loaded lazily, so trigger processing.
-      await env.fetchModule(current);
-      mod = env.moduleGraph.idToModuleMap.get(current) ??
-        env.moduleGraph.idToModuleMap.get(`\0${current}`) ??
-        env.moduleGraph.idToModuleMap.get(current.slice(1));
-      if (mod === undefined) continue;
-    }
-
-    if (
-      (current.endsWith(".css") || current.endsWith(".scss")) &&
-      mod.transformResult !== null
-    ) {
-      // Vite stores CSS as a JS module; extract the stylesheet content from it.
-      const match = mod.transformResult.code.match(
-        /__vite__css\s+=\s+("(?:\\\\|\\"|[^"])*")/,
-      );
-      if (match !== null) {
-        // Tag the style with the id Vite's client uses for the module, so that
-        // when the module itself is loaded (the boot script pulls in the user
-        // client entry) `updateStyle` adopts this element instead of injecting
-        // a second copy into the page.
-        out.push(
-          `<style type="text/css" data-vite-dev-id="${
-            escapeAttr(mod.id ?? current)
-          }">${JSON.parse(match[1])}</style>`,
-        );
-      }
-    }
-
-    for (const m of mod.importedModules) {
-      if (m.id === null) continue;
-      queue.push(m.id);
-    }
-  }
-
-  return out;
-}
-
-function escapeAttr(value: string): string {
-  return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
 }
