@@ -1,14 +1,16 @@
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import type { AddressInfo } from "node:net";
-import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+
+import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { build, createServer } from "vite";
 import { describe, expect, it, vi } from "vitest";
 
-import { hum } from "../src/mod.js";
-import { factoryId, islandId } from "../src/plugins/client_declarations.js";
+import { createProject } from "../helpers/project.js";
+
+import { hum } from "../../src/mod.js";
+import { factoryId, islandId } from "../../src/plugins/client_declarations.js";
 
 const ISLAND = `import { defineIsland } from "@humjs/core/shared";
 import { useState } from "preact/hooks";
@@ -32,72 +34,21 @@ export default function Home() {
 }
 `;
 
-/**
- * Writes a project with one island. Inside this package, so the fixture
- * resolves Preact, Hono and the framework's JSX settings the way a real project
- * does — which matters here: whether an island is recognized is the whole
- * question.
- */
 async function project(island = ISLAND, page = PAGE, directory = "islands"): Promise<string> {
-  const root = await mkdtemp(
-    join(resolve(process.cwd(), "packages", "vite-plugin"), "island-fixture-"),
-  );
-  await mkdir(join(root, "routes"), { recursive: true });
-  await mkdir(join(root, "islands"), { recursive: true });
-  await mkdir(join(root, directory), { recursive: true });
-  await writeFile(
-    join(root, "package.json"),
-    JSON.stringify({ name: "hum-island-fixture", type: "module" }) + "\n",
-  );
-  // A project's own JSX settings, independent of the directory the fixture
-  // happens to live in: Hum's islands are Preact components, and a fixture that
-  // compiled them for React would test something else entirely.
-  await writeFile(
-    join(root, "tsconfig.json"),
-    JSON.stringify({
-      compilerOptions: {
-        target: "ES2022",
-        module: "ESNext",
-        moduleResolution: "bundler",
-        jsx: "react-jsx",
-        jsxImportSource: "preact",
-        skipLibCheck: true,
-      },
-    }) + "\n",
-  );
-  await writeFile(join(root, directory, "Counter.tsx"), island);
-  await writeFile(join(root, "routes", "index.tsx"), page);
-  await writeFile(
-    join(root, "routes", "_app.tsx"),
-    `import type { ComponentChildren } from "preact";
-
-export default function App(props: { children?: ComponentChildren }) {
-  return (
-    <html lang="en">
-      <head>
-        <meta charset="utf-8" />
-      </head>
-      <body>{props.children}</body>
-    </html>
-  );
-}
-`,
-  );
-  // An entry that exports the app and nothing that serves it: the build is
-  // imported by a runtime, as the production half of this test does.
-  await writeFile(
-    join(root, "server.ts"),
-    `import { Hono } from "hono";
+  return createProject({
+    [`${directory}/Counter.tsx`]: island,
+    "routes/index.tsx": page,
+    "routes/_app.tsx": `export default function App({ children }) {
+  return <html lang="en"><head><meta charset="utf-8" /></head><body>{children}</body></html>;
+}`,
+    "server.ts": `import { Hono } from "hono";
 import { mountHum } from "@humjs/core";
 import { config } from "virtual:hum/build";
-
 const app = new Hono();
 await mountHum(app, config);
-
 export default app;
 `,
-  );
-  return root;
+  }, "island-fixture-");
 }
 
 const DECLARED_ISLANDS = `import { defineIsland as island } from "@humjs/core/shared";
@@ -118,7 +69,7 @@ export default function Page() {
     <Partial name="content"><ThemeToggle /></Partial></main>;
 }`;
 
-describe("explicit declarations reach the browser", () => {
+describe("explicit declarations through development and production builds", () => {
   it.each(["dev", "production", "standalone"])("splits islands and factories from a server route (%s)", async (mode) => {
     const route = `import { platform } from "node:os";
 import { page } from "@humjs/core";

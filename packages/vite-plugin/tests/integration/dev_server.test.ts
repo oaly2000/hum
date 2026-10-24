@@ -6,7 +6,7 @@ import { createServer } from "vite";
 import { describe, expect, it, vi } from "vitest";
 import { preactSsrPrecompile } from "@humjs/preact-ssr-precompile";
 
-import { hum } from "../src/mod.js";
+import { hum } from "../../src/mod.js";
 
 describe("Hum Vite dev server", () => {
   it("shares middleware resources with route views across the SSR module runner", async () => {
@@ -302,7 +302,6 @@ export default function Boom() {
   }, 20_000);
 });
 
-
 it("automatically links ordinary CSS imports and updates styles during development", async () => {
   const root = await mkdtemp(join(resolve("packages/vite-plugin"), "styles-dev-"));
   await mkdir(join(root, "routes"));
@@ -337,13 +336,12 @@ export default () => <p class="page">styles</p>;`);
   }
 }, 20_000);
 
-
 it("serves route CSS Modules as scoped stylesheets and refreshes dependencies", async () => {
   const root = await mkdtemp(join(resolve(process.cwd(), "packages/vite-plugin"), "dev-css-test-"));
   await mkdir(join(root, "routes"));
   await writeFile(join(root, "package.json"), '{"type":"module"}');
   await writeFile(join(root, "tsconfig.json"), JSON.stringify({compilerOptions:{jsx:"react-jsx",jsxImportSource:"preact"}}));
-  await writeFile(join(root, "routes/index.tsx"), 'import styles from "../page.module.css"; import {Card} from "../Card"; export default () => <main class={styles.card}><Card/></main>;');
+  await writeFile(join(root, "routes/index.tsx"), 'import styles from "../page.module.css"; import { Card } from "../Card"; export default () => <main class={styles.card}><Card/></main>;');
   await writeFile(join(root, "Card.tsx"), 'import styles from "./shared.module.css"; export const Card = () => <p class={styles.base}>shared</p>;');
   await writeFile(join(root, "page.module.css"), '.card { composes: base from "./shared.module.css"; color: red; }');
   await writeFile(join(root, "shared.module.css"), '.base { padding: 2px; }');

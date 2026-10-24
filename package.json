@@ -13,6 +13,8 @@
     "start": "pnpm --filter hum-docs start",
     "typecheck": "pnpm -r exec tsc --noEmit",
     "test": "vitest run",
+    "test:fast": "vitest run --project fast",
+    "test:integration": "vitest run --project integration",
     "test:standalone": "pnpm build:pkgs && pnpm --filter hum-docs exec vite build --mode standalone && node tools/test-standalone-deploy.mjs"
   },
   "devDependencies": {

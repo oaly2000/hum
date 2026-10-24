@@ -3,22 +3,18 @@ import { Fragment, h, type ComponentChildren, type ComponentType } from "preact"
 import { useState } from "preact/hooks";
 import { signal, type Signal } from "@preact/signals";
 import { renderToStringAsync } from "preact-render-to-string";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { BuildCache } from "../src/build_cache.js";
 import { defineIsland, Partial } from "../src/shared.js";
 import type { IslandTag } from "../src/routing/island_tag.js";
-import { boot, currentInteractionManager } from "../src/runtime/client/reviver.js";
+import { boot } from "../src/runtime/client/reviver.js";
 import { RenderState, serializePayload, withRenderState } from "../src/runtime/server/preact_hooks.js";
+import { flush, setupClientCleanup } from "./helpers/client.js";
 
 const compiled = defineIsland as <P>(component: ComponentType<P>, tag: IslandTag) => ComponentType<P>;
-const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-afterEach(() => {
-  currentInteractionManager()?.dispose();
-  document.body.innerHTML = "";
-  vi.unstubAllGlobals();
-});
+setupClientCleanup();
 
 describe("explicit island wrappers on the client", () => {
   it.each([false, true])("preserves hooks, slots and shared facet state (inside partial: %s)", async (insidePartial) => {

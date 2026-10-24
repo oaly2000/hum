@@ -250,7 +250,9 @@ later (or 22.12 or later).
 ```bash
 pnpm install
 pnpm typecheck       # TypeScript across workspace packages
-pnpm test            # Vitest test suite
+pnpm test            # All Vitest projects
+pnpm test:fast       # Core/runtime, compiler and scaffold tests without Vite servers/builds
+pnpm test:integration # Vite builds/dev servers, built CLI and workerd
 pnpm build:pkgs      # Build package outputs
 pnpm dev             # Build packages and run the documentation site
 pnpm build           # Build packages and production documentation site
@@ -261,6 +263,15 @@ pnpm test:standalone  # Build and run the artifact without node_modules
 Prefer focused package tests while iterating, then run the relevant workspace
 checks for changes that cross package boundaries. Do not commit generated
 `dist/` output unless a package explicitly tracks it.
+
+Vitest projects classify tests by execution cost. Put tests that start Vite,
+build application output, execute the built CLI or run workerd under the
+package's `tests/integration/` directory; other tests remain in the fast
+project, including core HTTP rendering and Happy DOM interaction tests.
+`pnpm test` always includes both projects. Integration tests use built workspace
+dependencies, so run `pnpm build:pkgs` after changing package sources. Shared
+Vite fixture helpers live in `packages/vite-plugin/tests/helpers/`; only
+read-only assertions with identical build options may share one built fixture.
 
 Every package build removes `dist` through `tools/clean-dist.mjs` first: `tsc`
 never prunes its output, so a deleted source file would otherwise leave a stale

@@ -6,7 +6,26 @@ export default defineConfig({
     jsxImportSource: "preact",
   },
   test: {
-    include: ["packages/*/tests/**/*.test.{ts,tsx}"],
-    environment: "node",
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: "fast",
+          include: ["packages/*/tests/**/*.test.{ts,tsx}"],
+          exclude: ["packages/*/tests/integration/**"],
+          environment: "node",
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: "integration",
+          include: ["packages/*/tests/integration/**/*.test.{ts,tsx}"],
+          environment: "node",
+          testTimeout: 60_000,
+          hookTimeout: 60_000,
+        },
+      },
+    ],
   },
 });

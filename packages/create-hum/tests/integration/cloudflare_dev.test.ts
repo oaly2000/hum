@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 import { createServer } from "vite";
 import { describe, expect, it } from "vitest";
 
-import { scaffold, templatePath } from "../src/scaffold.js";
+import { scaffold, templatePath } from "../../src/scaffold.js";
 
 /**
  * Fetches until the answer carries `marker`, so a test does not decide how long
@@ -38,7 +38,7 @@ async function fetchUntil(
  * copy of.
  */
 describe("the Cloudflare template in development", () => {
-  it("renders pages in workerd, with the islands hydrated from there", async () => {
+  it("renders pages in workerd and emits island boot metadata", async () => {
     const target = join(
       resolve(process.cwd(), "packages", "docs"),
       "cfv-template-check",

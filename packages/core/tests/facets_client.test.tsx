@@ -1,11 +1,9 @@
 // @vitest-environment happy-dom
-import { Fragment, h, type ComponentChildren } from "preact";
+import { Fragment, h } from "preact";
 import { signal, type Signal } from "@preact/signals";
-import { renderToStringAsync } from "preact-render-to-string";
+
 import { describe, expect, it, vi } from "vitest";
 
-import { BuildCache } from "../src/build_cache.js";
-import { tagIsland } from "../src/routing/island_tag.js";
 import { parse } from "../src/jsonify/parse.js";
 import {
   boot,
@@ -17,42 +15,8 @@ import {
 } from "../src/runtime/client/reviver.js";
 import { add, setFromProp, setValue } from "../src/runtime/events.js";
 import type { AnyVNode } from "../src/runtime/shared_internal.js";
-import {
-  RenderState,
-  serializePayload,
-  withRenderState,
-} from "../src/runtime/server/preact_hooks.js";
-
-interface RenderOptions {
-  pathname?: string;
-  islands?: Array<[unknown, string]>;
-}
-
-async function renderServer(
-  page: () => ComponentChildren,
-  options: RenderOptions = {},
-): Promise<{ html: string; payload: string }> {
-  const state = new RenderState({
-    url: new URL(options.pathname ?? "/", "http://localhost"),
-    buildCache: new BuildCache(true),
-    basePath: "/",
-  });
-  for (const [component, name] of options.islands ?? []) {
-    const file = `islands/${name}.tsx`;
-    state.buildCache.islands.set(name, {
-      name,
-      exportName: "default",
-      file,
-      clientUrl: `/${file}`,
-      css: [],
-    });
-    tagIsland(component, { name, file, exportName: "default" });
-  }
-
-  const html = await withRenderState(state, () =>
-    renderToStringAsync(h(Fragment, null, page())));
-  return { html, payload: serializePayload(state) };
-}
+import { renderFragment as renderServer } from "./helpers/ssr.js";
+import { flush, setupClientCleanup } from "./helpers/client.js";
 
 /** Puts a server rendered document in place and hydrates it. */
 function hydrate(html: string, payload: string): void {
@@ -60,16 +24,9 @@ function hydrate(html: string, payload: string): void {
   boot({}, payload);
 }
 
-describe("page level facets on the client", () => {
-  /**
-   * Hydration runs in the task after `boot` returns, and `@preact/signals`
-   * writes signal bound text nodes and DOM properties from a microtask: both
-   * need a flush before they can be observed.
-   */
-  function flush(): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, 0));
-  }
+setupClientCleanup();
 
+describe("page level facets on the client", () => {
   it("drives a signal child and a signal prop from one handler", async () => {
     const value = signal(1);
     const { html, payload } = await renderServer(() =>

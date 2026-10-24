@@ -1,76 +1,20 @@
-import { Fragment, h, type ComponentChildren } from "preact";
+import { h, type ComponentChildren } from "preact";
 import { computed, signal, type Signal } from "@preact/signals";
-import { renderToStringAsync } from "preact-render-to-string";
+
 import { describe, expect, it } from "vitest";
 
-import { BuildCache } from "../src/build_cache.js";
 import { parse } from "../src/jsonify/parse.js";
-import { tagIsland } from "../src/routing/island_tag.js";
+
 import { CUSTOM_PARSER, type Payload } from "../src/runtime/client/reviver.js";
-import {
-  add,
-  defineFactory,
-  setFromProp,
-  toggle,
-} from "../src/runtime/events.js";
+import { add, setFromProp, toggle } from "../src/runtime/events.js";
 import { Partial } from "../src/runtime/shared.js";
-import {
-  RenderState,
-  serializePayload,
-  withRenderState,
-} from "../src/runtime/server/preact_hooks.js";
 
-interface RenderOptions {
-  pathname?: string;
-  /** Island components to register, as `[component, name]` pairs. */
-  islands?: Array<[unknown, string]>;
-}
+import { renderFragment, type RenderOptions } from "./helpers/ssr.js";
+import { testFactory } from "./helpers/factory.js";
 
-interface Rendered {
-  html: string;
-  state: RenderState;
-  /** The payload as it is embedded into the document. */
-  serialized: string;
-  /** The payload as the client runtime revives it. */
-  revived: Payload;
-}
-
-/**
- * The page is built inside the render context on purpose: page level facets are
- * picked up while the page's vnodes are created, exactly like a route component
- * that returns JSX.
- */
-async function renderPage(
-  page: () => ComponentChildren,
-  options: RenderOptions = {},
-): Promise<Rendered> {
-  const state = new RenderState({
-    url: new URL(options.pathname ?? "/", "http://localhost"),
-    buildCache: new BuildCache(true),
-    basePath: "/",
-  });
-  for (const [component, name] of options.islands ?? []) {
-    const file = `islands/${name}.tsx`;
-    state.buildCache.islands.set(name, {
-      name,
-      exportName: "default",
-      file,
-      clientUrl: `/${file}`,
-      css: [],
-    });
-    tagIsland(component, { name, file, exportName: "default" });
-  }
-
-  const html = await withRenderState(state, () =>
-    renderToStringAsync(h(Fragment, null, page())));
-
-  const serialized = serializePayload(state);
-  return {
-    html,
-    state,
-    serialized,
-    revived: parse<Payload>(serialized, CUSTOM_PARSER),
-  };
+async function renderPage(page: () => ComponentChildren, options: RenderOptions = {}) {
+  const { html, state, payload: serialized } = await renderFragment(page, options);
+  return { html, state, serialized, revived: parse<Payload>(serialized, CUSTOM_PARSER) };
 }
 
 function revivedSignal(revived: Payload): Signal<unknown> {
@@ -302,6 +246,3 @@ describe("page level handlers", () => {
 });
 
 // Model the compiler's hidden identity argument without exposing it publicly.
-function testFactory<A extends unknown[], R>(id: string, fn: (...args: A) => R): (...args: A) => R {
-  return (defineFactory as (fn: (...args: A) => R, id: string) => (...args: A) => R)(fn, id);
-}

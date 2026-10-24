@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { cp, mkdtemp, readdir, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, relative, resolve, sep } from "node:path";
@@ -10,52 +10,12 @@ const repoRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const docsRoot = join(repoRoot, "packages", "docs");
 const buildRoot = join(docsRoot, "dist");
 const deployRoot = await mkdtemp(join(tmpdir(), "hum-standalone-"));
-const scaffoldRoot = join(deployRoot, "scaffold");
 const runtimeRoot = join(deployRoot, "runtime");
 const port = await findAvailablePort();
 let server;
 let serverOutput = "";
 
 try {
-  const scaffold = spawnSync(
-    process.execPath,
-    [
-      join(repoRoot, "packages", "create-hum", "dist", "index.js"),
-      scaffoldRoot,
-    ],
-    { cwd: repoRoot, encoding: "utf8" },
-  );
-  assert.equal(
-    scaffold.status,
-    0,
-    `create-hum should scaffold a project:\n${scaffold.stderr}`,
-  );
-  const scaffoldServer = await readFile(
-    join(scaffoldRoot, "app.ts"),
-    "utf8",
-  );
-  assert.match(scaffoldServer, /export default app/);
-  // App setup explicitly mounts Hum before the Node entry starts listening.
-  assert.match(scaffoldServer, /await mountHum\(app, \{ \.\.\.config, pages \}\)/);
-  assert.match(scaffoldServer, /app\.get\("\/api\/health"/);
-  // The scaffold serves the sibling public directory, including after the
-  // output directory has been renamed.
-  assert.match(scaffoldServer, /"public"/);
-  assert.doesNotMatch(scaffoldServer, /HUM_OUT_DIR/);
-  assert.match(scaffoldServer, /dirname\(fileURLToPath\(import\.meta\.url\)\)/);
-  assert.equal(
-    (await readFile(join(scaffoldRoot, "package.json"), "utf8")).includes(
-      "{{name}}",
-    ),
-    false,
-  );
-  const scaffoldConfig = await readFile(
-    join(scaffoldRoot, "vite.config.ts"),
-    "utf8",
-  );
-  assert.match(scaffoldConfig, /hum\(\{ devEntry: "app\.ts" \}\)/);
-  assert.doesNotMatch(scaffoldConfig, /standalone:\s*true/);
-
   // test:standalone explicitly selects Vite's standalone mode for this build.
   // The output directory holds the server entry, its package.json and the
   // public tree: `server.js`, `package.json`, `public/_hum`, `public/…`.
@@ -208,7 +168,7 @@ try {
   assert.match(await missing.text(), /404/);
 
   console.log(
-    "Scaffold and standalone deployment passed: a renamed output directory " +
+    "Standalone deployment passed: a renamed output directory " +
       "runs without node_modules or source package.json, serves its public " +
       "tree, and keeps the server bundle private.",
   );

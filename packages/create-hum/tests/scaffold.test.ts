@@ -123,6 +123,10 @@ describe("templates", () => {
     const app = await readFile(join(target, "app.ts"), "utf8");
     expect(app).toContain("await mountHum(app, { ...config, pages })");
     expect(app).toContain("export default app");
+    expect(app).toContain('app.get("/api/health"');
+    expect(app).toContain('"public"');
+    expect(app).toContain("dirname(fileURLToPath(import.meta.url))");
+    expect(app).not.toContain("HUM_OUT_DIR");
     expect(server).toContain("@hono/node-server");
 
     const vite = await readFile(join(target, "vite.config.ts"), "utf8");

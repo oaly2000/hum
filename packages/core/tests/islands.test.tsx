@@ -1,19 +1,14 @@
 // @vitest-environment happy-dom
-import { Fragment, h, type ComponentChildren } from "preact";
+import { h, type ComponentChildren } from "preact";
 import { signal } from "@preact/signals";
-import { renderToStringAsync } from "preact-render-to-string";
+
 import { describe, expect, it, vi } from "vitest";
 
-import { BuildCache } from "../src/build_cache.js";
-import { tagIsland } from "../src/routing/island_tag.js";
 import { boot, ISLAND_REGISTRY } from "../src/runtime/client/reviver.js";
 import { setFromProp } from "../src/runtime/events.js";
 import { Partial } from "../src/runtime/shared.js";
-import {
-  RenderState,
-  serializePayload,
-  withRenderState,
-} from "../src/runtime/server/preact_hooks.js";
+import { renderFragment as render } from "./helpers/ssr.js";
+import { flush, setupClientCleanup } from "./helpers/client.js";
 
 /** An island that renders the slot it was handed as `children`. */
 function Card(props: { title?: string; children?: ComponentChildren }) {
@@ -25,40 +20,7 @@ function Card(props: { title?: string; children?: ComponentChildren }) {
   );
 }
 
-interface RenderOptions {
-  /** Islands the server knows about, as `[component, name]`. */
-  islands?: Array<[unknown, string]>;
-}
-
-async function render(
-  page: () => ComponentChildren,
-  options: RenderOptions = {},
-): Promise<{ html: string; payload: string }> {
-  const state = new RenderState({
-    url: new URL("/", "http://localhost"),
-    buildCache: new BuildCache(true),
-    basePath: "/",
-  });
-  for (const [component, name] of options.islands ?? []) {
-    const file = `islands/${name}.tsx`;
-    state.buildCache.islands.set(name, {
-      name,
-      exportName: "default",
-      file,
-      clientUrl: `/${file}`,
-      css: [],
-    });
-    tagIsland(component, { name, file, exportName: "default" });
-  }
-
-  const html = await withRenderState(state, () =>
-    renderToStringAsync(h(Fragment, null, page())));
-  return { html, payload: serializePayload(state) };
-}
-
-function flush(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0));
-}
+setupClientCleanup();
 
 describe("slots reach an island through either revive path", () => {
   async function hydrate(
