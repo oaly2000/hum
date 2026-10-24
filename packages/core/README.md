@@ -26,7 +26,7 @@ Most applications should use the
   (`createResource`, `Suspense`). Use it in routes, server setup, and server
   rendering code. Do not import it from browser islands.
 - `@humjs/core/shared` is safe to import in both server-rendered routes and
-  browser code. It exports `IS_BROWSER`, `Partial`, `PartialProps`, and `asset`.
+  browser code. It exports `defineIsland`, `IS_BROWSER`, `Partial`, `PartialProps`, and `asset`.
   Shared helpers are intentionally not re-exported from the root or runtime
   entry points, so their import location is unambiguous. `Partial` marks a
   region for partial navigation; `asset()` resolves a public asset URL.
@@ -39,6 +39,15 @@ Most applications should use the
   not a server-safe substitute for `@humjs/core/shared`.
 - `@humjs/core/routing` exports route-file and path-matching helpers. It is
   primarily useful to integrations and tooling rather than application routes.
+
+## Islands
+
+Declare islands with `defineIsland(Component)` from `@humjs/core/shared` in a
+browser-safe module. Export the result at module scope; the Vite plugin generates
+its ID and client registration. Named and default exports are supported, with
+multiple declarations per module. No special directory or client-entry import
+is required. Directory placement never registers an island; wrap existing island
+exports with `defineIsland` when migrating.
 
 ## Typical route
 

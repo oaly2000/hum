@@ -8,13 +8,16 @@ import { build, createServer } from "vite";
 import { describe, expect, it } from "vitest";
 
 import { hum } from "../src/mod.js";
+import { islandId } from "../src/plugins/island_declarations.js";
 
-const ISLAND = `import { useState } from "preact/hooks";
+const ISLAND = `import { defineIsland } from "@humjs/core/shared";
+import { useState } from "preact/hooks";
 
-export default function Counter() {
+function Counter() {
   const [count, setCount] = useState(0);
   return <button onClick={() => setCount(count + 1)}>{count}</button>;
 }
+export default defineIsland(Counter);
 `;
 
 const PAGE = `import Counter from "../islands/Counter.tsx";
@@ -35,12 +38,13 @@ export default function Home() {
  * does — which matters here: whether an island is recognized is the whole
  * question.
  */
-async function project(): Promise<string> {
+async function project(island = ISLAND, page = PAGE, directory = "islands"): Promise<string> {
   const root = await mkdtemp(
     join(resolve(process.cwd(), "packages", "vite-plugin"), "island-fixture-"),
   );
   await mkdir(join(root, "routes"), { recursive: true });
   await mkdir(join(root, "islands"), { recursive: true });
+  await mkdir(join(root, directory), { recursive: true });
   await writeFile(
     join(root, "package.json"),
     JSON.stringify({ name: "hum-island-fixture", type: "module" }) + "\n",
@@ -61,8 +65,8 @@ async function project(): Promise<string> {
       },
     }) + "\n",
   );
-  await writeFile(join(root, "islands", "Counter.tsx"), ISLAND);
-  await writeFile(join(root, "routes", "index.tsx"), PAGE);
+  await writeFile(join(root, directory, "Counter.tsx"), island);
+  await writeFile(join(root, "routes", "index.tsx"), page);
   await writeFile(
     join(root, "routes", "_app.tsx"),
     `import type { ComponentChildren } from "preact";
@@ -96,6 +100,142 @@ export default app;
   return root;
 }
 
+const DECLARED_ISLANDS = `import { defineIsland as island } from "@humjs/core/shared";
+import { useState } from "preact/hooks";
+function View({ start = 0 }: { start?: number }) {
+  const [count, setCount] = useState(start);
+  return <button onClick={() => setCount(count + 1)}>{count}</button>;
+}
+export const Counter = island((View), /* component */);
+const Toggle = island(() => <input type="checkbox" />);
+export { Toggle as ThemeToggle, Toggle as Alternate };
+export default island(View);
+`;
+const DECLARED_PAGE = `import DefaultCounter, { Counter, ThemeToggle } from "../components/Counter.tsx";
+import { Partial } from "@humjs/core/shared";
+export default function Page() {
+  return <main><Counter start={3}/><Counter start={4}/><DefaultCounter start={5}/>
+    <Partial name="content"><ThemeToggle /></Partial></main>;
+}`;
+
+describe("explicit declarations reach the browser", () => {
+  it("discovers multiple definitions, aliases and instances without a client entry in dev", async () => {
+    const root = await project(DECLARED_ISLANDS, DECLARED_PAGE, "components");
+    const server = await createServer({
+      configFile: false, root, plugins: [hum()], logLevel: "silent",
+      server: { host: "127.0.0.1", port: 0, strictPort: true },
+    });
+    try {
+      await server.listen();
+      const { port } = server.httpServer?.address() as AddressInfo;
+      const origin = `http://127.0.0.1:${port}`;
+      const response = await fetch(origin);
+      const html = await response.text();
+      expect(response.status, html).toBe(200);
+      for (const binding of ["Counter", "Toggle", "default"]) {
+        expect(html).toContain(`hum:island:${islandId("components/Counter.tsx", binding)}:`);
+      }
+      expect(html).toContain('module["Counter"]');
+      expect(html).toContain('module["default"]');
+      expect(html).toContain('import { Alternate as hum_island_');
+      const client = await (await fetch(`${origin}/components/Counter.tsx`)).text();
+      expect(client).toContain(islandId("components/Counter.tsx", "Counter"));
+      const partial = await (await fetch(`${origin}/?_hum_partial=true`)).text();
+      expect(partial).toContain(islandId("components/Counter.tsx", "Toggle"));
+      expect(partial).toContain("__HUM_STATE__");
+    } finally {
+      await server.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it.each([false, true])("builds declarations and partial metadata (standalone: %s)", async (standalone) => {
+    const root = await project(DECLARED_ISLANDS, DECLARED_PAGE, "components");
+    try {
+      await writeFile(join(root, "server-only.ts"), 'import "node:fs"; throw new Error("metadata must not execute source");');
+      await build({ root, configFile: false, plugins: [hum({ standalone })], logLevel: "silent" });
+      const built = await import(pathToFileURL(join(root, "dist", "server.js")).href) as {
+        default: { fetch: typeof fetch };
+      };
+      const response = await built.default.fetch(new Request("http://localhost/"));
+      const html = await response.text();
+      expect(response.status, html).toBe(200);
+      for (const binding of ["Counter", "Toggle", "default"]) {
+        expect(html).toContain(`hum:island:${islandId("components/Counter.tsx", binding)}:`);
+      }
+      expect(html).toMatch(/import\("\/_hum\/assets\/Counter-[^"]+\.js"\)/);
+      expect(html).not.toContain("/components/Counter.tsx");
+      const partial = await (await built.default.fetch(new Request("http://localhost/?_hum_partial=true"))).text();
+      expect(partial).toContain(islandId("components/Counter.tsx", "Toggle"));
+      expect(partial).toContain("__HUM_STATE__");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it("refreshes the manifest when a declaration changes identity during development", async () => {
+    const root = await project(DECLARED_ISLANDS, DECLARED_PAGE, "components");
+    const server = await createServer({
+      configFile: false, root, plugins: [hum()], logLevel: "silent",
+      server: { host: "127.0.0.1", port: 0, strictPort: true },
+    });
+    try {
+      await server.listen();
+      const { port } = server.httpServer?.address() as AddressInfo;
+      const origin = `http://127.0.0.1:${port}`;
+      const before = await (await fetch(origin)).text();
+      const oldId = islandId("components/Counter.tsx", "Counter");
+      const newId = islandId("components/Counter.tsx", "Renamed");
+      expect(before).toContain(`hum:island:${oldId}:`);
+      await writeFile(join(root, "components", "Counter.tsx"), DECLARED_ISLANDS
+        .replace("export const Counter =", "const Renamed =") + '\nexport { Renamed as Counter };\n');
+      let after = "";
+      const deadline = Date.now() + 5_000;
+      do {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        after = await (await fetch(origin)).text();
+      } while (!after.includes(`hum:island:${newId}:`) && Date.now() < deadline);
+      expect(after).toContain(`hum:island:${newId}:`);
+      expect(after).not.toContain(`hum:island:${oldId}:`);
+    } finally {
+      await server.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it.each([false, true])("does not register plain components in former island directories (production: %s)", async (production) => {
+    const plain = 'export default function Counter() { return <button>0</button>; }';
+    const root = await project(plain);
+    await mkdir(join(root, "routes", "_islands"));
+    await writeFile(join(root, "routes", "_islands", "Plain.tsx"), plain);
+    await writeFile(join(root, "routes", "index.tsx"), PAGE.replace('<Counter />', '<Counter /><Local />')
+      + '\nimport Local from "./_islands/Plain.tsx";\n');
+    let server: Awaited<ReturnType<typeof createServer>> | undefined;
+    try {
+      let response: Response;
+      if (production) {
+        await build({ configFile: false, root, plugins: [hum()], logLevel: "silent" });
+        const built = await import(pathToFileURL(join(root, "dist", "server.js")).href);
+        response = await built.default.fetch(new Request("http://localhost/"));
+      } else {
+        server = await createServer({ configFile: false, root, plugins: [hum()], logLevel: "silent",
+          server: { host: "127.0.0.1", port: 0, strictPort: true } });
+        await server.listen();
+        const { port } = server.httpServer?.address() as AddressInfo;
+        response = await fetch(`http://127.0.0.1:${port}/`);
+      }
+      const html = await response.text();
+      expect(response.status, html).toBe(200);
+      expect(html).toContain("<button>0</button>");
+      expect(html).not.toContain("hum:island:");
+      expect(html).not.toContain('import("/islands/Counter.tsx")');
+    } finally {
+      await server?.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  }, 60_000);
+});
+
 /**
  * An island is recognized because the bundler stamped its component, so both
  * passes have to leave the same stamp behind: a dev server that finds the
@@ -120,12 +260,12 @@ describe("islands reach the client from either pass", () => {
       const html = await response.text();
 
       expect(response.status, html).toBe(200);
-      expect(html).toContain("<!--hum:island:Counter:0:-->");
+      expect(html).toContain(`<!--hum:island:${islandId("islands/Counter.tsx", "default")}:0:-->`);
       expect(html).toContain("<!--/hum:island-->");
       // In dev the island is served from its source path, so the boot script
       // pulls the module Vite transforms on demand.
       expect(html).toContain(
-        '"Counter":()=>import("/islands/Counter.tsx").then((module)=>module["default"])',
+        `"${islandId("islands/Counter.tsx", "default")}":()=>import("/islands/Counter.tsx").then((module)=>module["default"])`,
       );
       expect(html).not.toMatch(
         /rel="modulepreload" href="[^"]*Counter/,
@@ -156,11 +296,11 @@ describe("islands reach the client from either pass", () => {
       const html = await response.text();
 
       expect(response.status, html).toBe(200);
-      expect(html).toContain("<!--hum:island:Counter:0:-->");
+      expect(html).toContain(`<!--hum:island:${islandId("islands/Counter.tsx", "default")}:0:-->`);
       expect(html).toContain("<!--/hum:island-->");
       // The same island, addressed through the assets the build published.
       expect(html).toMatch(
-        /"Counter":\(\)=>import\("\/_hum\/assets\/Counter-[^"]+\.js"\)/,
+        /"i_[a-f0-9]+":\(\)=>import\("\/_hum\/assets\/Counter-[^"]+\.js"\)/,
       );
       expect(html).not.toMatch(
         /rel="modulepreload" href="[^"]*Counter-/,
@@ -192,7 +332,7 @@ describe("islands reach the client from either pass", () => {
       const html = await response.text();
       expect(response.status, html).toBe(200);
       expect(html).toContain(
-        '"Counter":()=>import("/islands/Counter.tsx").then((module)=>module["default"])',
+        `"${islandId("islands/Counter.tsx", "default")}":()=>import("/islands/Counter.tsx").then((module)=>module["default"])`,
       );
 
       const moduleResponse = await fetch(`${origin}/islands/Counter.tsx`);

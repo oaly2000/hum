@@ -1,37 +1,17 @@
-/**
- * The file naming rules of `routes/` and `islands/`, and the discovery of those
- * files from a bundler's `import.meta.glob` result.
- *
- * Discovery belongs to the bundler: it knows the file list while it builds the
- * module that calls {@link specsFromGlob}, so a server bundle carries lazy
- * imports rather than a serialized route table, and nothing has to scan a
- * directory when the server starts. {@link islandNameOfFile} is the single
- * answer to "is this file an island, and what is it called", used by both the
- * glob result and a bundler's own manifest.
- *
- * Nothing in this module touches Node built-ins, so it runs in the browser, in
- * an edge runtime, and inside a virtual module.
+/** Route file naming and manifest assembly from bundler-produced modules.
+ * No runtime file system discovery is performed.
  */
-
 import type {
   HumManifest,
   IslandManifestEntry,
-  Logger,
   ModuleThunk,
   RouteKind,
   RouteManifestEntry,
 } from "../types.js";
 import { urlPathOf } from "./path_to_pattern.js";
 
-/** Module extensions Hum picks up in both directories. */
+/** Module extensions supported for routes. */
 const MODULE_EXTENSIONS = [".tsx", ".jsx", ".ts", ".js"] as const;
-
-/** True for files Hum treats as routes or islands. */
-function isModuleFile(name: string): boolean {
-  if (name.endsWith(".d.ts")) return false;
-  if (name.startsWith(".") || name.startsWith("-")) return false;
-  return MODULE_EXTENSIONS.some((ext) => name.endsWith(ext));
-}
 
 /** Removes the module extension of a file name, if it has one. */
 function stripExtension(name: string): string {
@@ -60,15 +40,6 @@ function classify(basename: string): RouteKind {
   }
 }
 
-/** Turns an island file path into a marker safe identifier. */
-function islandNameOf(relPathNoExt: string): string {
-  const name = relPathNoExt.split("/").join("_").replace(
-    /[^A-Za-z0-9_$]/g,
-    "_",
-  );
-  return /^[0-9]/.test(name) ? "_" + name : name;
-}
-
 /**
  * A bundler glob result: project root relative file path to a lazy import of
  * that file.
@@ -80,28 +51,20 @@ export interface GlobModules {
 export interface SpecsFromGlobOptions {
   /** Routes directory, relative to the project root. @default "routes" */
   routesDir?: string;
-  /** Islands directory, relative to the project root. @default "islands" */
-  islandsDir?: string;
   /** Glob result of the routes directory. */
   routeModules: GlobModules;
-  /** Glob result of the islands directory. */
-  islandModules: GlobModules;
-  /** Glob result of every `_islands` directory below the routes directory. */
-  localIslandModules: GlobModules;
-  logger?: Logger;
+  /** Explicit declarations collected by the bundler, with generated IDs. */
+  declaredIslands?: IslandManifestEntry[];
 }
 
-/** Glob patterns that enumerate every route and island module of a project. */
+/** Glob patterns that enumerate project routes. */
 export interface HumGlobPatterns {
   routes: string[];
-  islands: string[];
-  localIslands: string[];
 }
 
 /** Directory options shared by {@link globPatterns} and {@link specsFromGlob}. */
 export interface HumDirectories {
   routesDir?: string;
-  islandsDir?: string;
 }
 
 function normalizeDir(value: string | undefined, fallback: string): string {
@@ -139,32 +102,15 @@ function ignorePatterns(dir: string): string[] {
   ];
 }
 
-/**
- * The glob patterns that enumerate a project's route and island modules:
- * `routes/**` without `_components` and `_islands`, every module below
- * `islands/`, and every module below a `routes/**\/_islands` directory.
- */
+/** Route globs exclude colocated component directories. */
 export function globPatterns(options: HumDirectories = {}): HumGlobPatterns {
   const routesDir = normalizeDir(options.routesDir, "routes");
-  const islandsDir = normalizeDir(options.islandsDir, "islands");
-  const localIslandsDir = `${routesDir}/**/_islands`;
-
   return {
     routes: [
       ...includePatterns(routesDir),
       ...ignorePatterns(routesDir),
       `!/${routesDir}/**/_components/**`,
       `!/${routesDir}/**/_islands/**`,
-    ],
-    islands: [
-      ...includePatterns(islandsDir),
-      ...ignorePatterns(islandsDir),
-    ],
-    localIslands: [
-      ...includePatterns(localIslandsDir),
-      ...ignorePatterns(localIslandsDir),
-      // `walkLocalIslands` ignores `_components` inside a `_islands` directory.
-      `!/${localIslandsDir}/**/_components/**`,
     ],
   };
 }
@@ -181,44 +127,6 @@ export function routeSpecOf(
   return { file, kind, urlPath: urlPathOf(relNoExt, kind === "route"), load };
 }
 
-/** Directory below `routes/` that holds the islands of its route directory. */
-const LOCAL_ISLANDS_DIR = "_islands";
-/** Directory that holds helpers, which the glob patterns never descend into. */
-const COMPONENTS_DIR = "_components";
-
-/**
- * Island name of a project relative module file, or `null` when the file is no
- * island: it then lives neither below the islands directory nor below a
- * `routes&#47;**&#47;_islands` directory, or it sits in a `_components`
- * directory, which the glob patterns never descend into.
- *
- * The glob result and a bundler's manifest both go through this function, so
- * the two cannot name the same file differently.
- */
-export function islandNameOfFile(
-  file: string,
-  options: HumDirectories = {},
-): string | null {
-  const routesDir = normalizeDir(options.routesDir, "routes");
-  const islandsDir = normalizeDir(options.islandsDir, "islands");
-  const name = globFileOf(file);
-  const basename = name.split("/").pop() ?? name;
-  if (!isModuleFile(basename)) return null;
-
-  if (name.startsWith(`${islandsDir}/`)) {
-    return islandNameOf(stripExtension(name.slice(islandsDir.length + 1)));
-  }
-
-  const prefix = `${routesDir}/`;
-  if (!name.startsWith(prefix)) return null;
-  const rel = name.slice(prefix.length);
-  const directories = rel.split("/").slice(0, -1);
-  if (!directories.includes(LOCAL_ISLANDS_DIR)) return null;
-  if (directories.includes(COMPONENTS_DIR)) return null;
-
-  return islandNameOf(`local_${stripExtension(rel)}`);
-}
-
 function sortedModules(
   modules: GlobModules,
 ): Array<[string, ModuleThunk<Record<string, unknown>>]> {
@@ -233,47 +141,19 @@ function sortedModules(
   return entries.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
 }
 
-/**
- * Builds the route and island specs {@link defineBuild} registers from the
- * results of the `import.meta.glob` calls of {@link globPatterns}, using the
- * same naming rules as the file system crawler.
- */
+/** Combines file routes and explicit island declarations from the bundler. */
 export function specsFromGlob(options: SpecsFromGlobOptions): HumManifest {
   const routesDir = normalizeDir(options.routesDir, "routes");
-  const islandsDir = normalizeDir(options.islandsDir, "islands");
-
-  const routes: RouteManifestEntry[] = [];
-  for (const [file, load] of sortedModules(options.routeModules)) {
-    routes.push(routeSpecOf(file, routesDir, load));
-  }
-
-  const islands: IslandManifestEntry[] = [];
+  const routes = sortedModules(options.routeModules).map(([file, load]) =>
+    routeSpecOf(file, routesDir, load)
+  );
+  const islands = options.declaredIslands ?? [];
   const seen = new Set<string>();
-  const push = (
-    file: string,
-    load: ModuleThunk<Record<string, unknown>>,
-  ): void => {
-    // The same function names the islands of a bundler's manifest, so both
-    // sides of the client/server contract agree on one island's name.
-    const name = islandNameOfFile(file, { routesDir, islandsDir });
-    if (name === null) return;
-    if (seen.has(name)) {
-      options.logger?.warn(
-        `hum: two island files map to the same island name "${name}". ` +
-          `Rename one of them so markers stay unambiguous.`,
-      );
-      return;
+  for (const island of islands) {
+    if (seen.has(island.name)) {
+      throw new Error(`Hum: duplicate island identity "${island.name}".`);
     }
-    seen.add(name);
-    islands.push({ name, exportName: "default", file, load });
-  };
-
-  for (const [file, load] of sortedModules(options.islandModules)) {
-    push(file, load);
+    seen.add(island.name);
   }
-  for (const [file, load] of sortedModules(options.localIslandModules)) {
-    push(file, load);
-  }
-
   return { routes, islands };
 }

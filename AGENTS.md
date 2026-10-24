@@ -33,21 +33,25 @@ the example where applicable.
   `_app.tsx`, `_layout.tsx`, `_middleware.ts`, `_error.tsx`, and `_404.tsx`
   contribute behavior through the route tree.
 - Route and island discovery is bundler driven, in both environments.
-  `virtual:hum/routes` (`packages/vite-plugin/src/plugins/routes.ts`) enumerates
-  the files with `import.meta.glob` and calls `specsFromGlob`, which the dev
-  server and the generated production server entry both consume; the islands
-  entry (`.hum/islands.js`, written by `writeBuildEntries`) is a build input
-  whose glob makes the client build emit one chunk per island. The Vite plugin
-  therefore never scans a directory: the production assets map island names to
-  chunks by reading Vite's own manifest. Nothing discovers files at runtime
-  either — Hum has no file system discovery at all, which is why the build the
-  bundler produced is registered through `defineBuild` instead of passed as
-  configuration. Everything shares the file naming rules in
-  `packages/core/src/routing/route_files.ts` — in particular
-  `islandNameOfFile` names an island from its path, which is what keeps the
-  bundler's chunk map and the glob result in agreement. `route_files.test.ts`
-  spells out which files a fixture project contributes, so a change to
-  `globPatterns` has to be reflected there.
+  Explicit islands use `defineIsland(Component)` from `@humjs/core/shared` in
+  exported module-level declarations. `humIslandDeclarations` analyzes source
+  metadata enumerated by Vite's glob, without evaluating application modules,
+  and injects an ID derived from the project-relative module path and declaration
+  binding (or `default` for an inline default export). Metadata lives in virtual
+  modules so it does not take the output path of the actual application module.
+  It excludes dependencies, generated/output/public files and tests. Named and
+  default exports, aliases, and multiple definitions per module are supported;
+  each declaration wraps its component rather than mutating a shared view.
+  Directory placement never registers islands; there is no islandsDir option or
+  implicit default-export tagging. `virtual:hum/routes` combines file routes
+  with explicit island descriptors through `specsFromGlob`. The client build
+  input `.hum/islands.js` uses the same metadata glob to retain lazy imports,
+  emitting chunks per declaring module. Production assets map generated IDs to
+  chunks through Vite's manifest and the analyzed declarations. Nothing discovers
+  files at runtime: `defineBuild` registers the bundler-produced build.
+  Route naming rules live in `packages/core/src/routing/route_files.ts`;
+  `route_files.test.ts` covers the route glob, including `_components` and
+  `_islands` as nonroute directories. These exclusions do not register islands.
 - The runtime never reads the build output, and it never touches the file
   system: `virtual:hum/build` — generated for development and for the production
   server alike — calls `defineBuild` with the routes, the islands and the client
@@ -114,7 +118,7 @@ the example where applicable.
   client-entry conventions.
 - Applications explicitly call `mountHum(app, config)` after registering Hono
   middleware and API routes. `virtual:hum/build` registers the bundler-produced
-  build and exports `config` with routesDir, islandsDir, basePath and dev mode.
+  build and exports `config` with routesDir, basePath and dev mode.
   Hum owns the app-level 404 handler; page failures render `_error`, while API
   failures use the user's Hono `onError`.
 - Page modes live in page-level `define.config({ render: ... })`: SSR by
@@ -143,8 +147,7 @@ the example where applicable.
   `devEntry` defaults to serverEntry and must default-export the Hono app Vite
   serves and the build prerenders. Node templates and docs use `app.ts` for devEntry to avoid starting a
   second listener. Entry-less projects still get a generated Node server.
-- An island is recognized by a tag the bundler writes onto its component — the
-  `humIslandTags` transform stamps `{ name, file, exportName }` under
+- An island is recognized by a tag the bundler supplies to `defineIsland`: `{ name, file, exportName }` under
   `Symbol.for("hum.island")`, and the renderer reads it back and looks the name
   up in the build. Do not reintroduce a table keyed by component identity: it
   only works while a module is instantiated once, which a Worker runtime's

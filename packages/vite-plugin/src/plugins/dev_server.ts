@@ -154,7 +154,6 @@ export function humDevServer(ctx: HumContext): Plugin {
     const humConfig = {
       root: ctx.options.root,
       routesDir: ctx.options.routesDir,
-      islandsDir: ctx.options.islandsDir,
       outDir: ctx.options.outDir,
       basePath: ctx.options.basePath,
       dev: true,
@@ -223,7 +222,6 @@ export function humDevServer(ctx: HumContext): Plugin {
           file,
           server,
           resolve(ctx.options.root, ctx.options.routesDir),
-          resolve(ctx.options.root, ctx.options.islandsDir),
           resolve(ctx.options.root, ctx.options.devEntry),
         )
       ) {
@@ -283,7 +281,6 @@ export function humDevServer(ctx: HumContext): Plugin {
             file,
             server,
             resolve(ctx.options.root, ctx.options.routesDir),
-            resolve(ctx.options.root, ctx.options.islandsDir),
             resolve(ctx.options.root, ctx.options.devEntry),
           )
         ) {
@@ -333,11 +330,9 @@ function isSsrPageModule(
   file: string,
   server: ViteDevServer,
   routesDir: string,
-  islandsDir: string,
   serverEntry: string,
 ): boolean {
   const changedFile = resolve(file);
-  if (isPathWithin(changedFile, islandsDir)) return false;
   if (
     isPathWithin(changedFile, routesDir) ||
     changedFile === serverEntry

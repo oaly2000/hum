@@ -43,24 +43,23 @@ describe("routesModuleSource", () => {
 
     expect(source).toContain("import.meta.glob(");
     expect(source).toContain('"/routes/**/*.tsx"');
-    expect(source).toContain('"/islands/**/*.tsx"');
-    expect(source).toContain('"/routes/**/_islands/**/*.tsx"');
     expect(source).toContain('"!/routes/**/_components/**"');
     expect(source).toContain("specsFromGlob");
     expect(source).toContain('routesDir: "routes"');
     expect(source).toContain("manifest");
+    expect(source).toContain("hum-island-metadata");
+    expect(source).not.toContain("const localIslandModules");
+    expect(source).not.toContain("islandsDir");
   });
 
   it("follows a custom routes directory", () => {
     const source = routesModuleSource(
       resolveHumOptions("/tmp/project", {
         routesDir: "src/routes",
-        islandsDir: "src/islands",
       }),
     );
 
     expect(source).toContain('"/src/routes/**/*.tsx"');
-    expect(source).toContain('"/src/islands/**/*.tsx"');
     expect(source).toContain('routesDir: "src/routes"');
   });
 

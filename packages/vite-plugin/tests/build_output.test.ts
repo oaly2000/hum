@@ -102,7 +102,7 @@ async function buildProject(options: BuildOptions = {}): Promise<string> {
   await mkdir(join(root, "islands"), { recursive: true });
   await writeFile(
     join(root, "islands", "Counter.tsx"),
-    "export default function Counter() { return null; }\n",
+    'import { defineIsland } from "@humjs/core/shared"; export default defineIsland(function Counter() { return null; });\n',
   );
   await mkdir(join(root, "public"), { recursive: true });
   await writeFile(join(root, "public", "robots.txt"), "User-agent: *\n");
@@ -325,7 +325,7 @@ app.get("/api/resource", (c) => c.text(packageMessage()));
 await mountHum(app, config);
 export default app;
 `,
-        "islands/Counter.tsx": `export default function Counter() { return <button>count</button>; }`,
+        "islands/Counter.tsx": `import { defineIsland } from "@humjs/core/shared"; export default defineIsland(function Counter() { return <button>count</button>; });`,
       },
       routes: {
         "index.tsx": `import { define, page } from "@humjs/core";

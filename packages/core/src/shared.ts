@@ -4,4 +4,5 @@
  * entry points so importing them cannot initialize either runtime.
  */
 export { asset, IS_BROWSER, Partial } from "./runtime/shared.js";
+export { defineIsland } from "./island.js";
 export type { PartialProps } from "./runtime/shared.js";

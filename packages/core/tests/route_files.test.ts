@@ -8,7 +8,6 @@ import { describe, expect, it } from "vitest";
 import {
   globPatterns,
   type GlobModules,
-  islandNameOfFile,
   specsFromGlob,
 } from "../src/routing/route_files.js";
 
@@ -62,21 +61,12 @@ async function find(root: string, patterns: string[]): Promise<string[]> {
 }
 
 describe("specsFromGlob", () => {
-  it("discovers exactly the modules of a project, and nothing else", async () => {
+  it("discovers only routes and never infers islands from directories", async () => {
     const root = await fixture(FILES);
     try {
       const patterns = globPatterns();
-      const [routeFiles, islandFiles, localIslandFiles] = await Promise.all([
-        find(root, patterns.routes),
-        find(root, patterns.islands),
-        find(root, patterns.localIslands),
-      ]);
-
-      const manifest = specsFromGlob({
-        routeModules: globModules(routeFiles),
-        islandModules: globModules(islandFiles),
-        localIslandModules: globModules(localIslandFiles),
-      });
+      const routeFiles = await find(root, patterns.routes);
+      const manifest = specsFromGlob({ routeModules: globModules(routeFiles) });
 
       // `FILES` is deliberately full of near misses: a dot file, a `-name`
       // file, a non-module extension, and the reserved `_components`
@@ -94,23 +84,13 @@ describe("specsFromGlob", () => {
         { file: "routes/index.tsx", kind: "route", urlPath: "/" },
       ]);
 
-      expect(manifest.islands.map((spec) => ({
-        name: spec.name,
-        file: spec.file,
-      }))).toEqual([
-        { name: "Counter", file: "islands/Counter.tsx" },
-        // A `_components` file below `islands/` is an island: the directory
-        // reserves nothing.
-        { name: "_components_Control", file: "islands/_components/Control.tsx" },
-        { name: "local_admin__islands_Chart", file: "routes/admin/_islands/Chart.tsx" },
-        { name: "local_blog__islands_Editor", file: "routes/blog/_islands/Editor.tsx" },
-      ]);
+      expect(manifest.islands).toEqual([]);
     } finally {
       await rm(root, { recursive: true, force: true });
     }
   });
 
-  it("classifies route files and names islands", () => {
+  it("classifies route files", () => {
     const manifest = specsFromGlob({
       routeModules: globModules([
         "routes/index.tsx",
@@ -120,10 +100,6 @@ describe("specsFromGlob", () => {
         "routes/_middleware.ts",
         "routes/_404.tsx",
         "routes/_error.tsx",
-      ]),
-      islandModules: globModules(["islands/Counter.tsx"]),
-      localIslandModules: globModules([
-        "routes/blog/_islands/Editor.tsx",
       ]),
     });
 
@@ -138,101 +114,26 @@ describe("specsFromGlob", () => {
     ]);
     expect(manifest.routes.find((spec) => spec.kind === "route")!.urlPath)
       .toBe("/blog/[id]");
-    expect(manifest.islands.map((spec) => [spec.name, spec.file])).toEqual([
-      ["Counter", "islands/Counter.tsx"],
-      ["local_blog__islands_Editor", "routes/blog/_islands/Editor.tsx"],
-    ]);
+    expect(manifest.islands).toEqual([]);
   });
 
-  it("keeps the first island of a duplicated name and warns", () => {
-    const warnings: string[] = [];
-    const manifest = specsFromGlob({
-      islandModules: globModules([
-        "islands/a-b.tsx",
-        "islands/a_b.tsx",
-      ]),
-      routeModules: {},
-      localIslandModules: {},
-      logger: {
-        info() {},
-        warn: (...args: unknown[]) => void warnings.push(args.join(" ")),
-        error() {},
-        debug() {},
-      },
-    });
-
-    expect(manifest.islands.map((spec) => spec.name)).toEqual(["a_b"]);
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toContain('"a_b"');
+  it("registers only explicit declarations and rejects duplicate IDs", () => {
+    const island = { name: "i_generated", file: "components/View.tsx", exportName: "View", load: async () => ({}) };
+    expect(specsFromGlob({ routeModules: {}, declaredIslands: [island] }).islands).toEqual([island]);
+    expect(() => specsFromGlob({ routeModules: {}, declaredIslands: [island, island] }))
+      .toThrow('duplicate island identity "i_generated"');
   });
 
   it("accepts glob keys with and without a leading slash", () => {
     const load = async () => ({});
     const manifest = specsFromGlob({
-      routeModules: { "routes/index.tsx": load },
-      islandModules: { "/islands/Counter.tsx": load },
-      localIslandModules: {},
+      routeModules: { "routes/index.tsx": load, "/routes/about.ts": load },
     });
 
     expect(manifest.routes.map((spec) => spec.file)).toEqual([
+      "routes/about.ts",
       "routes/index.tsx",
     ]);
-    expect(manifest.islands.map((spec) => spec.file)).toEqual([
-      "islands/Counter.tsx",
-    ]);
-  });
-});
-
-describe("islandNameOfFile", () => {
-  it("names an island the way the manifest stores it", () => {
-    // The bundler's client manifest is keyed by these file paths, so this is
-    // what maps an emitted chunk back to an island name.
-    expect(islandNameOfFile("islands/Counter.tsx")).toBe("Counter");
-    // Windows separators and a leading slash arrive from tooling, not from a
-    // glob, so both are normalized away.
-    expect(islandNameOfFile("/islands\\nested\\Card.tsx")).toBe("nested_Card");
-    expect(islandNameOfFile("routes/_islands/Counter.tsx")).toBe(
-      "local__islands_Counter",
-    );
-    expect(islandNameOfFile("routes/blog/_islands/Editor.tsx")).toBe(
-      "local_blog__islands_Editor",
-    );
-  });
-
-  it("ignores everything that is not an island", () => {
-    // The islands directory has no reserved sub directory: a `_components`
-    // file below it is an island, exactly like the crawler treats it.
-    expect(islandNameOfFile("islands/_components/Control.tsx")).toBe(
-      "_components_Control",
-    );
-
-    for (
-      const file of [
-        "routes/index.tsx",
-        "routes/blog/_components/Card.tsx",
-        "routes/a/_components/_islands/X.tsx",
-        "routes/blog/index.tsx",
-        "client/main.ts",
-        ".hum/islands.js",
-        "islands/-draft.tsx",
-        "islands/Counter.d.ts",
-        "islands/readme.md",
-      ]
-    ) {
-      expect(islandNameOfFile(file), file).toBe(null);
-    }
-  });
-
-  it("follows configured directories", () => {
-    const options = { routesDir: "src/routes", islandsDir: "src/islands" };
-
-    expect(islandNameOfFile("src/islands/Counter.tsx", options)).toBe(
-      "Counter",
-    );
-    expect(islandNameOfFile("src/routes/_islands/C.tsx", options)).toBe(
-      "local__islands_C",
-    );
-    expect(islandNameOfFile("islands/Counter.tsx", options)).toBe(null);
   });
 });
 
@@ -247,30 +148,13 @@ describe("globPatterns", () => {
     expect(patterns.routes).toContain("!/routes/**/*.d.ts");
     expect(patterns.routes).toContain("!/routes/**/node_modules/**");
 
-    expect(patterns.islands).toContain("/islands/**/*.tsx");
-    // The islands directory has no reserved sub directory: a `_components`
-    // file below it is an island, exactly like the crawler treats it.
-    expect(patterns.islands.some((pattern) => pattern.includes("_components")))
-      .toBe(false);
-
-    expect(patterns.localIslands).toContain(
-      "/routes/**/_islands/**/*.tsx",
-    );
-    expect(patterns.localIslands).toContain(
-      "!/routes/**/_islands/**/_components/**",
-    );
   });
 
   it("follows configured directories", () => {
     const patterns = globPatterns({
       routesDir: "src/routes",
-      islandsDir: "/src/islands/",
     });
 
     expect(patterns.routes).toContain("/src/routes/**/*.tsx");
-    expect(patterns.islands).toContain("/src/islands/**/*.tsx");
-    expect(patterns.localIslands).toContain(
-      "/src/routes/**/_islands/**/*.tsx",
-    );
   });
 });

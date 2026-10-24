@@ -133,6 +133,12 @@ importers:
       hono:
         specifier: ^4.13.13
         version: 4.13.13
+      rolldown:
+        specifier: ^1.2.13
+        version: 1.2.13
+      rolldown-string:
+        specifier: ^0.3.0
+        version: 0.3.1(rolldown@1.2.13)
     devDependencies:
       '@humjs/preact-ssr-precompile':
         specifier: workspace:*

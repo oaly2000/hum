@@ -24,7 +24,16 @@ const routeTreeExample = `routes/
     Counter.tsx     the island on the home page
 `;
 
-const islandExample = `// routes/index.tsx — the counter on the home page
+const islandExample = `// routes/_islands/Counter.tsx
+import { defineIsland } from "@humjs/core/shared";
+import { useSignal } from "@preact/signals";
+
+export default defineIsland(({ start = 0 }: { start?: number }) => {
+  const count = useSignal(start);
+  return <button onClick={() => count.value++}>{count}</button>;
+});
+
+// routes/index.tsx — the counter on the home page
 import Counter from "./_islands/Counter.js";
 
 <Counter start={3} />`;
@@ -114,12 +123,13 @@ export default function RoutingGuide(_props: RouteProps) {
         HTML first, islands by choice
       </h2>
       <p class="mt-3 leading-7 text-muted">
-        Pages and components render to HTML on the server. A component becomes
-        interactive when it is discovered under <code>islands/</code>{" "}
-        or a route-local <code>_islands/</code>{" "}
-        directory and used by a page; only those island bundles hydrate in the
-        browser. Route-local islands are useful for interactive components only
-        used by one route branch.
+        Pages and components render to HTML on the server. Export a module-level{" "}
+        <code>defineIsland(Component)</code>{" "}
+        declaration from a browser-safe module to register an island. Hum generates
+        its ID and client registration automatically; used islands hydrate in the
+        browser. You can keep declarations in <code>_components/</code>,{" "}
+        <code>_islands/</code>, or elsewhere in the project. Directory placement
+        alone does not register a component.
       </p>
       <CodeBlock code={islandExample} />
 

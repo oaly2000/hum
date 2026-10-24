@@ -102,7 +102,7 @@ describe("humClientEntry plugin", () => {
 });
 
 describe("writeBuildEntries", () => {
-  it("writes the islands entry as the glob that emits one chunk per island", async () => {
+  it("writes the islands entry as the metadata glob that emits chunks for declared modules", async () => {
     const root = tempProject();
     const ctx = { options: resolveHumOptions(root) };
 
@@ -110,12 +110,9 @@ describe("writeBuildEntries", () => {
     const entry = await readFile(join(root, ISLANDS_ENTRY), "utf8");
 
     expect(entry).toContain("export const islandModules = import.meta.glob(");
-    expect(entry).toContain('"/islands/**/*.tsx"');
-    expect(entry).toContain('"/routes/**/_islands/**/*.tsx"');
-    expect(entry).toContain('"!/routes/**/_islands/**/_components/**"');
-    // A `_components` file below the islands directory is an island, exactly
-    // like the crawler treats it.
-    expect(entry).not.toContain('"!/islands/**/_components/**"');
+    expect(entry).toContain('"/**/*.{ts,tsx,js,jsx}"');
+    expect(entry).toContain("hum-island-metadata");
+    expect(entry).not.toContain('"/islands/**/*.tsx"');
     rmSync(root, { recursive: true, force: true });
   });
 

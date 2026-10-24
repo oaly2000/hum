@@ -3,6 +3,7 @@ import type { Plugin } from "vite";
 
 import {
   globCall,
+  islandMetadataGlob,
   ROUTES_VIRTUAL_ID,
   type HumContext,
   type ResolvedHumOptions,
@@ -20,9 +21,8 @@ import {
  * route table with build machine paths. Adding or removing a route file
  * invalidates this module the way it invalidates any other glob owner.
  *
- * The file naming rules themselves live in `@humjs/core/routing`, so the file
- * list the bundler resolves and the route and island names derived from it
- * agree on what a route or island file is.
+ * Route names follow `@humjs/core/routing`; island metadata comes only from
+ * explicit declarations analyzed by the bundler.
  */
 export function humRoutes(ctx: HumContext): Plugin {
   return virtualModule(
@@ -40,15 +40,12 @@ export function routesModuleSource(options: ResolvedHumOptions): string {
 import { specsFromGlob } from "@humjs/core/routing";
 
 const routeModules = ${globCall(patterns.routes)};
-const islandModules = ${globCall(patterns.islands)};
-const localIslandModules = ${globCall(patterns.localIslands)};
+const declaredModules = ${islandMetadataGlob(options)};
 
 export const manifest = specsFromGlob({
   routesDir: ${JSON.stringify(options.routesDir)},
-  islandsDir: ${JSON.stringify(options.islandsDir)},
   routeModules,
-  islandModules,
-  localIslandModules,
+  declaredIslands: Object.values(declaredModules).flat(),
 });
 
 export const routes = manifest.routes;

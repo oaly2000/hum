@@ -1,7 +1,8 @@
 import { useSignal } from "@preact/signals";
+import { defineIsland } from "@humjs/core/shared";
 
 /** Interactive island: everything around it stays static HTML. */
-export default function Counter({ start = 0 }: { start?: number }) {
+function Counter({ start = 0 }: { start?: number }) {
   const count = useSignal(start);
 
   return (
@@ -12,3 +13,5 @@ export default function Counter({ start = 0 }: { start?: number }) {
     </div>
   );
 }
+
+export default defineIsland(Counter);

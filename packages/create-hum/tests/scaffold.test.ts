@@ -112,6 +112,9 @@ describe("templates", () => {
 
   it("scaffolds a self-hosting project from the basic template", async () => {
     const target = await scaffoldInto("node-app", await templatePath("basic"));
+    const counter = await readFile(join(target, "islands", "Counter.tsx"), "utf8");
+    expect(counter).toContain('import { defineIsland } from "@humjs/core/shared"');
+    expect(counter).toContain("export default defineIsland(Counter)");
 
     // The Node entry starts its listener directly, separately from app setup.
     const server = await readFile(join(target, "server.ts"), "utf8");
@@ -132,6 +135,8 @@ describe("templates", () => {
 
   it("scaffolds a Worker project from the Cloudflare template", async () => {
     const target = await scaffoldInto("worker", await templatePath("cloudflare"));
+    const counter = await readFile(join(target, "islands", "Counter.tsx"), "utf8");
+    expect(counter).toContain("export default defineIsland(Counter)");
 
     const files = (await walk(target))
       .map((file) => file.slice(target.length + 1).replace(/\\/g, "/"))

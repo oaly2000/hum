@@ -1,5 +1,5 @@
 import { ASSETS_BASE, type GeneratedPage, type ProdManifest, RUNTIME_URL } from "@humjs/core";
-import { resolve } from "node:path";
+import { isAbsolute, relative, resolve } from "node:path";
 import type { Plugin } from "vite";
 
 /** Shared state the Hum plugins coordinate through. */
@@ -13,6 +13,38 @@ export interface HumContext {
    */
   prod?: ProdManifest | null;
   pages?: Record<string, GeneratedPage>;
+  /** Explicit definitions collected from bundler metadata modules. */
+  islandDeclarations?: Map<string, DeclaredIsland[]>;
+}
+
+export interface DeclaredIsland {
+  name: string;
+  file: string;
+  exportName: string;
+}
+
+export const ISLAND_METADATA_QUERY = "hum-island-metadata";
+
+/** Enumerated by Vite, never by a plugin filesystem crawler. */
+export function islandSourcePatterns(options: ResolvedHumOptions): string[] {
+  const output = relative(options.root, resolve(options.root, options.outDir)).replace(/\\/g, "/");
+  const outputExclusion = output === ".." || output.startsWith("../") || isAbsolute(output)
+    ? [] : [`!/${output}/**`];
+  return [
+    "/**/*.{ts,tsx,js,jsx}",
+    "!/**/*.d.ts",
+    "!/**/node_modules/**",
+    "!/.hum/**",
+    "!/public/**",
+    "!/**/{tests,__tests__}/**",
+    "!/**/*.{test,spec}.{ts,tsx,js,jsx}",
+    ...outputExclusion,
+  ];
+}
+
+export function islandMetadataGlob(options: ResolvedHumOptions): string {
+  return `import.meta.glob(${JSON.stringify(islandSourcePatterns(options))}, ` +
+    `{ eager: true, import: "default", query: "?${ISLAND_METADATA_QUERY}" })`;
 }
 
 /** Counts of what Hum found, for the verbose log. */
@@ -37,8 +69,6 @@ export interface HumOptions {
   root?: string;
   /** Routes directory, relative to the root. @default "routes" */
   routesDir?: string;
-  /** Islands directory, relative to the root. @default "islands" */
-  islandsDir?: string;
   /** Production entry, relative to the root. @default "server.ts" */
   serverEntry?: string;
   /** App module for development and prerendering, without a listener. Defaults to serverEntry. */
@@ -71,7 +101,6 @@ export interface HumOptions {
 export interface ResolvedHumOptions {
   root: string;
   routesDir: string;
-  islandsDir: string;
   serverEntry: string;
   devEntry: string;
   prerenderOrigin: string;
@@ -89,7 +118,6 @@ export function resolveHumOptions(
   return {
     root: resolve(options.root ?? root),
     routesDir: options.routesDir ?? "routes",
-    islandsDir: options.islandsDir ?? "islands",
     serverEntry: options.serverEntry ?? SERVER_ENTRY_FILE,
     devEntry: options.devEntry ?? options.serverEntry ?? SERVER_ENTRY_FILE,
     prerenderOrigin: new URL(options.prerenderOrigin ?? "http://localhost").origin,
@@ -168,8 +196,8 @@ export const SERVER_ENTRY_FILE = "server.ts";
 export const GENERATED_DIR = ".hum";
 export const CLIENT_RUNTIME_ENTRY = `${GENERATED_DIR}/client-runtime.js`;
 /**
- * Client build input that exists only so the bundler emits one chunk per
- * island. Nothing imports it: the browser loads those chunks by URL from the
+ * Client build input that exists only so the bundler emits chunks for
+ * declaring modules. Nothing imports it: the browser loads those chunks by URL from the
  * server rendered markup.
  */
 export const ISLANDS_ENTRY = `${GENERATED_DIR}/islands.js`;

@@ -27,6 +27,17 @@ export default defineConfig({
 ```
 
 Hum renders its own document and does not use Vite's `index.html`.
+Export `defineIsland(Component)` declarations from `@humjs/core/shared` at module
+scope in browser-safe project modules. Hum generates IDs from the project-relative
+module path and declaration binding, discovers declarations through Vite metadata
+globs, and builds their client modules without a manual client-entry import.
+Named/default exports and multiple declarations per file are supported. Source
+metadata excludes dependencies, `.hum/`, the output and public directories, and
+`tests/`, `__tests__/`, `*.test.*` and `*.spec.*`. Moving a declaration or renaming
+its binding changes its ID; editing its body or re-exporting it does not.
+`defineIsland` must be the outer declaration call; wrap a memoized component with
+`defineIsland(memo(Component))`, rather than wrapping the declaration in `memo`.
+
 Projects without `server.ts` receive a generated Node listener, which requires
 `@hono/node-server` in the application's production dependencies.
 
@@ -39,7 +50,6 @@ noted.
 | --- | --- | --- |
 | `root` | Vite root | Project root directory. |
 | `routesDir` | `"routes"` | Route-file directory. |
-| `islandsDir` | `"islands"` | Global island directory. Route-local `_islands/` directories are also discovered. |
 | `outDir` | `"dist"` | Production output directory. |
 | `standalone` | `false` | Bundle server dependencies for deployment without `node_modules`. By default, emit ESM modules with npm dependencies external. |
 | `serverEntry` | `"server.ts"` | Production application entry. Its exports and top-level code are preserved. |
@@ -56,7 +66,6 @@ export default defineConfig({
   plugins: [
     hum({
       routesDir: "src/routes",
-      islandsDir: "src/islands",
       clientEntry: "src/client/main.ts",
       outDir: "build",
     }),
@@ -125,8 +134,11 @@ can serve the output's `public/` directory.
 
 ## Common checks
 
-- If a route or island is missing, verify it is under the configured directory
+- If a route is missing, verify it is under the configured routes directory
   and follows Hum's [file naming rules](https://hum.runasp.net/docs/routing).
+- If an island is missing, export a module-level `defineIsland(Component)`
+  declaration in a browser-safe source module. Directory placement does not
+  register islands.
 - If global styles are missing, confirm the CSS is imported by the configured
   client entry.
 - If a page uses client event factories, make sure their module is imported by

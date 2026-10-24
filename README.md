@@ -111,7 +111,7 @@ export default app;
 ```
 
 The virtual build module registers routes, islands and client assets, and exports
-`config` with the plugin's route directory, island directory, base path and dev
+`config` with the plugin's route directory, base path and dev
 mode. Register middleware and API routes before mounting Hum. Hum owns the app's
 404 handler; Hono API errors keep using the app's `onError`.
 
@@ -249,8 +249,31 @@ Directories named `_components/` and `_islands/` are excluded from route
 discovery, so you can co-locate reusable components with a route branch and
 import them by relative path.
 
-A component becomes an island when it lives in `islands/` or a route-local
-`_islands/` directory and is used by a page.
+Declare an island explicitly in a browser-safe project module:
+
+```tsx
+// components/Counter.tsx
+import { defineIsland } from "@humjs/core/shared";
+import { useSignal } from "@preact/signals";
+
+export const Counter = defineIsland(({ start = 0 }: { start?: number }) => {
+  const count = useSignal(start);
+  return <button onClick={() => count.value++}>{count}</button>;
+});
+```
+
+Import `Counter` into a page and use `<Counter start={3} />`. The Vite plugin
+generates its ID and client registration; there is no ID argument or manual
+import in `client/main.ts`. Named and default exports work, and one module can
+declare multiple islands. Declare and export islands at module scope, in modules
+that can run in the browser; server-only code is not automatically extracted.
+Use props for request-specific data instead of declaring islands inside a page.
+
+IDs follow the project-relative module path and declaration binding (`default`
+for an inline default export). Body edits and re-export aliases retain the ID;
+moving the declaration or renaming its binding can change it. Only explicit
+`defineIsland` declarations are islands: directory placement and plain default
+exports do not register components. The former `islandsDir` option is removed.
 
 Standalone island modules are loaded when their server-rendered root is within
 200 pixels of the viewport, then hydrated. Until that point the HTML is visible

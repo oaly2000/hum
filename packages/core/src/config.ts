@@ -22,8 +22,6 @@ export interface HumConfig {
   root?: string;
   /** Routes directory, relative to the root. Defaults to `routes`. */
   routesDir?: string;
-  /** Islands directory, relative to the root. Defaults to `islands`. */
-  islandsDir?: string;
   /** Output directory of the production build. Defaults to `dist`. */
   outDir?: string;
   /** Base path the app is served from. Defaults to `/`. */
@@ -40,7 +38,6 @@ export interface HumConfig {
 export interface ResolvedConfig {
   root: string;
   routesDir: string;
-  islandsDir: string;
   outDir: string;
   basePath: string;
   dev: boolean;
@@ -69,7 +66,6 @@ export function resolveConfig(config: HumConfig): ResolvedConfig {
   return {
     root,
     routesDir: config.routesDir ?? "routes",
-    islandsDir: config.islandsDir ?? "islands",
     outDir,
     basePath,
     dev: config.dev ?? true,

@@ -5,7 +5,6 @@ import { dirname, join, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import type { GeneratedPage, ProdManifest } from "@humjs/core";
-import { islandNameOfFile } from "@humjs/core/routing";
 import { createBuilder, type Plugin, type UserConfig, type ViteBuilder } from "vite";
 
 import {
@@ -200,11 +199,10 @@ async function prodManifest(ctx: HumContext): Promise<ProdManifest> {
 
   const islands: ProdManifest["islands"] = {};
   for (const [file, entry] of Object.entries(clientManifest)) {
-    const name = islandNameOfFile(file, options);
-    if (name === null) continue;
-    // The manifest reports paths relative to the client output directory, which
-    // is itself the `_hum` directory of the published assets.
-    islands[name] = { file: entry.file, css: entry.css };
+    const declarations = ctx.islandDeclarations?.get(file) ?? [];
+    for (const declaration of declarations) {
+      islands[declaration.name] = { file: entry.file, css: entry.css };
+    }
   }
 
   return {
@@ -282,7 +280,9 @@ export function humBuild(ctx: HumContext): Plugin {
     ctx.prod = await assembleBuild(ctx);
     ctx.pages = undefined;
     if (options.verbose) {
-      builder.config.logger.info(`hum: ${Object.keys(ctx.prod.islands).length} island chunk(s)`);
+      const islands = Object.values(ctx.prod.islands);
+      const chunks = new Set(islands.map((island) => island.file));
+      builder.config.logger.info(`hum: ${islands.length} island(s), ${chunks.size} island module chunk(s)`);
     }
     try {
       await builder.build(builder.environments.ssr!);
@@ -385,7 +385,7 @@ export function humBuild(ctx: HumContext): Plugin {
       if (containsPath(outputPath, rootPath)) {
         throw new Error("hum: outDir must not contain the project root");
       }
-      const sourceDirectories = [GENERATED_DIR, PROJECT_PUBLIC, options.routesDir, options.islandsDir];
+      const sourceDirectories = [GENERATED_DIR, PROJECT_PUBLIC, options.routesDir];
       const clientDir = dirname(options.clientEntry);
       if (clientDir !== ".") sourceDirectories.push(clientDir);
       for (const directory of sourceDirectories) {

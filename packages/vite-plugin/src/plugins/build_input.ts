@@ -33,7 +33,6 @@ export function buildModuleSource(ctx: HumContext): string {
   const prod = ctx.prod ?? null;
   const config = {
     routesDir: ctx.options.routesDir,
-    islandsDir: ctx.options.islandsDir,
     basePath: ctx.options.basePath,
     dev: prod === null,
   };

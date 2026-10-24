@@ -26,6 +26,15 @@ export default function Home() {
 const buildExample = `npm run build
 npm start`;
 
+const islandExample = `// components/Counter.tsx — no special directory required
+import { defineIsland } from "@humjs/core/shared";
+import { useSignal } from "@preact/signals";
+
+export const Counter = defineIsland(({ start = 0 }: { start?: number }) => {
+  const count = useSignal(start);
+  return <button onClick={() => count.value++}>{count}</button>;
+});`;
+
 export default function GettingStarted(_props: RouteProps) {
   return (
     <article>
@@ -56,8 +65,13 @@ export default function GettingStarted(_props: RouteProps) {
       </h2>
       <p class="mt-3 leading-7 text-muted">
         Pages render to HTML on the server. To add browser-side component state
-        or event handlers, put a component in <code>islands/</code> and import
-        it into a route. The generated template already includes{" "}
+        or event handlers, export a component declared with <code>defineIsland</code>{" "}
+        and import it into a route. Hum generates its ID and client registration;
+        no special directory or client-entry import is needed. For example:
+      </p>
+      <CodeBlock code={islandExample} language="typescript" />
+      <p class="mt-3 leading-7 text-muted">
+        The generated template already includes a default-exported island in{" "}
         <code>islands/Counter.tsx</code>:
       </p>
       <CodeBlock code={pageExample} language="typescript" />

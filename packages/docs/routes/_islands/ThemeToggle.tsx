@@ -1,4 +1,4 @@
-import { IS_BROWSER } from "@humjs/core/shared";
+import { defineIsland, IS_BROWSER } from "@humjs/core/shared";
 import { useSignal } from "@preact/signals";
 
 /** Where the visitor's choice is kept, so it survives a reload. */
@@ -12,7 +12,7 @@ const STORAGE_KEY = "hum-theme";
  * why the button can safely render the light state on the server and correct
  * itself once it hydrates.
  */
-export default function ThemeToggle() {
+function ThemeToggle() {
   const dark = useSignal(
     IS_BROWSER && document.documentElement.classList.contains("dark"),
   );
@@ -43,3 +43,5 @@ export default function ThemeToggle() {
     </button>
   );
 }
+
+export default defineIsland(ThemeToggle);

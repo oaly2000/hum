@@ -29,7 +29,9 @@
   "dependencies": {
     "@hono/node-server": "^2.1.4",
     "@humjs/core": "workspace:*",
-    "hono": "^4.13.13"
+    "hono": "^4.13.13",
+    "rolldown": "^1.2.13",
+    "rolldown-string": "^0.3.0"
   },
   "devDependencies": {
     "@humjs/preact-ssr-precompile": "workspace:*",
