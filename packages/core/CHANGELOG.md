@@ -1,5 +1,11 @@
 # @humjs/core
 
+## 0.6.1
+
+### Patch Changes
+
+- Add typed handler data to synchronous head exports with define.head<Data>(), preserving route state types and sharing page(data) with the view. Fix GET forms using partial navigation to include submitted fields in the browser URL and create history entries, while keeping explicit partial endpoint parameters private and preserving the current page when a request fails.
+
 ## 0.6.0
 
 ### Minor Changes
