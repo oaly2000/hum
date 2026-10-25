@@ -40,26 +40,6 @@ vite.config.ts   hum({ devEntry: "app.ts" }) and CSS plugins
 
 ## Application and deployment
 
-### Digital store example
-
-[`packages/store`](./packages/store/README.md) is a digital-goods shop using Hum,
-Better Auth, SQLite, and the official Creem TypeScript SDK in test mode. It covers
-product filtering, shared-signal islands, hosted checkout, verified webhooks,
-order history, and private downloads.
-
-```sh
-pnpm --filter hum-store setup:creem --from-cli # requires Creem CLI test login
-pnpm build:pkgs
-pnpm --filter hum-store dev                  # http://localhost:3001
-```
-
-Follow the example's setup guide to forward local payment events. The repository
-does not include credentials or a database. Configure the store before building
-that example; see its `.env.example` for manual configuration. The store is
-excluded from `build:pkgs`, so existing workspace builds need no payment setup.
-
-### Mounting an application
-
 Create the app, register middleware/APIs, then mount Hum once:
 
 ```ts
