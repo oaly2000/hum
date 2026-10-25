@@ -97,11 +97,21 @@ export default function GettingStarted(_props: RouteProps) {
       </p>
       <CodeBlock code={buildExample} language="bash" />
       <p class="mt-3 leading-7 text-muted">
-        Deploy <code>dist/</code> with the application's package manifest and
-        lockfile, and install its production dependencies. For a build that runs
-        without <code>node_modules</code>, set <code>standalone: true</code> in
-        the Hum plugin options; dependencies must support bundling. The
-        Cloudflare template selects this mode.
+        For a simple deployment, add <code>standalone: true</code> to your
+        existing Hum plugin options and rebuild. Copy the entire{" "}
+        <code>dist/</code> directory to your server and run{" "}
+        <code>node dist/server.js</code>; no dependency installation is needed
+        there. The Cloudflare template already selects this mode.
+      </p>
+      <p class="mt-3 leading-7 text-muted">
+        Native addons and packages that require their installed resources need
+        a non-standalone build with production dependencies. The{" "}
+        <a class="font-semibold text-accent hover:underline" href="/docs/deployment">
+          deployment guide
+        </a>{" "}
+        starts with standalone, then covers installing production dependencies
+        for an ordinary project and handling local packages in a monorepo,
+        with pnpm as an example.
       </p>
       <p class="mt-3 leading-7 text-muted">
         The server listens on port <code>3000</code> by default; set{" "}

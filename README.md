@@ -53,45 +53,14 @@ vite.config.ts   plugins: [hum({ devEntry: "app.ts" }), tailwindcss()]
 ```
 
 Projects use Vite for dev/build, and the build output runs with
-`node dist/server.js`. By default, server code is compiled to ESM modules and
-npm dependencies stay external, so deploy the output with the application's
-production dependencies installed. Native modules and packages that read their
-own resources keep using Node's normal package resolution.
-
-```
-dist/                 the output directory; `outDir` in the plugin options
-  server.js           the compiled server entry
-  app.js              the compiled Hono application
-  routes/             compiled route modules
-  islands/            compiled server-side island modules
-  _generated/         Hum's generated build and route modules
-  package.json        {"type": "module"}, so Node runs server.js as ESM
-  public/             served from the deployment root
-    _hum/             Hum's client assets (runtime, islands, styles)
-    …                 whatever the project's public/ directory holds
-```
-
-The directory itself is never addressed: Hum's client assets live in
-`public/_hum` next to the server entry, so the output can be renamed or relocated
-alongside its production dependencies.
-The app serves its `public/` tree (see `app.ts`, which mounts
-`@hono/node-server/serve-static` for it) — in production that is normally
-delegated to a reverse proxy, a CDN, or a platform asset binding.
+`node dist/server.js`. For a deployment that needs no installed npm dependencies,
+enable `standalone: true` in the Hum plugin options; see [Deployment](#deployment)
+for the build steps and dependencies that require a different approach.
 
 The production build preserves your entry's exports and top-level code.
 Node's `server.ts` imports the app and calls
 `serve({ fetch: app.fetch })`; a Worker exports its app for the platform to call.
 Hum does not invoke a special startup export or mount routes on your behalf.
-
-For deployment without `node_modules`, select `hum({ standalone: true })`.
-This bundles server dependencies into a relocatable ESM `server.js`; Node built-ins
-remain external. Dependencies must support bundling, so use the default mode for
-native addons or packages that need their installed files. Both modes bundle the
-client assets, discover routes at build time, and keep server files outside
-`public/`. The generated output's `package.json` marks ESM; use the application's
-own package manifest and lockfile to install production dependencies.
-Application resources loaded through runtime-computed paths must also be
-included in the deployment.
 
 Create the application explicitly:
 
@@ -129,6 +98,12 @@ Existing projects should move their app setup into `app.ts`, add the explicit
 `mountHum` call above, set `devEntry`, and replace `export function start(app)`
 with a normal top-level `serve()` call in `server.ts`. Worker entries only need
 the explicit mount; a separate `dev-worker.ts` is no longer needed.
+
+## Deployment
+
+See the [deployment guide](https://hum.runasp.net/docs/deployment) for standalone
+builds, installing production dependencies, and deploying monorepos with local
+packages.
 
 ## Static files
 

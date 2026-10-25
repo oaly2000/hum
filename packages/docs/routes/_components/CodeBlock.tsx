@@ -3,8 +3,10 @@ import bash from "highlight.js/lib/languages/bash";
 import css from "highlight.js/lib/languages/css";
 import javascript from "highlight.js/lib/languages/javascript";
 import json from "highlight.js/lib/languages/json";
+import plaintext from "highlight.js/lib/languages/plaintext";
 import typescript from "highlight.js/lib/languages/typescript";
 import xml from "highlight.js/lib/languages/xml";
+import yaml from "highlight.js/lib/languages/yaml";
 
 const languages = {
   typescript,
@@ -13,6 +15,8 @@ const languages = {
   bash,
   html: xml,
   css,
+  yaml,
+  text: plaintext,
 } as const;
 
 type CodeLanguage = keyof typeof languages;
@@ -28,6 +32,8 @@ const languageLabels: Record<CodeLanguage, string> = {
   bash: "Shell",
   html: "HTML",
   css: "CSS",
+  yaml: "YAML",
+  text: "Text",
 };
 
 export function SyntaxCode(
