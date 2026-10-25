@@ -1,5 +1,27 @@
 # @humjs/core
 
+## 0.6.0
+
+### Minor Changes
+
+- Generate factory identities automatically with defineFactory(fn), and allow private module-level island and factory declarations.
+- Add a dedicated `@humjs/core/build` entry for bundler contracts and prerendering
+  helpers, and remove their former root exports and public implementation details.
+  Unify application client APIs under `@humjs/core/client`, including declarations,
+  built-in event factories, `Partial` and asset helpers. Remove the former `/shared`
+  and `/events` entries. Update declaration discovery, templates and examples for
+  the new entry boundaries, and separate server, client, shared and protocol
+  implementations.
+- Declare islands with defineIsland(Component), with automatically generated IDs and client registration in any browser-safe project module. Support named exports and multiple islands per module and remove directory-based discovery and the islandsDir option. Existing islands must explicitly wrap their exports with defineIsland.
+- Import styles directly from application, layout and page modules without a user client entry. Publish stylesheet assets and wait for new styles before committing partial navigation updates.
+- Extract module-level defineIsland and defineFactory declarations and their same-file dependencies into browser modules, allowing them to live alongside server route handlers. Automatically load project factories before initial and partial payload revival. Diagnose unsupported mutable or effectful dependencies.
+
+### Patch Changes
+
+- Record facet ownership during DOM discovery, avoid constructing discarded island markup VNodes, and check range containment without allocating child arrays.
+- Reduce interaction scheduling overhead with indexed unit and update-owner lookups, incremental ownership checks and reused update records. Ensure mounts removed during activation release their returned cleanup.
+- Load partial response handling on demand to reduce the initial browser runtime, and execute waiting interaction updates as one scheduled batch.
+
 ## 0.5.0
 
 ### Minor Changes

@@ -1,5 +1,33 @@
 # @humjs/vite-plugin
 
+## 0.5.0
+
+### Minor Changes
+
+- Generate factory identities automatically with defineFactory(fn), and allow private module-level island and factory declarations.
+- Add a dedicated `@humjs/core/build` entry for bundler contracts and prerendering
+  helpers, and remove their former root exports and public implementation details.
+  Unify application client APIs under `@humjs/core/client`, including declarations,
+  built-in event factories, `Partial` and asset helpers. Remove the former `/shared`
+  and `/events` entries. Update declaration discovery, templates and examples for
+  the new entry boundaries, and separate server, client, shared and protocol
+  implementations.
+- Automatically link ordinary CSS imports and CSS Modules from active route and component dependencies in development, production, generated pages and partial navigation.
+- Declare islands with defineIsland(Component), with automatically generated IDs and client registration in any browser-safe project module. Support named exports and multiple islands per module and remove directory-based discovery and the islandsDir option. Existing islands must explicitly wrap their exports with defineIsland.
+- Import styles directly from application, layout and page modules without a user client entry. Publish stylesheet assets and wait for new styles before committing partial navigation updates.
+- Compile Node applications to ESM modules with production dependencies external by default. Add explicit standalone builds for deployment without node_modules, preserve Vite configuration and plugin hooks, and prerender compiled applications in an isolated Node process. Update the Node and Cloudflare scaffolds for the two deployment modes.
+- Extract module-level defineIsland and defineFactory declarations and their same-file dependencies into browser modules, allowing them to live alongside server route handlers. Automatically load project factories before initial and partial payload revival. Diagnose unsupported mutable or effectful dependencies.
+
+### Patch Changes
+
+- Combine framework client helpers with the runtime and omit the build-only island discovery entry from published assets while preserving lazy island and factory chunks.
+
+  Name client slices using their project-relative declaring module paths so imported islands and same-named files are easier to identify.
+- Avoid emitting per-file client metadata and route stylesheet wrappers in production server builds.
+- Load partial response handling on demand to reduce the initial browser runtime, and execute waiting interaction updates as one scheduled batch.
+- Updated dependencies
+  - @humjs/core@0.6.0
+
 ## 0.4.0
 
 ### Minor Changes

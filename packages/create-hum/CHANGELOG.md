@@ -1,5 +1,23 @@
 # create-hum
 
+## 0.3.0
+
+### Minor Changes
+
+- Import styles directly from application, layout and page modules without a user client entry. Publish stylesheet assets and wait for new styles before committing partial navigation updates.
+- Compile Node applications to ESM modules with production dependencies external by default. Add explicit standalone builds for deployment without node_modules, preserve Vite configuration and plugin hooks, and prerender compiled applications in an isolated Node process. Update the Node and Cloudflare scaffolds for the two deployment modes.
+
+### Patch Changes
+
+- Add a dedicated `@humjs/core/build` entry for bundler contracts and prerendering
+  helpers, and remove their former root exports and public implementation details.
+  Unify application client APIs under `@humjs/core/client`, including declarations,
+  built-in event factories, `Partial` and asset helpers. Remove the former `/shared`
+  and `/events` entries. Update declaration discovery, templates and examples for
+  the new entry boundaries, and separate server, client, shared and protocol
+  implementations.
+- Declare islands with defineIsland(Component), with automatically generated IDs and client registration in any browser-safe project module. Support named exports and multiple islands per module and remove directory-based discovery and the islandsDir option. Existing islands must explicitly wrap their exports with defineIsland.
+
 ## 0.2.0
 
 ### Minor Changes
