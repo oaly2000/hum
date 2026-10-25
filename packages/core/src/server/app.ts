@@ -1,19 +1,13 @@
 import { type Env, Hono, type MiddlewareHandler, type Schema } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 
-import { type HumBuild, humBuild } from "./build.js";
+import { type HumBuild, humBuild } from "../build/registry.js";
 import { BuildCache } from "./build_cache.js";
-import {
-  type HumConfig,
-  resolveConfig,
-  type ResolvedConfig,
-} from "./config.js";
+import { type HumConfig, resolveConfig, type ResolvedConfig } from "./config.js";
 import { ModuleLoader } from "./loader.js";
-import { createPageService, pagePolicy, type PageService } from "./pages.js";
-import {
-  type RequestContext,
-  runWithRequestContext,
-} from "./request_context.js";
+import { createPageService, type PageService } from "../pages/service.js";
+import { pagePolicy } from "../pages/policy.js";
+import { type RequestContext, runWithRequestContext } from "./request_context.js";
 import { ResourceManager } from "./resource.js";
 import {
   findNotFound,
@@ -29,13 +23,13 @@ import {
   type ResolvedRoute,
   resolveRoutes,
   unmatchedRoute,
-} from "./routing/fs_routes.js";
+} from "../routing/fs_routes.js";
 import type {
   HumContext,
   HumMiddleware,
   PageRenderOptions,
   RouteModule,
-} from "./types.js";
+} from "../types.js";
 
 export interface HumVariables {
   /** The route Hum matched for this request. */

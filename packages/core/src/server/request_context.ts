@@ -1,11 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 
-import {
-  ResourceManager,
-  type Resource,
-  type ResourceKey,
-} from "./resource.js";
-import type { PageFn } from "./types.js";
+import { ResourceManager, type Resource, type ResourceKey } from "./resource.js";
+import type { PageFn } from "../types.js";
 
 /** The request-scoped helpers available while a route handler runs. */
 export interface RequestContext {

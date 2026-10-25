@@ -2,10 +2,16 @@
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
 import {
-  createPageService, defineBuild, mountHum, page, planPages, prerenderPages,
-  createMemoryPageStore, type HumBuild, type PageRenderMode, type PageServiceOptions, type RouteModule,
+  createPageService,
+  mountHum,
+  page,
+  createMemoryPageStore,
+  type PageRenderMode,
+  type PageServiceOptions,
+  type RouteModule,
 } from "../src/mod.js";
-import { Partial } from "../src/shared.js";
+import { defineBuild, planPages, prerenderPages, type HumBuild } from "../src/build.js";
+import { Partial } from "../src/client.js";
 
 function build(routes: Record<string, RouteModule>): HumBuild {
   return {

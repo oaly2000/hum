@@ -1,7 +1,7 @@
-import type { HumBuild } from "./build.js";
+import type { HumBuild } from "../build/registry.js";
 import { ASSETS_BASE, RUNTIME_URL } from "./config.js";
-import { setBuildId } from "./runtime/shared_internal.js";
-import type { Island } from "./types.js";
+import { setBuildId } from "../shared/asset.js";
+import type { Island } from "../types.js";
 
 /**
  * Maps island names to their client side module URLs, and keeps the bookkeeping

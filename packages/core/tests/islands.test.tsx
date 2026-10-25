@@ -4,9 +4,10 @@ import { signal } from "@preact/signals";
 
 import { describe, expect, it, vi } from "vitest";
 
-import { boot, ISLAND_REGISTRY } from "../src/runtime/client/reviver.js";
-import { setFromProp } from "../src/runtime/events.js";
-import { Partial } from "../src/runtime/shared.js";
+import { boot } from "../src/runtime/boot.js";
+import { ISLAND_REGISTRY } from "../src/runtime/registry.js";
+import { setFromProp } from "../src/shared/events.js";
+import { Partial } from "../src/shared/partial.js";
 import { renderFragment as render } from "./helpers/ssr.js";
 import { flush, setupClientCleanup } from "./helpers/client.js";
 

@@ -2,16 +2,12 @@ import { type ComponentChildren, Fragment, h, options, type VNode } from "preact
 import { renderToString } from "preact-render-to-string";
 import { renderToReadableStream } from "preact-render-to-string/stream";
 
-import {
-  type AnyVNode,
-  escapeScript,
-  PARTIAL_STATE_ID,
-} from "../shared_internal.js";
-import type { Island } from "../../types.js";
-import {
-  getRequestContext,
-  runWithRequestContext,
-} from "../../request_context.js";
+import { type AnyVNode } from "../shared/preact.js";
+import { escapeScript } from "./escape_script.js";
+import { PARTIAL_STATE_ID } from "../protocol/markers.js";
+import type { PartialStateJson } from "../protocol/payload.js";
+import type { Island } from "../types.js";
+import { getRequestContext, runWithRequestContext } from "./request_context.js";
 
 import {
   getRenderState,
@@ -180,12 +176,6 @@ function islandImport(island: Island, index: number, basePath: string): {
     ? `import ${local} from "${url}";`
     : `import { ${island.exportName} as ${local} } from "${url}";`;
   return { statement, local };
-}
-
-export interface PartialStateJson {
-  factories?: string[];
-  islands: Array<{ name: string; url: string; exportName: string }>;
-  props: string;
 }
 
 /** A partial representation uses the exact graph recorded by the full render. */

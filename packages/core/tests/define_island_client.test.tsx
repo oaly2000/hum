@@ -5,11 +5,15 @@ import { signal, type Signal } from "@preact/signals";
 import { renderToStringAsync } from "preact-render-to-string";
 import { describe, expect, it, vi } from "vitest";
 
-import { BuildCache } from "../src/build_cache.js";
-import { defineIsland, Partial } from "../src/shared.js";
-import type { IslandTag } from "../src/routing/island_tag.js";
-import { boot } from "../src/runtime/client/reviver.js";
-import { RenderState, serializePayload, withRenderState } from "../src/runtime/server/preact_hooks.js";
+import { BuildCache } from "../src/server/build_cache.js";
+import { defineIsland, Partial } from "../src/client.js";
+import type { IslandTag } from "../src/shared/island_tag.js";
+import { boot } from "../src/runtime/boot.js";
+import {
+  RenderState,
+  serializePayload,
+  withRenderState,
+} from "../src/server/preact_hooks.js";
 import { flush, setupClientCleanup } from "./helpers/client.js";
 
 const compiled = defineIsland as <P>(component: ComponentType<P>, tag: IslandTag) => ComponentType<P>;

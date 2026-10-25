@@ -5,9 +5,9 @@ import { describe, expect, it } from "vitest";
 
 import { renderFragment } from "./helpers/ssr.js";
 
-import { Partial } from "../src/runtime/shared.js";
+import { Partial } from "../src/shared/partial.js";
 
-import { boot, currentInteractionManager } from "../src/runtime/client/reviver.js";
+import { boot, currentInteractionManager } from "../src/runtime/boot.js";
 
 import { flush, setupClientCleanup } from "./helpers/client.js";
 

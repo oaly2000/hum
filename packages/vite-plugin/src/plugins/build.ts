@@ -5,7 +5,7 @@ import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type { PreRenderedChunk } from "rolldown";
 
-import type { GeneratedPage, ProdManifest } from "@humjs/core";
+import type { GeneratedPage, ProdManifest } from "@humjs/core/build";
 import { createBuilder, type Plugin, type UserConfig, type ViteBuilder } from "vite";
 
 import {
@@ -84,7 +84,8 @@ async function writePrerenderEntry(ctx: HumContext): Promise<void> {
     ? `const { default: app } = await import(${JSON.stringify(appEntry.replace(/\\/g, "/"))});`
     : `const app = await createApp(config);`;
   await writeFile(resolve(options.root, PRERENDER_ENTRY), `
-import { createApp, planPages, prerenderPages } from "@humjs/core";
+import { createApp } from "@humjs/core";
+import { planPages, prerenderPages } from "@humjs/core/build";
 import { build, config } from ${JSON.stringify(BUILD_VIRTUAL_ID)};
 export async function prerender() {
   const plan = await planPages(build, config);

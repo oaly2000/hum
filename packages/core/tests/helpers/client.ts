@@ -1,5 +1,5 @@
 import { afterEach, vi } from "vitest";
-import { boot, currentInteractionManager } from "../../src/runtime/client/reviver.js";
+import { boot, currentInteractionManager } from "../../src/runtime/boot.js";
 
 /** Let scheduled hydration and signal writes finish. */
 export function flush(): Promise<void> {

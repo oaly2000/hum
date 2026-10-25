@@ -1,5 +1,5 @@
 import { RouteLoadError } from "./error.js";
-import type { ModuleThunk } from "./types.js";
+import type { ModuleThunk } from "../types.js";
 
 /** A module source that can be imported lazily by the current bundler. */
 export interface ModuleSource {

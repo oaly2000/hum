@@ -62,7 +62,7 @@ app.get("/api/resource", (c) => c.text(packageMessage()));
 await mountHum(app, config);
 export default app;
 `,
-        "islands/Counter.tsx": `import { defineIsland } from "@humjs/core/shared"; export default defineIsland(function Counter() { return <button>count</button>; });`,
+        "islands/Counter.tsx": `import { defineIsland } from "@humjs/core/client"; export default defineIsland(function Counter() { return <button>count</button>; });`,
       },
       routes: {
         "index.tsx": `import { define, page } from "@humjs/core";

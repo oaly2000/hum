@@ -1,32 +1,30 @@
 import { h, type ComponentChildren, type VNode } from "preact";
 
-import { parse } from "../../jsonify/parse.js";
-import type { PartialStateJson } from "../server/document.js";
+import { parse } from "../jsonify/parse.js";
+import type { PartialStateJson } from "../protocol/payload.js";
 import {
   CLIENT_NAV_ATTR,
-  matchesUrl,
   parseMarker,
   PARTIAL_CLOSE,
   PARTIAL_SEARCH_PARAM,
   PARTIAL_STATE_ID,
   PartialMode,
-  UrlMatchKind,
-} from "../shared_internal.js";
+} from "../protocol/markers.js";
+import { matchesUrl, UrlMatchKind } from "../shared/url.js";
+import { ACTIVE_PARTIALS, PartialComp } from "./partial_component.js";
 import {
-  ACTIVE_PARTIALS,
   copyOldChildren,
   createRootFragment,
-  CUSTOM_PARSER,
-  currentInteractionManager,
-  type Payload,
   domToVNode,
-  ISLAND_REGISTRY,
   isCommentNode,
   isElementNode,
   Marker,
   maybeHideMarker,
-  PartialComp,
-} from "./reviver.js";
+} from "./dom.js";
+import { CUSTOM_PARSER } from "./payload.js";
+import { currentInteractionManager } from "./boot.js";
+import { type Payload } from "../protocol/payload.js";
+import { ISLAND_REGISTRY } from "./registry.js";
 
 /** Opt-in attribute for links and forms that should update a partial region. */
 const PARTIAL_ATTR = "data-hum-partial";

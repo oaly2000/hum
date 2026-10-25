@@ -3,8 +3,7 @@ import { clientSlice } from "../src/plugins/client_slice.js";
 import { interactionDeclarations } from "../src/plugins/client_declarations.js";
 
 const split = (code: string) => clientSlice(code, "routes/index.tsx", interactionDeclarations(code, "routes/index.tsx"));
-const imports = `import { defineIsland } from "@humjs/core/shared";
-import { defineFactory } from "@humjs/core/events";`;
+const imports = `import { defineIsland, defineFactory } from "@humjs/core/client";`;
 
 describe("client declaration dependency slicing", () => {
   it("extracts both kinds, recursive helpers, aliases and selected import specifiers", () => {
@@ -55,6 +54,7 @@ export default defineIsland(() => <button>{label}</button>);`);
     ['let step = 1;', '() => <b>{step}</b>', /must use const/],
     ['const step = compute();', '() => <b>{step}</b>', /effectful initializer/],
     ['import { readFile } from "node:fs";', '() => readFile("secret")', /server import/],
+    ['import { defineBuild } from "@humjs/core/build";', '() => defineBuild({})', /server import/],
     ['', '() => process.env.SECRET', /server global/],
     ['const config = { step: 1 }; config.step = 2;', '() => <b>{config.step}</b>', /mutates client dependency/],
     ['import "./initialize-server";', '() => null', /side-effect imports/],
@@ -68,7 +68,7 @@ export default defineIsland(() => <button>{label}</button>);`);
 
   it("rejects nested factories and accepts factory import aliases", () => {
     expect(() => split(`${imports}\nexport function Page() { return defineFactory(() => () => {}); }`)).toThrow(/module-level/);
-    expect(split('import { defineFactory as factory } from "@humjs/core/events"; export const action = factory(() => () => {});'))
+    expect(split('import { defineFactory as factory } from "@humjs/core/client"; export const action = factory(() => () => {});'))
       .toContain('factory(');
   });
 });

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import type { ProdManifest } from "../src/build.js";
-import { BuildCache } from "../src/build_cache.js";
-import { ASSETS_BASE } from "../src/config.js";
+import type { ProdManifest } from "../src/build/registry.js";
+import { BuildCache } from "../src/server/build_cache.js";
+import { ASSETS_BASE } from "../src/server/config.js";
 import type { HumManifest } from "../src/types.js";
 
 // Asset paths are relative to `assetsBase`, the URL Hum publishes them under,

@@ -47,7 +47,7 @@ export function projectFile(root: string, id: string): string | null {
 
 /** Analyze declarations without executing the module or any of its imports. */
 export function interactionDeclarations(code: string, file: string): Declaration[] {
-  if (!code.includes("@humjs/core/shared") && !code.includes("@humjs/core/events")) return [];
+  if (!code.includes("@humjs/core/client")) return [];
   const parsed = parseSync(file, code, {
     lang: file.endsWith("x") ? "tsx" : "ts",
     sourceType: "module",
@@ -57,30 +57,31 @@ export function interactionDeclarations(code: string, file: string): Declaration
   }
   const body = parsed.program.body;
   const functions = new Map<string, "island" | "factory">();
-  const namespaces = new Map<string, "island" | "factory">();
+  const namespaces = new Set<string>();
+  const helperKind = (name: string): "island" | "factory" | undefined =>
+    name === "defineIsland" ? "island" : name === "defineFactory" ? "factory" : undefined;
   for (const node of body) {
-    if (node.type !== "ImportDeclaration" || !["@humjs/core/shared", "@humjs/core/events"].includes(String(node.source.value)) || node.importKind === "type") continue;
-    const kind = node.source.value === "@humjs/core/shared" ? "island" : "factory";
-    const helper = kind === "island" ? "defineIsland" : "defineFactory";
+    if (node.type !== "ImportDeclaration" || node.source.value !== "@humjs/core/client" || node.importKind === "type") continue;
     for (const spec of node.specifiers) {
-      if (spec.type === "ImportSpecifier" && spec.importKind !== "type" &&
-        (spec.imported.type === "Identifier" ? spec.imported.name : spec.imported.value) === helper) {
-        functions.set(spec.local.name, kind);
+      if (spec.type === "ImportSpecifier" && spec.importKind !== "type") {
+        const kind = helperKind(String(spec.imported.type === "Identifier" ? spec.imported.name : spec.imported.value));
+        if (kind !== undefined) functions.set(spec.local.name, kind);
       } else if (spec.type === "ImportNamespaceSpecifier") {
-        namespaces.set(spec.local.name, kind);
+        namespaces.add(spec.local.name);
       }
     }
   }
   if (functions.size === 0 && namespaces.size === 0) return [];
 
-  const isDeclaration = (node: ESTree.Node): node is ESTree.CallExpression => {
-    if (node.type !== "CallExpression") return false;
+  const declarationKind = (node: ESTree.CallExpression): "island" | "factory" | undefined => {
     const callee = node.callee;
-    return callee.type === "Identifier" ? functions.has(callee.name) :
+    return callee.type === "Identifier" ? functions.get(callee.name) :
       callee.type === "MemberExpression" && !callee.computed &&
       callee.object.type === "Identifier" && namespaces.has(callee.object.name) &&
-      callee.property.type === "Identifier" && callee.property.name === (namespaces.get(callee.object.name) === "island" ? "defineIsland" : "defineFactory");
+      callee.property.type === "Identifier" ? helperKind(callee.property.name) : undefined;
   };
+  const isDeclaration = (node: ESTree.Node): node is ESTree.CallExpression =>
+    node.type === "CallExpression" && declarationKind(node) !== undefined;
   const exported = new Map<string, string[]>();
   const candidates: Array<{ binding: string; call: ESTree.CallExpression }> = [];
   const addExport = (binding: string, name: string) => {
@@ -165,9 +166,7 @@ export function interactionDeclarations(code: string, file: string): Declaration
 
   return candidates.map(({ binding, call }) => {
     const names = exported.get(binding) ?? [];
-    const callee = call.callee;
-    const kind = callee.type === "Identifier" ? functions.get(callee.name)! :
-      callee.type === "MemberExpression" && callee.object.type === "Identifier" ? namespaces.get(callee.object.name)! : "island";
+    const kind = declarationKind(call)!;
     if (kind === "island" && (call.arguments.length !== 1 || call.arguments[0]?.type === "SpreadElement")) {
       throw new Error(`hum: defineIsland() in "${file}" takes one component; its ID is generated automatically.`);
     }

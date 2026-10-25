@@ -25,7 +25,7 @@ const routeTreeExample = `routes/
 `;
 
 const islandExample = `// routes/_islands/Counter.tsx
-import { defineIsland } from "@humjs/core/shared";
+import { defineIsland } from "@humjs/core/client";
 import { useSignal } from "@preact/signals";
 
 export default defineIsland(({ start = 0 }: { start?: number }) => {

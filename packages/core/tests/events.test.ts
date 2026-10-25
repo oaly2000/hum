@@ -3,14 +3,13 @@ import { describe, expect, it } from "vitest";
 
 import {
   add,
-  coerceToSignalType,
   defineFactory,
-  factoryMarkerOf,
-  hum_factories,
   setFromProp,
   setValue,
   toggle,
-} from "../src/runtime/events.js";
+} from "../src/client.js";
+import { coerceToSignalType } from "../src/shared/events.js";
+import { factoryMarkerOf, hum_factories } from "../src/protocol/factory.js";
 import { testFactory } from "./helpers/factory.js";
 
 describe("handler factories", () => {

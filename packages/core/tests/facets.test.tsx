@@ -5,9 +5,10 @@ import { describe, expect, it } from "vitest";
 
 import { parse } from "../src/jsonify/parse.js";
 
-import { CUSTOM_PARSER, type Payload } from "../src/runtime/client/reviver.js";
-import { add, setFromProp, toggle } from "../src/runtime/events.js";
-import { Partial } from "../src/runtime/shared.js";
+import { CUSTOM_PARSER } from "../src/runtime/payload.js";
+import { type Payload } from "../src/protocol/payload.js";
+import { add, setFromProp, toggle } from "../src/shared/events.js";
+import { Partial } from "../src/shared/partial.js";
 
 import { renderFragment, type RenderOptions } from "./helpers/ssr.js";
 import { testFactory } from "./helpers/factory.js";
@@ -195,7 +196,7 @@ describe("page level handlers", () => {
 
   it("rejects a page level closure instead of dropping it silently", async () => {
     await expect(renderPage(() => h("button", { onClick: () => {} }, "x")))
-      .rejects.toThrow(/@humjs\/core\/events/);
+      .rejects.toThrow(/@humjs\/core\/client/);
   });
 
   it("rejects a closure on an event name an addon lowercased", async () => {
@@ -204,7 +205,7 @@ describe("page level handlers", () => {
     // recognize that shape as an event too.
     await expect(
       renderPage(() => h("input", { type: "text", oninput: () => {} })),
-    ).rejects.toThrow(/@humjs\/core\/events/);
+    ).rejects.toThrow(/@humjs\/core\/client/);
   });
 
   it("serializes the factory call and revives it as a function", async () => {

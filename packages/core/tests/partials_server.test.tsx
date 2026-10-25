@@ -5,8 +5,8 @@ import { describe, expect, it } from "vitest";
 // An app evaluates the framework entry before the route module that imports
 // signals, so the Hum modules are imported first here as well.
 import { renderFragment } from "./helpers/ssr.js";
-import { add } from "../src/runtime/events.js";
-import { Partial } from "../src/runtime/shared.js";
+import { add } from "../src/shared/events.js";
+import { Partial } from "../src/shared/partial.js";
 
 import { signal } from "@preact/signals";
 

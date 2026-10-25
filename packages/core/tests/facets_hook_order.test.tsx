@@ -7,13 +7,13 @@ import { describe, expect, it } from "vitest";
 // installs: the addon's `diff` hook then runs first. These tests pin the
 // behavior of that order down, so `@preact/signals` may only be imported below
 // the Hum modules.
-import { BuildCache } from "../src/build_cache.js";
-import { add, setFromProp } from "../src/runtime/events.js";
+import { BuildCache } from "../src/server/build_cache.js";
+import { add, setFromProp } from "../src/shared/events.js";
 import {
   RenderState,
   serializePayload,
   withRenderState,
-} from "../src/runtime/server/preact_hooks.js";
+} from "../src/server/preact_hooks.js";
 import { signal, type Signal } from "@preact/signals";
 
 interface Rendered {

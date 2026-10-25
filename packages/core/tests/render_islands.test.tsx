@@ -3,7 +3,7 @@ import { signal } from "@preact/signals";
 
 import { describe, expect, it } from "vitest";
 
-import { Partial } from "../src/runtime/shared.js";
+import { Partial } from "../src/shared/partial.js";
 
 import { START, Counter, NestedIsland, Home } from "./helpers/render_components.js";
 import { createRenderApp } from "./helpers/render_app.js";

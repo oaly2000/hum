@@ -1,12 +1,12 @@
 import { Fragment, h, type ComponentChildren } from "preact";
 import { renderToStringAsync } from "preact-render-to-string";
-import { BuildCache } from "../../src/build_cache.js";
-import { tagIsland } from "../../src/routing/island_tag.js";
+import { BuildCache } from "../../src/server/build_cache.js";
+import { tagIsland } from "../../src/shared/island_tag.js";
 import {
   RenderState,
   serializePayload,
   withRenderState,
-} from "../../src/runtime/server/preact_hooks.js";
+} from "../../src/server/preact_hooks.js";
 
 export interface RenderOptions {
   pathname?: string;

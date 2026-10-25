@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { InteractionManager } from "../src/runtime/client/interaction_manager.js";
-import { createRootFragment } from "../src/runtime/client/reviver.js";
+import { InteractionManager } from "../src/runtime/interaction_manager.js";
+import { createRootFragment } from "../src/runtime/dom.js";
 
 describe("interaction manager", () => {
   afterEach(() => {

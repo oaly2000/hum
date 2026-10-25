@@ -4,12 +4,12 @@ import { renderToStringAsync } from "preact-render-to-string";
 import { renderToReadableStream } from "preact-render-to-string/stream";
 import { describe, expect, it } from "vitest";
 
-import { BuildCache } from "../src/build_cache.js";
+import { BuildCache } from "../src/server/build_cache.js";
 import {
   getRenderState,
   RenderState,
   withRenderState,
-} from "../src/runtime/server/preact_hooks.js";
+} from "../src/server/preact_hooks.js";
 
 function createState(pathname: string): RenderState {
   return new RenderState({

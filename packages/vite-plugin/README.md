@@ -27,7 +27,7 @@ export default defineConfig({
 ```
 
 Hum renders its own document and does not use Vite's `index.html`.
-Declare `defineIsland(Component)` from `@humjs/core/shared` at module
+Declare `defineIsland(Component)` from `@humjs/core/client` at module
 scope in project modules, including route files. Hum generates IDs from the project-relative
 module path and declaration binding, discovers declarations through Vite metadata
 globs, and builds their client modules without a manual client-entry import.
@@ -39,7 +39,7 @@ its binding changes its ID; editing its body or re-exporting it does not.
 `defineIsland(memo(Component))`, rather than wrapping the declaration in `memo`.
 
 The same compiler extracts module-level `defineFactory(fn)` declarations
-from `@humjs/core/events`. Browser modules retain explicit declarations and their
+from `@humjs/core/client`. Browser modules retain explicit declarations and their
 same-file lexical dependencies; unrelated route handlers and server imports are
 excluded. Factory modules are loaded only when a response uses them, before
 payload revival on initial load and partial navigation. Both factory and island IDs are automatic; exporting is optional.

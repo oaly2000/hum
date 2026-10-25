@@ -1,6 +1,6 @@
 import { type ComponentChildren, h } from "preact";
 import { type Signal, signal } from "@preact/signals";
-import { tagIsland } from "../../src/routing/island_tag.js";
+import { tagIsland } from "../../src/shared/island_tag.js";
 import type { RouteProps } from "../../src/types.js";
 
 export const START: Signal<number> = signal(3);

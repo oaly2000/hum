@@ -45,7 +45,7 @@ describe("buildModuleSource", () => {
   it("registers the routes and islands the routes module resolved", () => {
     const source = buildModuleSource(context());
 
-    expect(source).toContain('import { defineBuild } from "@humjs/core";');
+    expect(source).toContain('import { defineBuild } from "@humjs/core/build";');
     expect(source).toContain(`import { manifest } from "${ROUTES_VIRTUAL_ID}"`);
     expect(source).toContain("routes: manifest.routes");
     expect(source).toContain("islands: manifest.islands");

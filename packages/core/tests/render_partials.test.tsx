@@ -2,7 +2,7 @@ import { h } from "preact";
 
 import { describe, expect, it } from "vitest";
 
-import { Partial } from "../src/runtime/shared.js";
+import { Partial } from "../src/shared/partial.js";
 import { createRenderApp } from "./helpers/render_app.js";
 
 function PartialsPage() {

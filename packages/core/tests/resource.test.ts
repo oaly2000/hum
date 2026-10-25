@@ -7,7 +7,7 @@ import {
   createResourceKey,
   ResourceManager,
   Suspense,
-} from "../src/resource.js";
+} from "../src/server/resource.js";
 
 describe("ResourceManager", () => {
   it("retrieves registered resources and rejects duplicate keys", () => {

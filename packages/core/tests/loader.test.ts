@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { RouteLoadError } from "../src/error.js";
-import { ModuleLoader, type ModuleSource } from "../src/loader.js";
+import { RouteLoadError } from "../src/server/error.js";
+import { ModuleLoader, type ModuleSource } from "../src/server/loader.js";
 
 function source(
   file: string,

@@ -9,28 +9,28 @@ import {
 import type { ComponentChildren } from "preact";
 import type { ReadonlySignal, Signal } from "@preact/signals";
 
-import type { BuildCache } from "../../build_cache.js";
-import { stringify, type Stringifiers } from "../../jsonify/stringify.js";
-import { islandTagOf } from "../../routing/island_tag.js";
-import type { Island } from "../../types.js";
-import { factoryMarkerOf } from "../events.js";
-import { isPartialType, type PartialProps } from "../shared.js";
+import type { BuildCache } from "./build_cache.js";
+import { stringify, type Stringifiers } from "../jsonify/stringify.js";
+import { islandTagOf } from "../shared/island_tag.js";
+import type { Island } from "../types.js";
+import { factoryMarkerOf } from "../protocol/factory.js";
+import { isPartialType, type PartialProps } from "../shared/partial.js";
+import { type AnyVNode, OptionsType } from "../shared/preact.js";
 import {
-  type AnyVNode,
   CLIENT_NAV_ATTR,
   DATA_HUM_KEY,
   FACET_HANDLER_ATTR,
   FACET_SIGNAL_ATTR,
   islandMarker,
   normalizeKey,
-  OptionsType,
   PARTIAL_SEARCH_PARAM,
   partialMarker,
   PartialMode,
-  setActiveUrl,
   signalMarker,
   slotMarker,
-} from "../shared_internal.js";
+} from "../protocol/markers.js";
+import { setActiveUrl } from "../shared/url.js";
+import type { PayloadEntry } from "../protocol/payload.js";
 
 /** Comment emitted where the merged route `head` tags are injected. */
 export const HEAD_PLACEHOLDER_PREFIX = "hum:head-placeholder:";
@@ -49,17 +49,6 @@ interface SlotEntry {
   name: string;
   vnode: VNode;
 }
-
-/**
- * One entry of the client payload. Island props, page level signals and page
- * level event handlers share a single array so that values referenced from
- * several places (the same signal bound as a child and as a prop) are
- * de-duplicated into one revived instance.
- */
-export type PayloadEntry =
-  | { props: Record<string, unknown> }
-  | { signal: unknown }
-  | { handler: unknown };
 
 /**
  * Per request rendering state. The Preact `options` hooks installed by this
@@ -446,8 +435,9 @@ function bindFacetProps(
         : "";
       throw new Error(
         `Hum: the page level handler for \`${name}\` cannot be serialized. ` +
-          "Build it with a factory from `@humjs/core/events` (setFromProp, " +
-          "setValue, add, toggle), or move it into an island." + normalized,
+          "Build it with `defineFactory` or a built-in event factory " +
+          "(setFromProp, setValue, add, toggle) from `@humjs/core/client`, " +
+          "or move it into an island." + normalized,
       );
     }
   }

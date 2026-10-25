@@ -110,7 +110,7 @@ See [routing](https://hum.runasp.net/docs/routing),
 Declare islands at module scope, then import/render them like ordinary components:
 
 ```tsx
-import { defineIsland } from "@humjs/core/shared";
+import { defineIsland } from "@humjs/core/client";
 import { useSignal } from "@preact/signals";
 
 export const Counter = defineIsland(({ start = 0 }: { start?: number }) => {
@@ -131,10 +131,11 @@ is needed. Independent roots hydrate within 200px of the viewport; roots owned b
 partials/reactive elements load eagerly. Missing observer support falls back to eager.
 
 For page-level signals and DOM handlers, use `signal` from `@preact/signals` and
-`add`, `setValue`, `toggle`, `setFromProp` from `@humjs/core/events`. Custom handlers
-use module-level `defineFactory(fn)`; pass signals/data as arguments rather than
-serializing closures. Hum loads used factories automatically and preserves shared
-signal identity across islands, bindings and partials.
+`add`, `setValue`, `toggle`, `setFromProp` from `@humjs/core/client`. Custom handlers
+use module-level `defineFactory(fn)` from `@humjs/core/client`; pass signals/data
+as arguments rather than serializing closures. Hum loads used factories
+automatically and preserves shared signal identity across islands, bindings
+and partials.
 
 [Reactivity and factory examples](https://hum.runasp.net/docs/facets)
 
@@ -143,7 +144,7 @@ signal identity across islands, bindings and partials.
 Wrap update regions in named `Partial` components and opt in on an ancestor:
 
 ```tsx
-import { Partial } from "@humjs/core/shared";
+import { Partial } from "@humjs/core/client";
 
 export default function Page() {
   return <main data-hum-client-nav>

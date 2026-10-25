@@ -1,4 +1,4 @@
-import { ASSETS_BASE, type GeneratedPage, type ProdManifest, RUNTIME_URL } from "@humjs/core";
+import { ASSETS_BASE, type GeneratedPage, type ProdManifest, RUNTIME_URL } from "@humjs/core/build";
 import { isAbsolute, relative, resolve } from "node:path";
 import type { Plugin } from "vite";
 

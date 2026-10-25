@@ -1,11 +1,6 @@
-import {
-  Fragment,
-  isValidElement,
-  type ComponentChildren,
-  type VNode,
-} from "preact";
+import { Fragment, isValidElement, type ComponentChildren, type VNode } from "preact";
 
-import type { HeadExport, RouteProps } from "../../types.js";
+import type { HeadExport, RouteProps } from "../types.js";
 
 /**
  * One head tag after normalization. `key === null` means the node carries no

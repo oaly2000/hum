@@ -55,7 +55,7 @@ export default () => <p>updated SSR page</p>;
       standalone,
       routes: {
         "posts/[slug].tsx": `import { define, page } from "@humjs/core";
-import { Partial } from "@humjs/core/shared";
+import { Partial } from "@humjs/core/client";
 import Counter from "../../islands/Counter";
 export const config = define.config({ render: { mode: "ssg", slugs: ["hello"] } });
 export const handlers = { GET: () => page({ stamp: crypto.randomUUID() }) };

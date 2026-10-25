@@ -1,6 +1,6 @@
 import { h, type ComponentType } from "preact";
 
-import { tagIsland, type IslandTag } from "./routing/island_tag.js";
+import { tagIsland, type IslandTag } from "./island_tag.js";
 
 /**
  * Declares an island at module scope. The Hum Vite plugin supplies its identity

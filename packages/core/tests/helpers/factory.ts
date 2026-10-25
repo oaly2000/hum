@@ -1,4 +1,4 @@
-import { defineFactory } from "../../src/runtime/events.js";
+import { defineFactory } from "../../src/shared/factory.js";
 
 /** Model the compiler's hidden identity argument without exposing it publicly. */
 export function testFactory<A extends unknown[], R>(id: string, fn: (...args: A) => R): (...args: A) => R {

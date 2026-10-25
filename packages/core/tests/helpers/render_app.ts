@@ -1,4 +1,5 @@
-import { createApp, defineBuild } from "../../src/mod.js";
+import { createApp } from "../../src/mod.js";
+import { defineBuild } from "../../src/build.js";
 import type { HumManifest } from "../../src/types.js";
 import { h } from "preact";
 import { App, Layout, Counter, NestedIsland } from "./render_components.js";

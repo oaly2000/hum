@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { interactionDeclarations, factoryId, islandDeclarations, islandId } from "../src/plugins/client_declarations.js";
 
 describe("explicit island declarations", () => {
-  const source = `import { defineIsland as island } from "@humjs/core/shared";
+  const source = `import { defineIsland as island } from "@humjs/core/client";
 export const Counter = island(({ start = 0 }: { start?: number }) => <button>{start}</button>);
 const Toggle = island(() => null);
 export { Toggle as ThemeToggle, Toggle as Alternate };
@@ -29,7 +29,7 @@ export default island(() => null);
   });
 
   it("supports namespace imports and a separately exported default", () => {
-    const declarations = islandDeclarations(`import * as Hum from "@humjs/core/shared";
+    const declarations = islandDeclarations(`import * as Hum from "@humjs/core/client";
 const Counter = Hum.defineIsland(() => null);
 export default Counter;`, "components/Counter.ts");
     expect(declarations).toMatchObject([
@@ -40,15 +40,15 @@ export default Counter;`, "components/Counter.ts");
   it("does not confuse unrelated helpers or reexports with declarations", () => {
     expect(islandDeclarations('import { defineIsland } from "other"; export const Counter = defineIsland(() => null);', "counter.ts")).toEqual([]);
     expect(islandDeclarations('export { Counter } from "./controls";', "index.ts")).toEqual([]);
-    expect(islandDeclarations(`import { defineIsland } from "@humjs/core/shared";
+    expect(islandDeclarations(`import { defineIsland } from "@humjs/core/client";
 function unrelated(defineIsland: (value: unknown) => unknown) { return defineIsland(1); }
 function other() { const defineIsland = () => null; return defineIsland(); }`, "index.ts")).toEqual([]);
   });
 
   it.each([
-    ['import { defineIsland } from "@humjs/core/shared"; export function Page() { return defineIsland(() => null); }', /module-level/],
-    ['import { defineIsland } from "@humjs/core/shared"; export const Counter = defineIsland(() => null, "manual");', /generated automatically/],
-    ['import { defineIsland } from "@humjs/core/shared"; export const Counter = memo(defineIsland(() => null));', /module-level/],
+    ['import { defineIsland } from "@humjs/core/client"; export function Page() { return defineIsland(() => null); }', /module-level/],
+    ['import { defineIsland } from "@humjs/core/client"; export const Counter = defineIsland(() => null, "manual");', /generated automatically/],
+    ['import { defineIsland } from "@humjs/core/client"; export const Counter = memo(defineIsland(() => null));', /module-level/],
   ])("rejects declarations that cannot be registered statically", (code, error) => {
     expect(() => islandDeclarations(code, "counter.tsx")).toThrow(error);
   });
@@ -56,7 +56,7 @@ function other() { const defineIsland = () => null; return defineIsland(); }`, "
 
 describe("automatic client identities", () => {
   const file = "routes/index.tsx";
-  const imports = 'import {defineIsland} from "@humjs/core/shared"; import {defineFactory as factory} from "@humjs/core/events";';
+  const imports = 'import { defineIsland, defineFactory as factory } from "@humjs/core/client";';
   it("supports private declarations and preserves identity across export changes", () => {
     const code = imports + 'const Counter = defineIsland(() => null); const bump = factory(() => () => {});';
     const privateDefs = interactionDeclarations(code, file);
@@ -68,8 +68,28 @@ describe("automatic client identities", () => {
     expect(factoryId("routes\\index.tsx", "bump")).toBe(factoryId(file, "bump"));
   });
   it("supports namespace factories and default declarations", () => {
-    expect(interactionDeclarations('import * as events from "@humjs/core/events"; export default events.defineFactory(() => () => {});', file))
+    expect(interactionDeclarations('import * as Hum from "@humjs/core/client"; export default Hum.defineFactory(() => () => {});', file))
       .toMatchObject([{kind: "factory", name: factoryId(file, "default"), exportName: "default"}]);
+  });
+  it("distinguishes both declarations from the same namespace", () => {
+    const code = `import * as Hum from "@humjs/core/client";
+const Counter = Hum.defineIsland(() => null);
+const action = Hum.defineFactory(() => () => {});
+const region = Hum.Partial({ name: "content" });`;
+    expect(interactionDeclarations(code, file)).toMatchObject([
+      { kind: "island", name: islandId(file, "Counter") },
+      { kind: "factory", name: factoryId(file, "action") },
+    ]);
+  });
+  it("ignores removed declaration entries and type-only helpers", () => {
+    for (const entry of ["@humjs/core/shared", "@humjs/core/events"]) {
+      expect(interactionDeclarations(`import { defineFactory } from "${entry}"; const action = defineFactory(() => () => {});`, file)).toEqual([]);
+    }
+    expect(interactionDeclarations('import { type defineFactory } from "@humjs/core/client"; const action = defineFactory(() => () => {});', file)).toEqual([]);
+  });
+  it("checks nested factories reached through a client namespace", () => {
+    expect(() => interactionDeclarations('import * as Hum from "@humjs/core/client"; function Page() { return Hum.defineFactory(() => () => {}); }', file)).toThrow(/module-level/);
+    expect(interactionDeclarations('import * as Hum from "@humjs/core/client"; function Page(Hum: any) { return Hum.defineFactory(() => () => {}); }', file)).toEqual([]);
   });
   it("rejects manual factory IDs", () => {
     expect(() => interactionDeclarations(imports + 'const bump = factory("manual", () => () => {});', file)).toThrow(/generated automatically/);

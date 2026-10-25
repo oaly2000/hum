@@ -6,13 +6,14 @@ import { describe, expect, it, vi } from "vitest";
 // An app evaluates the framework entry before the route module that imports
 // signals, so the Hum modules are imported first here as well.
 import { renderFragment } from "./helpers/ssr.js";
-import { add, setFromProp } from "../src/runtime/events.js";
-import { Partial } from "../src/runtime/shared.js";
+import { add, setFromProp } from "../src/shared/events.js";
+import { Partial } from "../src/shared/partial.js";
 
 import { signal } from "@preact/signals";
 
-import { applyPartials } from "../src/runtime/client/partials.js";
-import { ACTIVE_PARTIALS, boot, currentInteractionManager } from "../src/runtime/client/reviver.js";
+import { applyPartials } from "../src/runtime/partials.js";
+import { ACTIVE_PARTIALS } from "../src/runtime/partial_component.js";
+import { boot, currentInteractionManager } from "../src/runtime/boot.js";
 
 import { renderPartialResponse } from "./helpers/partial_response.js";
 import { flush, setupClientCleanup, hydrate, click, text } from "./helpers/client.js";

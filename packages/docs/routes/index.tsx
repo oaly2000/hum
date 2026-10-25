@@ -2,7 +2,7 @@ import styles from "./index.module.css";
 import ThemeToggle from "./_components/ThemeToggle.js";
 import { SyntaxCode } from "./_components/CodeBlock.js";
 import { useSignal } from "@preact/signals";
-import { defineIsland } from "@humjs/core/shared";
+import { defineIsland } from "@humjs/core/client";
 
 export const head = (
   <>

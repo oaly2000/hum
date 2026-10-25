@@ -1,5 +1,5 @@
 import { signal, type Signal } from "@preact/signals";
-import { add, defineFactory, setFromProp } from "@humjs/core/events";
+import { add, setFromProp, defineFactory } from "@humjs/core/client";
 import { define } from "@humjs/core";
 import { CodeBlock } from "../_components/CodeBlock.js";
 
@@ -23,7 +23,7 @@ const resetOrder = defineFactory(
 
 
 const checkoutExample = `import { signal } from "@preact/signals";
-import { add, setFromProp } from "@humjs/core/events";
+import { add, setFromProp } from "@humjs/core/client";
 
 export default function Checkout() {
   const tickets = signal(2);
@@ -44,7 +44,7 @@ export default function Checkout() {
 }`;
 
 const customFactoryExample = `// routes/checkout.tsx — alongside the page and server handlers
-import { defineFactory } from "@humjs/core/events";
+import { defineFactory } from "@humjs/core/client";
 import type { Signal } from "@preact/signals";
 
 /** Resets both options at once; each built-in factory drives one signal. */
@@ -110,6 +110,38 @@ export default function ReactivityPage() {
         </li>
       </ul>
 
+      <h2
+        id="interactive-runtime"
+        class="mt-12 text-xl font-extrabold tracking-tight sm:text-2xl"
+      >
+        Interactive runtime model
+      </h2>
+      <p class="mt-3 leading-7 text-muted">
+        The client-side <code>InteractionManager</code> coordinates DOM ownership,
+        mounting, scheduling and cleanup for islands, partials and bindings.
+        Islands and partials host their nested bindings; a signal outside a host
+        gets a standalone binding range. Each response carries one shared payload
+        graph, so signals keep their identity across these units. Partial
+        navigation routes updates through the same manager.
+      </p>
+      <figure class="mt-6 overflow-hidden rounded-2xl border border-line bg-surface">
+        <div class="overflow-x-auto bg-code p-4 sm:p-6">
+          <img
+            class="mx-auto block h-auto w-full min-w-[26rem] max-w-[34rem]"
+            src="/diagrams/interaction.svg"
+            alt="Server-rendered HTML and a shared payload reach the InteractionManager, which coordinates islands, partials and bindings. Preact and Signals render their interactive DOM. Client navigation sends partial updates through the same manager."
+            width="411"
+            height="592"
+            loading="lazy"
+            decoding="async"
+          />
+        </div>
+        <figcaption class="border-t border-line px-5 py-3 text-sm leading-6 text-muted">
+          Islands, partials and bindings share one interaction manager and payload
+          graph. Preact and Signals handle rendering and reactive updates.
+        </figcaption>
+      </figure>
+
       <h2 class="mt-12 text-xl font-extrabold tracking-tight sm:text-2xl">
         Bind a signal
       </h2>
@@ -135,7 +167,7 @@ export default function ReactivityPage() {
       <p class="mt-3 leading-7 text-muted">
         A handler is rebuilt in the browser, so it travels as a factory ID plus
         the arguments it was called with—a closure cannot be serialized and throws
-        at render time. <code>@humjs/core/events</code> ships{" "}
+        at render time. <code>@humjs/core/client</code> ships{" "}
         <code>add(signal, delta, options)</code>, <code>setValue</code>,{" "}
         <code>toggle</code> and <code>setFromProp(signal, key)</code>; a handler
         of your own is a factory too.

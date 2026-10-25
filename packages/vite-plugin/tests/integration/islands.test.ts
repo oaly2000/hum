@@ -12,7 +12,7 @@ import { createProject } from "../helpers/project.js";
 import { hum } from "../../src/mod.js";
 import { factoryId, islandId } from "../../src/plugins/client_declarations.js";
 
-const ISLAND = `import { defineIsland } from "@humjs/core/shared";
+const ISLAND = `import { defineIsland } from "@humjs/core/client";
 import { useState } from "preact/hooks";
 
 function Counter() {
@@ -51,7 +51,7 @@ export default app;
   }, "island-fixture-");
 }
 
-const DECLARED_ISLANDS = `import { defineIsland as island } from "@humjs/core/shared";
+const DECLARED_ISLANDS = `import { defineIsland as island } from "@humjs/core/client";
 import { useState } from "preact/hooks";
 function View({ start = 0 }: { start?: number }) {
   const [count, setCount] = useState(start);
@@ -63,7 +63,7 @@ export { Toggle as ThemeToggle, Toggle as Alternate };
 export default island(View);
 `;
 const DECLARED_PAGE = `import DefaultCounter, { Counter, ThemeToggle } from "../components/Counter.tsx";
-import { Partial } from "@humjs/core/shared";
+import { Partial } from "@humjs/core/client";
 export default function Page() {
   return <main><Counter start={3}/><Counter start={4}/><DefaultCounter start={5}/>
     <Partial name="content"><ThemeToggle /></Partial></main>;
@@ -73,8 +73,7 @@ describe("explicit declarations through development and production builds", () =
   it.each(["dev", "production", "standalone"])("splits islands and factories from a server route (%s)", async (mode) => {
     const route = `import { platform } from "node:os";
 import { page } from "@humjs/core";
-import { defineIsland, Partial } from "@humjs/core/shared";
-import { defineFactory } from "@humjs/core/events";
+import { defineIsland, defineFactory, Partial } from "@humjs/core/client";
 import { signal, useSignal, type Signal } from "@preact/signals";
 if (typeof window !== "undefined") throw new Error("SSR_ROUTE_EXECUTED_IN_BROWSER");
 const serverOnly = "SERVER_ONLY_SENTINEL";

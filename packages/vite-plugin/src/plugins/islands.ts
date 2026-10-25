@@ -27,13 +27,13 @@ export function humIslands(): Plugin {
 
     // The runtime's entry exports are consumed from outside the bundle by the
     // server-inlined boot script, which is the tree-shaking constraint described
-    // in `@humjs/core/runtime/client`. The runtime modules below are marked
+    // in `@humjs/core/runtime`. The runtime modules below are marked
     // side-effectful so Rolldown (Vite 8) cannot drop the module the entry
     // re-exports from, which would leave the entry chunk without `boot`.
     transform(code, id) {
       if (
         id.includes(CORE_RUNTIME_ID) ||
-        id.includes("/runtime/client/")
+        /\/core\/(?:src|dist)\/runtime\//.test(id.replace(/\\/g, "/"))
       ) {
         return { code, moduleSideEffects: "no-treeshake" };
       }
@@ -55,7 +55,7 @@ export async function writeBuildEntries(ctx: HumContext): Promise<void> {
   // The boot script in the server-rendered HTML imports `boot` from this entry
   // and calls it, but that call lives outside the bundle, so the entry has to
   // keep the runtime's exports alive itself — see the tree-shaking note in
-  // `@humjs/core/runtime/client`. Importing the bindings locally and
+  // `@humjs/core/runtime`. Importing the bindings locally and
   // re-exporting them, plus the `globalThis` reference, keeps the runtime (and
   // its partial navigation side effects) in the emitted chunk.
   await writeFile(

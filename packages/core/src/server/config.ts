@@ -1,7 +1,7 @@
 import { resolve } from "node:path";
 
-import type { Logger } from "./types.js";
-import type { PageService } from "./pages.js";
+import type { Logger } from "../types.js";
+import type { PageService } from "../pages/service.js";
 
 /**
  * URL Hum publishes its client assets under. It is a framework constant rather

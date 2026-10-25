@@ -5,9 +5,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderFragment } from "./helpers/ssr.js";
 
-import { Partial } from "../src/runtime/shared.js";
+import { Partial } from "../src/shared/partial.js";
 
-import { applyPartials, startPartialNavigation } from "../src/runtime/client/partials.js";
+import { applyPartials, startPartialNavigation } from "../src/runtime/partials.js";
 
 import { renderPartialResponse } from "./helpers/partial_response.js";
 import { flush, setupClientCleanup, hydrate, text } from "./helpers/client.js";

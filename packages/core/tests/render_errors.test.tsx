@@ -5,7 +5,8 @@ import { basicAuth } from "hono/basic-auth";
 
 import { describe, expect, it } from "vitest";
 
-import { defineBuild, mountHum } from "../src/mod.js";
+import { defineBuild } from "../src/build.js";
+import { mountHum } from "../src/mod.js";
 
 import type { HumContext, HumManifest } from "../src/types.js";
 

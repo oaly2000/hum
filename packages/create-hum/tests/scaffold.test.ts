@@ -114,7 +114,7 @@ describe("templates", () => {
   it("scaffolds a self-hosting project from the basic template", async () => {
     const target = await scaffoldInto("node-app", await templatePath("basic"));
     const counter = await readFile(join(target, "islands", "Counter.tsx"), "utf8");
-    expect(counter).toContain('import { defineIsland } from "@humjs/core/shared"');
+    expect(counter).toContain('import { defineIsland } from "@humjs/core/client"');
     expect(counter).toContain("export default defineIsland(Counter)");
 
     // The Node entry starts its listener directly, separately from app setup.

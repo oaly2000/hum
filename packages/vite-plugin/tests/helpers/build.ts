@@ -44,7 +44,7 @@ export async function buildProject(options: BuildOptions = {}): Promise<string> 
     <p key={item}>{item}</p>
   )}</main>;
 }`,
-    "islands/Counter.tsx": 'import { defineIsland } from "@humjs/core/shared"; export default defineIsland(function Counter() { return null; });',
+    "islands/Counter.tsx": 'import { defineIsland } from "@humjs/core/client"; export default defineIsland(function Counter() { return null; });',
     "public/robots.txt": "User-agent: *\n",
     "public/favicon.svg": "<svg/>\n",
     ...Object.fromEntries(Object.entries(options.routes ?? {}).map(([file, contents]) => [`routes/${file}`, contents])),

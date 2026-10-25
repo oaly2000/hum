@@ -3,8 +3,8 @@ import { useState } from "preact/hooks";
 import { renderToString } from "preact-render-to-string";
 import { describe, expect, it } from "vitest";
 
-import { defineIsland } from "../src/shared.js";
-import { islandTagOf, type IslandTag } from "../src/routing/island_tag.js";
+import { defineIsland } from "../src/client.js";
+import { islandTagOf, type IslandTag } from "../src/shared/island_tag.js";
 
 // The public helper has one argument; only the compiler supplies metadata.
 const compiled = defineIsland as <P>(component: ComponentType<P>, tag: IslandTag) => ComponentType<P>;

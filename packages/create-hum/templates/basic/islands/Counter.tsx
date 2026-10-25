@@ -1,5 +1,5 @@
 import { useSignal } from "@preact/signals";
-import { defineIsland } from "@humjs/core/shared";
+import { defineIsland } from "@humjs/core/client";
 
 /** Interactive island: everything around it stays static HTML. */
 function Counter({ start = 0 }: { start?: number }) {

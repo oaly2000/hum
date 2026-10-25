@@ -21,28 +21,29 @@ Most applications should use the
 ## Entry points
 
 - `@humjs/core` is the server/framework API. It includes app setup, route
-  helpers (`define`, `defineBuild`), `page()` for request-local view data,
+  helpers (`define`), `page()` for request-local view data,
   `createApp()` / `mountHum()`, error types, and streaming helpers
   (`createResource`, `Suspense`). Use it in routes, server setup, and server
   rendering code. Do not import it from browser islands.
-- `@humjs/core/shared` is safe to import in both server-rendered routes and
-  browser code. It exports `defineIsland`, `IS_BROWSER`, `Partial`, `PartialProps`, and `asset`.
-  Shared helpers are intentionally not re-exported from the root or runtime
-  entry points, so their import location is unambiguous. `Partial` marks a
-  region for partial navigation; `asset()` resolves a public asset URL.
-- `@humjs/core/events` exports serializable event factories for page-level
-  reactive bindings, including `add`, `setValue`, `toggle`,
-  `setFromProp`, and `defineFactory`. Import this entry only where those event
-  helpers are needed.
+- `@humjs/core/client` is safe to import in both server-rendered routes and
+  browser code. It exports `defineIsland`, `defineFactory`, `IS_BROWSER`,
+  `Partial`, `PartialProps`, `asset`, and the built-in event factories `add`,
+  `setValue`, `toggle` and `setFromProp`. Client APIs are exported only from
+  this entry. `Partial` marks a region for partial navigation; `asset()`
+  resolves a public asset URL. Importing this entry does not start hydration
+  or client navigation.
 - `@humjs/core/runtime` is the browser runtime used by Hum's generated client
   entry. It installs client navigation and exposes hydration functions; it is
-  not a server-safe substitute for `@humjs/core/shared`.
+  not a server-safe substitute for `@humjs/core/client`.
 - `@humjs/core/routing` exports route-file and path-matching helpers. It is
   primarily useful to integrations and tooling rather than application routes.
+- `@humjs/core/build` exports `defineBuild`, build/manifest types, `planPages`,
+  `prerenderPages`, and asset URL constants for bundler integrations and generated
+  modules. Build APIs are exported only from this entry.
 
 ## Islands
 
-Declare islands with `defineIsland(Component)` from `@humjs/core/shared` in a
+Declare islands with `defineIsland(Component)` from `@humjs/core/client` in a
 project module, including a route file. Declare it at module scope; exporting is optional. The Vite plugin generates
 its ID and client registration. Named and default exports are supported, with
 multiple declarations per module. No special directory or client-entry import
@@ -52,7 +53,7 @@ same-file dependencies into a browser module and excludes unrelated server code.
 Extracted imports must be browser-safe.
 
 Top-level `defineFactory(fn)` declarations from
-`@humjs/core/events` use the same extraction. Modules for factories used in a
+`@humjs/core/client` use the same extraction. Modules for factories used in a
 response load before payload revival, including partial navigation; no manual
 client-entry import is needed. IDs are generated from file paths and declaration
 bindings; exporting is optional.
@@ -137,7 +138,7 @@ into island props.
 ## Runtime boundaries
 
 - Keep server-only APIs from `@humjs/core` out of browser island modules. Import
-  shared browser/server helpers from `@humjs/core/shared`.
+  application client APIs from `@humjs/core/client`.
 - Import the generated runtime from `@humjs/core/runtime` only when building a
   custom client integration; the Vite plugin wires this entry for regular apps.
 - Island components are rendered on the server and hydrated in the browser.

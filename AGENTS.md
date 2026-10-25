@@ -15,6 +15,12 @@ client declarations. User documentation belongs in [README.md](./README.md).
 
 Update all affected runtime, dev/build, scaffold and example surfaces together.
 
+Core implementation lives in `core/src/server`, `runtime`, `shared`, `protocol`,
+`routing`, `pages` and `build`. Public entry files select explicit exports;
+bundler integrations use `@humjs/core/build`, application code uses the root
+and `@humjs/core/client` entries. Keep client APIs independent of server modules
+and the browser runtime; `/runtime` is the generated bootstrap entry.
+
 ## Routing and application lifecycle
 
 - Route rules live in `core/src/routing/route_files.ts` and its tests.
@@ -38,8 +44,8 @@ Update all affected runtime, dev/build, scaffold and example surfaces together.
 
 ## Discovery and client compilation
 
-- Vite globs discover routes and module-level `defineIsland(Component)` from
-  `@humjs/core/shared` and `defineFactory(fn)` from `@humjs/core/events`.
+- Vite globs discover routes and module-level `defineIsland(Component)` and
+  `defineFactory(fn)` declarations from `@humjs/core/client`.
   Analyze sources without evaluating them; exclude dependencies, tests and
   generated/output/public files. Directory placement never registers islands;
   there is no `islandsDir`, manual ID or user `clientEntry`.
@@ -72,7 +78,7 @@ Update all affected runtime, dev/build, scaffold and example surfaces together.
 - Serialize one reference-sharing payload graph per full/partial response. Revive
   once so signals shared by facets, island props, factories and partials retain
   identity. Import used factory modules before revival, including partial navigation.
-- `runtime/client/interaction_manager.ts` owns scheduling, registration/disposal
+- `core/src/runtime/interaction_manager.ts` owns scheduling, registration/disposal
   and exclusive DOM boundaries. Hosts delegate nested partials; replacement refreshes
   delegates, and `PartialComp` rekeys when its name changes. Submit a response's
   partial updates as one scheduled batch with stale-navigation checks.

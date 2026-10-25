@@ -1,7 +1,8 @@
 import { h } from "preact";
 import { expect, it } from "vitest";
 
-import { createApp, defineBuild } from "../src/mod.js";
+import { createApp } from "../src/mod.js";
+import { defineBuild } from "../src/build.js";
 
 it("creates a working app from the registered build with the default document shell", async () => {
   defineBuild({

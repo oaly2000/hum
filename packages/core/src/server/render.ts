@@ -2,18 +2,18 @@ import { Fragment, h, type VNode } from "preact";
 
 import type { BuildCache } from "./build_cache.js";
 import type { ResolvedConfig } from "./config.js";
-import type { ResolvedNotFound, ResolvedRoute } from "./routing/fs_routes.js";
+import type { ResolvedNotFound, ResolvedRoute } from "../routing/fs_routes.js";
 import { HttpError } from "./error.js";
 import type { ModuleLoader } from "./loader.js";
-import type { AnyVNode } from "./runtime/shared_internal.js";
+import type { AnyVNode } from "../shared/preact.js";
 import {
   DefaultApp,
   preloadLinks,
   renderDocument,
   renderDocumentStream,
-} from "./runtime/server/document.js";
-import { mergeHeads } from "./runtime/server/head.js";
-import { RenderState, withRenderState } from "./runtime/server/preact_hooks.js";
+} from "./document.js";
+import { mergeHeads } from "./head.js";
+import { RenderState, withRenderState } from "./preact_hooks.js";
 import type {
   AppModule,
   HeadExport,
@@ -22,7 +22,7 @@ import type {
   RouteManifestEntry,
   RouteModule,
   RouteProps,
-} from "./types.js";
+} from "../types.js";
 
 export interface RenderOutcome {
   /** Full document plus inert partial metadata, captured from the same render. */

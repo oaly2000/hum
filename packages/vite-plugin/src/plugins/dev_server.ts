@@ -4,8 +4,8 @@ import { isAbsolute, relative, resolve, sep } from "node:path";
 import {
   createApp,
   type HumApp,
-  type HumBuild,
 } from "@humjs/core";
+import type { HumBuild } from "@humjs/core/build";
 import { serveStatic } from "@hono/node-server/serve-static";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {

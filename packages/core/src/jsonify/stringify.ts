@@ -95,7 +95,8 @@ function serializeInner(
       throw new Error(
         "Hum: serializing functions is not supported. Island props and page " +
           "level event handlers must be serializable data (or a signal / a " +
-          "factory from `@humjs/core/events`).",
+          "factory result from `@humjs/core/client`, using `defineFactory` " +
+          "or a built-in event factory).",
       );
     }
 

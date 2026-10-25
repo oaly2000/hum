@@ -1,39 +1,21 @@
+import { Fragment, h, type ComponentChildren, type VNode } from "preact";
+import { type AnyVNode } from "../shared/preact.js";
 import {
-  Component,
-  Fragment,
-  h,
-  render,
-  type ComponentChildren,
-  type ComponentType,
-  type VNode,
-} from "preact";
-import { computed, signal } from "@preact/signals";
-
-import { type CustomParser, parse } from "../../jsonify/parse.js";
-import { hum_factories } from "../events.js";
-import {
-  type AnyVNode,
   DATA_HUM_KEY,
   FACET_HANDLER_ATTR,
   FACET_SIGNAL_ATTR,
   parseMarker,
   PartialMode,
-} from "../shared_internal.js";
-import {
-  InteractionManager,
-  scheduleInteractionMount,
-} from "./interaction_manager.js";
+} from "../protocol/markers.js";
+import type { Payload } from "../protocol/payload.js";
+import { entrySignal } from "./payload.js";
+import { ACTIVE_PARTIALS, PartialComp } from "./partial_component.js";
+import { ISLAND_REGISTRY } from "./registry.js";
 
-const RootKind = {
+export const RootKind = {
   Island: 0,
   Partial: 1,
 } as const;
-
-let activeInteractionManager: InteractionManager | null = null;
-
-export function currentInteractionManager(): InteractionManager | null {
-  return activeInteractionManager;
-}
 
 /** Which kind of marker a VNode stack entry was created from. */
 export const Marker = {
@@ -50,13 +32,13 @@ export type Marker = (typeof Marker)[keyof typeof Marker];
  * becomes a `SignalText` component leaf, and a bound prop or handler stays a
  * prop on the element's vnode.
  */
-const FacetKind = {
+export const FacetKind = {
   Signal: 0,
   Element: 1,
 } as const;
 type FacetKind = (typeof FacetKind)[keyof typeof FacetKind];
 
-interface SignalFacetReq {
+export interface SignalFacetReq {
   kind: typeof FacetKind.Signal;
   /** Payload index of the signal. */
   idx: number;
@@ -64,7 +46,7 @@ interface SignalFacetReq {
   end: Comment | Text | null;
 }
 
-interface ElementFacetReq {
+export interface ElementFacetReq {
   kind: typeof FacetKind.Element;
   el: Element;
   delegates: string[];
@@ -91,7 +73,7 @@ interface PartialReq {
   end: Comment | Text | null;
 }
 
-interface ReviveContext {
+export interface ReviveContext {
   roots: Array<IslandReq | PartialReq>;
   stack: Array<PartialReq | IslandReq>;
   slots: Map<number, { name: string; start: Comment; end: Comment | null }>;
@@ -134,87 +116,6 @@ function openRoot(
   };
 }
 
-interface SlotRef {
-  kind: typeof SLOT_SYMBOL;
-  name: string;
-  id: number;
-}
-
-const SLOT_SYMBOL = Symbol.for("_HUM_SLOT");
-
-function isSlotRef(x: unknown): x is SlotRef {
-  return (
-    x !== null && typeof x === "object" && "kind" in x &&
-    (x as SlotRef).kind === SLOT_SYMBOL
-  );
-}
-
-/**
- * One entry of the payload the server serialized. Island props, page level
- * signals and page level handlers share the array, which is what lets a value
- * used in several places (a signal bound as a child and as a prop) revive as a
- * single instance.
- */
-export type PayloadEntry =
-  | { props: Record<string, unknown>; slots?: SlotRef[] }
-  | { signal: unknown }
-  | { handler: unknown };
-
-export type Payload = PayloadEntry[];
-
-/** Returns the signal held by a payload entry, if it is a signal entry. */
-function entrySignal(entry: PayloadEntry | undefined): unknown {
-  return entry !== undefined && "signal" in entry ? entry.signal : undefined;
-}
-
-/** Partials that are currently mounted, keyed by partial name. */
-export const ACTIVE_PARTIALS = new Map<string, PartialComp>();
-
-/**
- * Keeps a partial region mounted so that a client side navigation can swap its
- * children without re-rendering the whole page.
- */
-export class PartialComp extends Component<{
-  children?: ComponentChildren;
-  mode: PartialMode;
-  name: string;
-}> {
-  private registeredName: string | null = null;
-
-  override componentDidMount(): void {
-    this.register();
-  }
-
-  override componentDidUpdate(): void {
-    if (this.registeredName !== this.props.name) this.register();
-  }
-
-  override componentWillUnmount(): void {
-    this.unregister();
-  }
-
-  override render(): ComponentChildren {
-    return this.props.children;
-  }
-
-  private register(): void {
-    this.unregister();
-    this.registeredName = this.props.name;
-    ACTIVE_PARTIALS.set(this.registeredName, this);
-  }
-
-  private unregister(): void {
-    if (
-      this.registeredName !== null &&
-      ACTIVE_PARTIALS.get(this.registeredName) === this
-    ) {
-      ACTIVE_PARTIALS.delete(this.registeredName);
-    }
-    this.registeredName = null;
-  }
-}
-PartialComp.displayName = "Partial";
-
 interface HumMarkerText extends Text {
   _humMarker: string;
 }
@@ -243,10 +144,6 @@ export function maybeHideMarker(marker: Comment | Text): Comment | Text {
   return text;
 }
 
-/** Registered island components, keyed by island name. */
-export const ISLAND_REGISTRY = new Map<string, ComponentType>();
-const ISLAND_LOADERS = new Map<string, () => Promise<ComponentType>>();
-
 /**
  * Placeholders standing in for an island whose module never loaded. The tree
  * renderer keeps their markup as plain children and has nowhere to hand a slot
@@ -254,32 +151,7 @@ const ISLAND_LOADERS = new Map<string, () => Promise<ComponentType>>();
  */
 const ISLAND_PASSTHROUGH = new WeakSet<VNode>();
 
-export const CUSTOM_PARSER: CustomParser = {
-  Signal: (value: unknown) => signal(value),
-  Computed: (value: unknown) => computed(() => value),
-  Slot: (value: { name: string; id: number }): SlotRef => ({
-    kind: SLOT_SYMBOL,
-    name: value.name,
-    id: value.id,
-  }),
-  // A page level handler travels as the factory name plus the arguments it was
-  // called with; calling the factory again rebuilds the closure here.
-  Fn: (value: unknown) => {
-    const [factory, args] = value as [string, unknown[]];
-    const fn = hum_factories[factory];
-    if (fn === undefined) {
-      throw new Error(
-        `Hum: the handler factory "${factory}" is not registered on the ` +
-          `client. Declare the project factory at module scope so Hum can ` +
-          `load its client implementation before hydration. Factories outside ` +
-          `project discovery must be imported by browser code.`,
-      );
-    }
-    return fn(...args);
-  },
-};
-
-function createReviveCtx(): ReviveContext {
+export function createReviveCtx(): ReviveContext {
   return {
     roots: [],
     stack: [],
@@ -350,7 +222,7 @@ function markerData(node: Comment | HumMarkerText): string {
   return isHumMarkerText(node) ? node._humMarker : node.data;
 }
 
-function walkInner(ctx: ReviveContext, node: Node): void {
+export function walkInner(ctx: ReviveContext, node: Node): void {
   if (isElementNode(node)) {
     // Scripts and styles never contain markers, and once inside a slot the
     // content is collected when the slot is revived.
@@ -723,300 +595,6 @@ export function domToVNode(
   }
 }
 
-/** Renders an island into the DOM range it was server rendered into. */
-function reviveNow(
-  props: Record<string, unknown>,
-  component: ComponentType,
-  container: HTMLElement,
-  slots: ReviveContext["slots"],
-  payload: Payload,
-): () => void {
-  for (const propName in props) {
-    const value = props[propName];
-    if (!isSlotRef(value)) continue;
-
-    const marker = slots.get(value.id);
-    if (marker !== undefined && marker.end !== null) {
-      const root: AnyVNode = h(Fragment, null);
-      const slotContainer = createRootFragment(
-        container,
-        marker.start,
-        marker.end,
-      );
-      domToVNode(
-        payload,
-        [root],
-        [Marker.Slot],
-        slotContainer,
-        marker.end,
-      );
-      props[propName] = root;
-      continue;
-    }
-
-    const template = document.querySelector(
-      `#hum-${value.id}-${value.name}`,
-    ) as HTMLTemplateElement | null;
-    if (template !== null) {
-      const root = h(Fragment, null) as VNode<Record<string, unknown>>;
-      domToVNode(payload, [root], [Marker.Slot], template.content, null);
-      props[propName] = root;
-    }
-  }
-
-  return mountVNode(h(component as never, props as never), container);
-}
-
-function mountVNode(vnode: AnyVNode, container: HTMLElement): () => void {
-  render(vnode as never, container);
-  return () => render(null, container);
-}
-
-function firstElement(container: HTMLElement): Element | undefined {
-  const children = (container as unknown as { childNodes: ArrayLike<Node> })
-    .childNodes;
-  for (let i = 0; i < children.length; i++) {
-    const child = children[i];
-    if (child.nodeType === Node.ELEMENT_NODE) return child as Element;
-  }
-  return undefined;
-}
-
-function mountIslandWhenVisible(
-  name: string,
-  component: ComponentType | undefined,
-  load: (() => Promise<ComponentType>) | undefined,
-  props: Record<string, unknown>,
-  container: HTMLElement,
-  slots: ReviveContext["slots"],
-  payload: Payload,
-): () => void {
-  let cancelled = false;
-  let activated = false;
-  let disposeRender: (() => void) | undefined;
-  let observer: IntersectionObserver | undefined;
-
-  const activate = () => {
-    if (activated || cancelled) return;
-    activated = true;
-    const loaded = component !== undefined
-      ? Promise.resolve(component)
-      : load === undefined
-      ? Promise.reject(
-        new Error(`Hum: no component loader is registered for island "${name}".`),
-      )
-      : Promise.resolve().then(load);
-    void loaded.then((resolved) => {
-      ISLAND_REGISTRY.set(name, resolved);
-      if (cancelled) return;
-      disposeRender = reviveNow(props, resolved, container, slots, payload);
-      observer?.disconnect();
-    }).catch((error: unknown) => {
-      activated = false;
-      console.error(`Hum: failed to load or hydrate island "${name}".`, error);
-    });
-  };
-
-  const target = firstElement(container);
-  if (target === undefined || typeof IntersectionObserver === "undefined") {
-    activate();
-  } else {
-    observer = new IntersectionObserver((entries) => {
-      if (
-        entries.some((entry) =>
-          entry.isIntersecting || entry.intersectionRatio > 0
-        )
-      ) activate();
-    }, { rootMargin: "200px" });
-    observer.observe(target);
-  }
-
-  return () => {
-    cancelled = true;
-    observer?.disconnect();
-    disposeRender?.();
-  };
-}
-
-/** Renders an island into the DOM range it was server rendered into. */
-export function revive(
-  props: Record<string, unknown>,
-  component: ComponentType,
-  container: HTMLElement,
-  slots: ReviveContext["slots"],
-  payload: Payload,
-): void {
-  scheduleInteractionMount(() => {
-    reviveNow(props, component, container, slots, payload);
-  });
-}
-
-/**
- * Entry point of the client runtime. Scans the server rendered DOM for islands,
- * partials and page level facets, and hydrates each of them with what was
- * serialized into the document.
- *
- * The scan is synchronous, but every render is scheduled through {@link
- * InteractionManager}: nothing is live yet when `boot` returns, and the
- * document is only touched from the task after it.
- */
-export function boot(
-  initialIslands: Record<string, ComponentType>,
-  payloadJson: string,
-  lazyIslands: Record<string, () => Promise<ComponentType>> = {},
-): InteractionManager {
-  if (activeInteractionManager !== null) {
-    const previousManager = activeInteractionManager;
-    if (!previousManager.disposeIfDetached()) {
-      throw new Error(
-        "hum: the client runtime was booted again while its previous " +
-          "interaction units still own connected DOM.",
-      );
-    }
-    activeInteractionManager = null;
-  }
-  const ctx = createReviveCtx();
-  walkInner(ctx, document.body);
-
-  ISLAND_REGISTRY.clear();
-  ISLAND_LOADERS.clear();
-  for (const name in initialIslands) {
-    ISLAND_REGISTRY.set(name, initialIslands[name]);
-  }
-  for (const name in lazyIslands) {
-    ISLAND_LOADERS.set(name, lazyIslands[name]);
-  }
-
-  const payload = parse<Payload>(payloadJson, CUSTOM_PARSER);
-
-  // Plan the owners before registration: a host takes over the roots that fall
-  // inside it, so they must not become separate interaction units.
-  const facets = planFacets(ctx);
-
-  const manager = new InteractionManager();
-  const registerBinding = (
-    id: string,
-    owner: Node,
-    mount: () => void | (() => void),
-    delegates?: string[],
-  ) => {
-    manager.register({
-      id,
-      kind: "binding",
-      owner,
-      phase: "binding",
-      ...(delegates === undefined ? {} : { delegates }),
-      mount,
-    });
-  };
-
-  for (let i = 0; i < ctx.roots.length; i++) {
-    const root = ctx.roots[i];
-    if (root.end === null) continue;
-
-    if (root.start.parentNode !== root.end.parentNode) {
-      console.error(
-        `Hum hydration error: the ${
-          root.kind === RootKind.Island ? "island" : "partial"
-        } "${root.name}" has invalid HTML nesting: its start and end markers ` +
-          `were reparented into different nodes by the browser.`,
-      );
-      continue;
-    }
-
-    const container = createRootFragment(
-      root.start.parentNode as Node,
-      root.start,
-      root.end,
-    );
-
-    if (root.kind === RootKind.Island) {
-      const entry = payload[root.propsIdx];
-      if (entry === undefined || !("props" in entry)) continue;
-      const component = ISLAND_REGISTRY.get(root.name);
-      const load = ISLAND_LOADERS.get(root.name);
-      if (component === undefined && load === undefined) {
-        console.error(`Hum: unknown island "${root.name}".`);
-        continue;
-      }
-      manager.register({
-        id: `island:${root.name}:${i}`,
-        kind: "island",
-        owner: container,
-        phase: "root",
-        delegates: root.delegates,
-        delegateGroups: root.delegateGroups,
-        mount: () =>
-          mountIslandWhenVisible(
-            root.name,
-            component,
-            load,
-            entry.props,
-            container,
-            ctx.slots,
-            payload,
-          ),
-      });
-    } else {
-      const props: Record<string, unknown> = {
-        name: root.name,
-        mode: PartialMode.Replace,
-        children: null,
-      };
-      const domRoot = h(Fragment, null) as VNode<Record<string, unknown>>;
-      domToVNode(payload, [domRoot], [Marker.Partial], container, root.end);
-      props.children = domRoot.props.children;
-      manager.register({
-        id: `partial:${root.name}:${i}`,
-        kind: "partial",
-        key: root.name,
-        owner: container,
-        phase: "root",
-        delegates: root.delegates,
-        delegateGroups: root.delegateGroups,
-        mount: () =>
-          reviveNow(
-            props,
-            PartialComp as unknown as ComponentType,
-            container,
-            ctx.slots,
-            payload,
-          ),
-      });
-    }
-  }
-
-  for (let i = 0; i < facets.length; i++) {
-    const facet = facets[i];
-    if (facet.kind === FacetKind.Signal) {
-      if (facet.end === null || facet.start.parentNode !== facet.end.parentNode) {
-        continue;
-      }
-      const container = createRootFragment(
-        facet.start.parentNode as Node,
-        facet.start,
-        facet.end,
-      );
-      registerBinding(
-        `signal:${facet.idx}:${i}`,
-        container,
-        () => hydrateSignalFacet(facet, payload),
-      );
-    } else {
-      registerBinding(
-        `element:${i}`,
-        facet.el,
-        () => hydrateElementFacet(facet, payload),
-        facet.delegates,
-      );
-    }
-  }
-
-  manager.mount();
-  activeInteractionManager = manager;
-  return manager;
-}
-
 /**
  * Facets that sit outside every island and partial need a Preact root of their
  * own, because nothing else owns their DOM. This orders and filters the facets
@@ -1032,7 +610,7 @@ export function boot(
  * Removing the roots also removes the diagnostics `boot` runs for them, so an
  * unbalanced root of a host is reported here instead.
  */
-function planFacets(ctx: ReviveContext): FacetReq[] {
+export function planFacets(ctx: ReviveContext): FacetReq[] {
   const hosts: ElementFacetReq[] = [];
 
   for (const facet of ctx.facets) {
@@ -1071,59 +649,4 @@ function planFacets(ctx: ReviveContext): FacetReq[] {
     out.push(facet);
   }
   return out;
-}
-
-/**
- * Hands the text node of a page level signal to a `SignalText` component leaf.
- */
-function hydrateSignalFacet(
-  facet: SignalFacetReq,
-  payload: Payload,
-): () => void {
-  if (facet.end === null) return () => {};
-  const parent = facet.start.parentNode;
-  if (parent === null || facet.end.parentNode !== parent) return () => {};
-
-  const container = createRootFragment(parent, facet.start, facet.end);
-  return mountVNode(
-    h(SignalText, { signal: entrySignal(payload[facet.idx]) } as never),
-    container,
-  );
-}
-
-/**
- * Adopts a page level element as a component leaf: its markup becomes a VNode
- * tree (with bound signals and handlers restored from the payload) which Preact
- * renders back over the range. Because the tree was derived from that very
- * markup, Preact reuses the existing DOM nodes instead of recreating them.
- */
-function hydrateElementFacet(
-  facet: ElementFacetReq,
-  payload: Payload,
-): () => void {
-  const el = facet.el;
-  const parent = el.parentNode;
-  if (parent === null) return () => {};
-
-  // A root fragment needs an anchor on either side; the element is the range.
-  const start = document.createTextNode("");
-  const end = document.createTextNode("");
-  parent.insertBefore(start, el);
-  parent.insertBefore(end, el.nextSibling);
-
-  const container = createRootFragment(parent, start, end);
-  const root: AnyVNode = h(Fragment, null);
-  domToVNode(payload, [root], [Marker.Slot], el, end);
-  const dispose = mountVNode(
-    h(Fragment, null, root.props.children as never),
-    container,
-  );
-  return () => {
-    try {
-      dispose();
-    } finally {
-      start.remove();
-      end.remove();
-    }
-  };
 }

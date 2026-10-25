@@ -1,7 +1,5 @@
 import type { ComponentChildren, VNode } from "preact";
 
-export { asset } from "./shared_internal.js";
-
 /** `true` when running in a browser. */
 export const IS_BROWSER = typeof document !== "undefined";
 

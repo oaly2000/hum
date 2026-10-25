@@ -6,13 +6,15 @@ import { describe, expect, it, vi } from "vitest";
 // An app evaluates the framework entry before the route module that imports
 // signals, so the Hum modules are imported first here as well.
 import { renderFragment } from "./helpers/ssr.js";
-import { add, hum_factories } from "../src/runtime/events.js";
-import { Partial } from "../src/runtime/shared.js";
+import { add } from "../src/shared/events.js";
+import { hum_factories } from "../src/protocol/factory.js";
+import { Partial } from "../src/shared/partial.js";
 
 import { signal } from "@preact/signals";
 import { Hono } from "hono";
-import { defineBuild, mountHum, prerenderPages } from "../src/mod.js";
-import { applyPartials } from "../src/runtime/client/partials.js";
+import { defineBuild, prerenderPages } from "../src/build.js";
+import { mountHum } from "../src/mod.js";
+import { applyPartials } from "../src/runtime/partials.js";
 
 import { testFactory } from "./helpers/factory.js";
 import { renderPartialResponse } from "./helpers/partial_response.js";

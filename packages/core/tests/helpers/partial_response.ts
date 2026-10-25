@@ -1,5 +1,5 @@
 import type { ComponentChildren } from "preact";
-import { renderScripts } from "../../src/runtime/server/document.js";
+import { renderScripts } from "../../src/server/document.js";
 import { renderFragment } from "./ssr.js";
 
 /** A partial-only response, as the client navigation fetches and applies it. */

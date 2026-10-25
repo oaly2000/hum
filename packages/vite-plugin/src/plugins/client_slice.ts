@@ -206,7 +206,7 @@ export function clientSlice(code: string, file: string, declarations: ClientDecl
       const specs = statement.specifiers.filter((spec) => selected.has(spec));
       if (!specs.length) continue;
       const source = String(statement.source.value);
-      if (source.startsWith("node:") || source === "@humjs/core") fail(`client declaration depends on server import "${source}".`);
+      if (source.startsWith("node:") || source === "@humjs/core" || source === "@humjs/core/build") fail(`client declaration depends on server import "${source}".`);
       const names = specs.filter((spec) => spec.type === "ImportSpecifier").map((spec) => code.slice(spec.start, spec.end));
       const other = specs.filter((spec) => spec.type !== "ImportSpecifier").map((spec) => code.slice(spec.start, spec.end));
       if (names.length) other.push(`{ ${names.join(", ")} }`);

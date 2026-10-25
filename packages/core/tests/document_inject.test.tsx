@@ -1,16 +1,13 @@
 import { h } from "preact";
 import { describe, expect, it } from "vitest";
 
-import { BuildCache } from "../src/build_cache.js";
+import { BuildCache } from "../src/server/build_cache.js";
 import {
   DefaultApp,
   renderDocument,
   renderDocumentStream,
-} from "../src/runtime/server/document.js";
-import {
-  RenderState,
-  withRenderState,
-} from "../src/runtime/server/preact_hooks.js";
+} from "../src/server/document.js";
+import { RenderState, withRenderState } from "../src/server/preact_hooks.js";
 
 function createState(pathname = "/"): RenderState {
   return new RenderState({

@@ -23,7 +23,7 @@ describe("automatically linked stylesheet imports", () => {
       }),
       routes: {
         "index.tsx": `
-import { Partial } from "@humjs/core/shared";
+import { Partial } from "@humjs/core/client";
 import "../page.css";
 import icon from "../icon.svg";
 import download from "../download.css?url";
@@ -98,7 +98,7 @@ describe("CSS Modules", () => {
       routes: {
         "index.tsx": `import styles from "../page.module.css";
 import { Card } from "../Card";
-import { Partial } from "@humjs/core/shared";
+import { Partial } from "@humjs/core/client";
 export const config = {render: {mode: "ssg"}};
 export default () => <Partial name="content"><main class={styles.card}><Card/>CSS_PAGE_SENTINEL</main></Partial>;`,
         "_layout.tsx": `import styles from "../layout.module.css"; export default ({children}) => <section class={styles.layout}>{children}</section>;`,
@@ -164,8 +164,8 @@ it("includes shared static chunk CSS in every island asset descriptor", async ()
     entry: "app",
     routes: {"index.tsx": 'import One from "../islands/One"; import Two from "../islands/Two"; export default () => <main><One/><Two/></main>;'},
     files: {
-      "islands/One.tsx": 'import { defineIsland } from "@humjs/core/shared"; import { Shared } from "../Shared"; export default defineIsland(() => <Shared/>);',
-      "islands/Two.tsx": 'import { defineIsland } from "@humjs/core/shared"; import { Shared } from "../Shared"; export default defineIsland(() => <Shared/>);',
+      "islands/One.tsx": 'import { defineIsland } from "@humjs/core/client"; import { Shared } from "../Shared"; export default defineIsland(() => <Shared/>);',
+      "islands/Two.tsx": 'import { defineIsland } from "@humjs/core/client"; import { Shared } from "../Shared"; export default defineIsland(() => <Shared/>);',
       "Shared.tsx": 'import styles from "./shared.module.css"; export const Shared = () => <button class={styles.shared}>shared island</button>;',
       "shared.module.css": '.shared { border: 2px solid red; }',
     },

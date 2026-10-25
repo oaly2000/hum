@@ -27,7 +27,7 @@ const buildExample = `npm run build
 npm start`;
 
 const islandExample = `// components/Counter.tsx — no special directory required
-import { defineIsland } from "@humjs/core/shared";
+import { defineIsland } from "@humjs/core/client";
 import { useSignal } from "@preact/signals";
 
 export const Counter = defineIsland(({ start = 0 }: { start?: number }) => {

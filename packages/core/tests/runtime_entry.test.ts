@@ -7,9 +7,10 @@ import { Hono } from "hono";
 import { h } from "preact";
 import { describe, expect, it } from "vitest";
 
-import type { ProdManifest } from "../src/build.js";
-import { defineBuild, mountHum } from "../src/mod.js";
-import { tagIsland } from "../src/routing/island_tag.js";
+import type { ProdManifest } from "../src/build/registry.js";
+import { defineBuild } from "../src/build.js";
+import { mountHum } from "../src/mod.js";
+import { tagIsland } from "../src/shared/island_tag.js";
 import type { HumManifest } from "../src/types.js";
 
 /** A path that holds no project, so any disk read of it would fail. */

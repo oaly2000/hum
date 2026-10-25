@@ -5,16 +5,12 @@ import { signal, type Signal } from "@preact/signals";
 import { describe, expect, it, vi } from "vitest";
 
 import { parse } from "../src/jsonify/parse.js";
-import {
-  boot,
-  CUSTOM_PARSER,
-  domToVNode,
-  Marker,
-  SignalText,
-  type Payload,
-} from "../src/runtime/client/reviver.js";
-import { add, setFromProp, setValue } from "../src/runtime/events.js";
-import type { AnyVNode } from "../src/runtime/shared_internal.js";
+import { boot } from "../src/runtime/boot.js";
+import { CUSTOM_PARSER } from "../src/runtime/payload.js";
+import { domToVNode, Marker, SignalText } from "../src/runtime/dom.js";
+import { type Payload } from "../src/protocol/payload.js";
+import { add, setFromProp, setValue } from "../src/shared/events.js";
+import type { AnyVNode } from "../src/shared/preact.js";
 import { renderFragment as renderServer } from "./helpers/ssr.js";
 import { flush, setupClientCleanup } from "./helpers/client.js";
 
