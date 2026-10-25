@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import type { AddressInfo } from "node:net";
 
 import { join } from "node:path";
@@ -114,6 +114,22 @@ export default function Page({ data }) {
         request = (path) => built.default.fetch(new Request(`http://localhost${path}`));
         const asset = built.default.hum.build.prod.factories[factoryId("routes/index.tsx", "bump")];
         client = await readFile(join(root, "dist", "public", "_hum", asset.file), "utf8");
+        const assetsDirectory = join(root, "dist", "public", "_hum", "assets");
+        const assets = await readdir(assetsDirectory);
+        // Discovery is build-only; framework helpers share the actual runtime.
+        expect(assets.some(file => /^(islands|events|preload-helper)-/.test(file))).toBe(false);
+        expect(assets.filter(file => /^runtime-.*\.js$/.test(file))).toHaveLength(1);
+        const runtimeFile = built.default.hum.build.prod.clientEntry;
+        const runtime = await readFile(join(root, "dist", "public", "_hum", runtimeFile), "utf8");
+        expect(client).toContain(runtimeFile.split("/").at(-1));
+        expect(runtime).not.toContain(factoryId("routes/index.tsx", "bump"));
+        // Every emitted chunk's relative imports must still resolve after pruning.
+        for (const file of assets.filter(file => file.endsWith(".js"))) {
+          const source = await readFile(join(assetsDirectory, file), "utf8");
+          for (const match of source.matchAll(/(?:from\s*|import\s*\(\s*|import\s*)["'`](\.\/[^"'`]+)["'`]/g)) {
+            expect(assets, `${file} imports ${match[1]}`).toContain(match[1]!.slice(2));
+          }
+        }
         expect(built.default.hum.build.prod.islands[islandId("routes/index.tsx", "Counter")].file).toBe(asset.file);
         // The server route keeps its own output path; client slices do not occupy it.
         if (mode === "production") expect(await readFile(join(root, "dist", "routes", "index.js"), "utf8")).toContain("SERVER_ONLY_SENTINEL");
@@ -215,11 +231,52 @@ export default function Page({ data }) {
       for (const binding of ["Counter", "Toggle", "default"]) {
         expect(html).toContain(`hum:island:${islandId("components/Counter.tsx", binding)}:`);
       }
-      expect(html).toMatch(/import\("\/_hum\/assets\/Counter-[^"]+\.js"\)/);
+      expect(html).toMatch(/import\("\/_hum\/assets\/client-components-Counter-[^"]+\.js"\)/);
+      const assets = await readdir(join(root, "dist", "public", "_hum", "assets"));
+      expect(assets.filter(file => /^client-components-Counter-.*\.js$/.test(file))).toHaveLength(1);
       expect(html).not.toContain("/components/Counter.tsx");
       const partial = await (await built.default.fetch(new Request("http://localhost/?_hum_partial=true"))).text();
       expect(partial).toContain(islandId("components/Counter.tsx", "Toggle"));
       expect(partial).toContain("__HUM_STATE__");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it.each(["production", "standalone", "custom"])("names imported islands by their declaring files (%s)", async (mode) => {
+    const root = await project("export default () => null;", `
+import { First, Second } from "../components/index.js";
+export default function Page() { return <main><First/><Second/></main>; }
+`);
+    try {
+      await mkdir(join(root, "components", "first"), { recursive: true });
+      await mkdir(join(root, "components", "second"), { recursive: true });
+      for (const directory of ["first", "second"]) {
+        await writeFile(join(root, "components", directory, "Counter.tsx"), ISLAND);
+      }
+      await writeFile(join(root, "components", "index.ts"), `
+export { default as First } from "./first/Counter.js";
+export { default as Second } from "./second/Counter.js";
+`);
+      await build({
+        root, configFile: false, plugins: [hum({ standalone: mode === "standalone" })], logLevel: "silent",
+        ...(mode === "custom" ? { build: { rolldownOptions: { output: { chunkFileNames: "assets/custom-[name]-[hash].js" } } } } : {}),
+      });
+      const { default: app } = await import(pathToFileURL(join(root, "dist", "server.js")).href);
+      const html = await (await app.request("http://localhost/")).text();
+      const files = new Set<string>();
+      for (const directory of ["first", "second"]) {
+        const id = islandId(`components/${directory}/Counter.tsx`, "default");
+        const file = app.hum.build.prod.islands[id].file;
+        files.add(file);
+        if (mode === "custom") expect(file).toMatch(/^assets\/custom-/);
+        else expect(file).toMatch(new RegExp(`^assets/client-components-${directory}-Counter-[^/]+\\.js$`));
+        expect(html).toContain(`import("/_hum/${file}")`);
+        expect(await readFile(join(root, "dist", "public", "_hum", file), "utf8")).toContain(id);
+      }
+      expect(files.size).toBe(2);
+      const assets = await readdir(join(root, "dist", "public", "_hum", "assets"));
+      expect(assets.some(file => file.startsWith("client-components-index-"))).toBe(false);
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -352,10 +409,10 @@ describe("islands reach the client from either pass", () => {
       expect(html).toContain("<!--/hum:island-->");
       // The same island, addressed through the assets the build published.
       expect(html).toMatch(
-        /"i_[a-f0-9]+":\(\)=>import\("\/_hum\/assets\/Counter-[^"]+\.js"\)/,
+        /"i_[a-f0-9]+":\(\)=>import\("\/_hum\/assets\/client-islands-Counter-[^"]+\.js"\)/,
       );
       expect(html).not.toMatch(
-        /rel="modulepreload" href="[^"]*Counter-/,
+        /rel="modulepreload" href="[^"]*client-islands-Counter-/,
       );
       expect(html).not.toContain("/islands/Counter.tsx");
     } finally {

@@ -8,7 +8,10 @@ import { buildProject, exists, serverSources } from "../helpers/build.js";
 describe("the default production artifact", () => {
   let root: string;
   beforeAll(async () => {
-    root = await buildProject();
+    root = await buildProject({ configure: () => ({
+      build: { sourcemap: true },
+      environments: { ssr: { build: { sourcemap: false } } },
+    }) });
   });
   afterAll(async () => {
     if (root) await rm(root, { recursive: true, force: true });
@@ -39,6 +42,12 @@ describe("the default production artifact", () => {
       .sort();
     expect(assets).toEqual(["assets"]);
     expect(await exists(join(root, outDir, "robots.txt"))).toBe(false);
+    const files = await readdir(join(root, outDir, "public", "_hum", "assets"));
+    expect(files.some(file => /^islands-/.test(file))).toBe(false);
+    expect(files.some(file => file.endsWith(".js.map"))).toBe(true);
+    for (const map of files.filter(file => file.endsWith(".js.map"))) {
+      expect(files).toContain(map.slice(0, -4));
+    }
   });
 
   it("defaults the output directory to dist", async () => {

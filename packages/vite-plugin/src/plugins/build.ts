@@ -1,8 +1,9 @@
 import { cp, readFile, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { spawn } from "node:child_process";
-import { join, relative, resolve, sep } from "node:path";
-import { pathToFileURL } from "node:url";
+import { dirname, join, relative, resolve, sep } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import type { PreRenderedChunk } from "rolldown";
 
 import type { GeneratedPage, ProdManifest } from "@humjs/core";
 import { createBuilder, type Plugin, type UserConfig, type ViteBuilder } from "vite";
@@ -99,6 +100,18 @@ interface ClientManifestEntry {
   file: string;
   css?: string[];
   imports?: string[];
+  dynamicImports?: string[];
+}
+
+// These helpers are already required by the runtime. Keep them with its entry
+// without pulling Preact/signals or application declarations into that chunk.
+const coreDirectory = dirname(fileURLToPath(import.meta.resolve("@humjs/core"))).replace(/\\/g, "/");
+
+function runtimeModule(id: string): boolean {
+  const path = id.replace(/\\/g, "/");
+  return path.endsWith("/" + CLIENT_RUNTIME_ENTRY) ||
+    path.startsWith(coreDirectory + "/") ||
+    path === "\0vite/preload-helper.js";
 }
 
 /** Include CSS owned by shared static chunks, in dependency order. */
@@ -173,6 +186,7 @@ function serverBuildConfig(options: ResolvedHumOptions, outDir: string, standalo
       } : {
         format: "es" as const,
         preserveModules: true,
+        codeSplitting: undefined,
         preserveModulesRoot: options.root,
         virtualDirname: "_generated",
         entryFileNames: "[name].js",
@@ -197,17 +211,7 @@ function serverBuildConfig(options: ResolvedHumOptions, outDir: string, standalo
  * instead of being written to a file, which is what keeps the runtime — and the
  * deployed app — free of any file system lookup.
  */
-async function prodManifest(ctx: HumContext): Promise<ProdManifest> {
-  const options = ctx.options;
-  const clientOut = join(options.root, buildPaths(options).client);
-
-  const clientManifest = JSON.parse(
-    await readFile(
-      join(clientOut, ".vite", "manifest.json"),
-      "utf8",
-    ),
-  ) as Record<string, ClientManifestEntry>;
-
+function prodManifest(ctx: HumContext, clientManifest: Record<string, ClientManifestEntry>): ProdManifest {
   const runtime = clientManifest[CLIENT_RUNTIME_ENTRY];
   if (runtime === undefined) {
     throw new Error(
@@ -250,7 +254,28 @@ async function assembleBuild(ctx: HumContext): Promise<ProdManifest> {
   const paths = buildPaths(ctx.options);
   const root = ctx.options.root;
 
-  const prod = await prodManifest(ctx);
+  const manifest = JSON.parse(await readFile(join(root, paths.client, ".vite", "manifest.json"), "utf8")) as Record<string, ClientManifestEntry>;
+  const prod = prodManifest(ctx, manifest);
+  const reachable = new Set<string>();
+  function visit(key: string) {
+    if (reachable.has(key)) return;
+    reachable.add(key);
+    const entry = manifest[key];
+    for (const dependency of [...(entry?.imports ?? []), ...(entry?.dynamicImports ?? [])]) visit(dependency);
+  }
+  visit(CLIENT_RUNTIME_ENTRY);
+  for (const key of Object.keys(manifest)) {
+    if (key.endsWith("?" + CLIENT_SLICE_QUERY)) visit(key);
+  }
+  // The declarations entry only keeps lazy imports alive during compilation.
+  // Omit it unless chunking has made it a dependency of a real client entry.
+  const discovery = manifest[ISLANDS_ENTRY];
+  const privateFiles = new Set<string>();
+  if (discovery && !reachable.has(ISLANDS_ENTRY) &&
+    ![...reachable].some(key => manifest[key]?.file === discovery.file)) {
+    privateFiles.add(resolve(root, paths.client, discovery.file));
+    privateFiles.add(resolve(root, paths.client, discovery.file + ".map"));
+  }
   await cp(join(root, paths.client), resolve(root, paths.assets), {
     recursive: true,
     // The client manifest is build bookkeeping, not a client asset: the runtime
@@ -258,7 +283,7 @@ async function assembleBuild(ctx: HumContext): Promise<ProdManifest> {
     // runtime and it has no business being public. Node resolves a `cp` filter
     // against the source path only while its parent survives, so the directory
     // is named rather than pattern matched.
-    filter: (source) => !source.includes(`${sep}.vite`),
+    filter: (source) => !source.includes(`${sep}.vite`) && !privateFiles.has(resolve(source)),
   });
 
   if (existsSync(paths.projectPublic)) {
@@ -386,6 +411,8 @@ export function humBuild(ctx: HumContext): Plugin {
       sourceConfig ??= { ...config, build: { ...config.build }, environments: { ...config.environments } };
       await writeBuildEntries(ctx);
       await writePrerenderEntry(ctx);
+      const configuredOutput = config.build?.rolldownOptions?.output;
+      const chunkFileNames = !Array.isArray(configuredOutput) && configuredOutput?.chunkFileNames;
 
       return {
         appType: "custom",
@@ -399,7 +426,22 @@ export function humBuild(ctx: HumContext): Plugin {
           manifest: true,
           rolldownOptions: {
             input: { runtime: CLIENT_RUNTIME_ENTRY, islands: ISLANDS_ENTRY },
-            preserveEntrySignatures: "exports-only",
+            // Runtime helpers may add exports consumed by application slices.
+            preserveEntrySignatures: "allow-extension",
+            output: {
+              chunkFileNames: chunkFileNames || ((chunk: PreRenderedChunk) => {
+                const id = chunk.facadeModuleId;
+                let name = "[name]";
+                if (id?.endsWith("?" + CLIENT_SLICE_QUERY)) {
+                  const file = relative(options.root, id.split("?")[0]!).replace(/\\/g, "/");
+                  name = "client-" + file.replace(/\.[jt]sx?$/, "").replace(/[^a-zA-Z0-9_-]+/g, "-");
+                }
+                return `${config.build?.assetsDir ?? "assets"}/${name}-[hash].js`;
+              }),
+              codeSplitting: {
+                groups: [{ name: "runtime", test: runtimeModule, includeDependenciesRecursively: false }],
+              },
+            },
           },
         },
       };

@@ -1,7 +1,7 @@
 import type { ComponentChildren } from "preact";
 import type { RouteProps } from "@humjs/core";
 
-import ThemeToggle from "../_islands/ThemeToggle.js";
+import ThemeToggle from "../_components/ThemeToggle.js";
 
 /**
  * Sidebar entries, in reading order, labelled with each guide's own title. The

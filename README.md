@@ -1,68 +1,46 @@
 # Hum
 
-[![Documentation site hosted on Node.js](https://img.shields.io/badge/Documentation_site_hosted_on-Node.js-339933?logo=nodedotjs&logoColor=white)](https://hum.runasp.net/)
-[![Documentation site hosted on Cloudflare Workers](https://img.shields.io/badge/Documentation_site_hosted_on-Cloudflare_Workers-F38020?logo=cloudflare&logoColor=white)](https://hum-docs.oaly2000.workers.dev/)
+[![Node.js docs](https://img.shields.io/badge/Documentation-Node.js-339933?logo=nodedotjs&logoColor=white)](https://hum.runasp.net/)
+[![Cloudflare docs](https://img.shields.io/badge/Documentation-Cloudflare_Workers-F38020?logo=cloudflare&logoColor=white)](https://hum-docs.oaly2000.workers.dev/)
 
-Hum is a server-side rendering framework built on [Preact](https://preactjs.com)
-and [Hono](https://hono.dev).
+Hum is an ESM SSR framework built with [Preact](https://preactjs.com),
+[Hono](https://hono.dev) and Vite for Node.js and edge runtimes. It renders HTML
+on the server and adds client JavaScript for explicitly declared islands and
+reactive bindings. Inspired by [Fresh](https://usefresh.dev), including its
+[Partial](https://usefresh.dev/docs/advanced/partials) mechanism.
 
-Hum's Vite build requires Node.js 22.18 or later. Workspace development and
-the precompiled documentation site require Node.js 22.18 or later and pnpm.
-
-Most of its inspiration and a good part of its code come from
-[Fresh](https://usefresh.dev). It keeps Fresh's distinctive
-[Partial](https://usefresh.dev/docs/advanced/partials) mechanism and adds a few
-improvements and features of its own.
+Requires Node.js **22.18+** for development/builds. This workspace uses pnpm.
 
 ## Getting started
 
 ```sh
-pnpm dlx create-hum my-app     # or: npm create hum@latest my-app
+npm create hum@latest my-app
 cd my-app
 npm install
 npm run dev
 ```
 
-This starts the Vite development server. Open the URL it prints, then edit
-`routes/index.tsx` to change the home page. The generated project also includes
-a `Counter` island, example route handlers, and Tailwind CSS. For a guided
-walkthrough, see the [getting started guide](https://hum.runasp.net/docs/getting-started).
+Edit `routes/index.tsx`, then build and start with `npm run build` and `npm start`.
+The scaffold includes a Counter island, route handlers and Tailwind CSS.
 
-Build and run the generated Node app with:
-
-```sh
-npm run build
-npm start
-```
-
-The scaffold generates a project like this:
-
-```
+```text
 routes/
-  _app.tsx       document shell (html/head/body) + default head tags
-  _404.tsx       not found page
-  index.tsx      /
-  ...
-islands/
-  Counter.tsx    interactive component
-styles.css       global styles; imported by routes/_app.tsx
-public/          served from / in dev; copied into the build's public/
-app.ts           Hono app with middleware, APIs and explicit Hum mounting
-server.ts        Node entry; calls serve()
-vite.config.ts   plugins: [hum({ devEntry: "app.ts" }), tailwindcss()]
+  _app.tsx       HTML document shell; imports global CSS
+  _404.tsx       not-found page
+  index.tsx      home page
+islands/         example island components (placement is optional)
+public/          static files served from the site root
+styles.css       global styles
+app.ts           Hono app, middleware, APIs and Hum mounting
+server.ts        Node listener
+vite.config.ts   hum({ devEntry: "app.ts" }) and CSS plugins
 ```
 
-Projects use Vite for dev/build, and the build output runs with
-`node dist/server.js`. For a deployment that needs no installed npm dependencies,
-enable `standalone: true` in the Hum plugin options; see [Deployment](#deployment)
-for the build steps and dependencies that require a different approach.
+[Getting started guide](https://hum.runasp.net/docs/getting-started)
 
-The production build preserves your entry's exports and top-level code.
-Node's `server.ts` imports the app and calls
-`serve({ fetch: app.fetch })`; a Worker exports its app for the platform to call.
-Hum does not invoke a special startup export or mount routes on your behalf.
+## Application and deployment
 
-Create the application explicitly:
+Create the app, register middleware/APIs, then mount Hum once:
 
 ```ts
 // app.ts
@@ -76,155 +54,62 @@ await mountHum(app, config);
 export default app;
 ```
 
-The virtual build module registers routes, islands and client assets, and exports
-`config` with the plugin's route directory, base path and dev
-mode. Register middleware and API routes before mounting Hum. Hum owns the app's
-404 handler; Hono API errors keep using the app's `onError`.
+`serverEntry` defaults to `server.ts`. Node entries import the app and call
+`serve({ fetch: app.fetch })` from `@hono/node-server`. Set `devEntry: "app.ts"`
+so development and prerendering load the mounted app without starting a listener.
+Hum handles page errors/404s; API errors use your Hono `onError`.
 
-The plugin defaults `serverEntry` to `server.ts`. For Node, configure
-`hum({ devEntry: "app.ts" })` so Vite loads the app without executing the Node
-listener. `devEntry` defaults to `serverEntry` and must default-export a Hono app;
-the production entry can use ordinary named exports or have no exports.
+Build output defaults to `dist/`: `server.js`, an ESM module tree and `public/`.
+Run `node dist/server.js` with production dependencies installed. Only `public/`
+is HTTP-accessible; project static files keep root URLs such as `/favicon.svg`.
+Enable `hum({ standalone: true })` to bundle server dependencies into relocatable
+ESM. Native addons and packages requiring installed files need external dependencies.
 
-`pnpm dlx create-hum my-worker --template cloudflare` scaffolds a Worker whose
-`server.ts` explicitly mounts Hum and exports the app. Its Vite configuration
-selects `standalone: true`. Development uses that same
-entry inside workerd. `wrangler.jsonc` points production at `dist/server.js` and
-publishes `dist/public` through the platform's asset binding. Select another
-production entry with
-`hum({ serverEntry: "server.cloudflare.ts", standalone: true })`.
+For Workers, run `pnpm dlx create-hum my-worker --template cloudflare`. Its entry
+mounts Hum and exports the app; development uses workerd. Wrangler deploys
+`dist/server.js` with `dist/public` as platform assets.
 
-Existing projects should move their app setup into `app.ts`, add the explicit
-`mountHum` call above, set `devEntry`, and replace `export function start(app)`
-with a normal top-level `serve()` call in `server.ts`. Worker entries only need
-the explicit mount; a separate `dev-worker.ts` is no longer needed.
+[Deployment guide](https://hum.runasp.net/docs/deployment)
 
-## Deployment
+## Routes and handlers
 
-See the [deployment guide](https://hum.runasp.net/docs/deployment) for standalone
-builds, installing production dependencies, and deploying monorepos with local
-packages.
+| File | URL / purpose |
+| --- | --- |
+| `routes/index.tsx` | `/` |
+| `routes/blog/[id].tsx` | `/blog/:id` |
+| `routes/docs/[...slug].tsx` | `/docs/*`, zero or more segments |
+| `routes/[[lang]]/about.tsx` | `/about` or `/:lang/about` |
+| `routes/(group)/a.tsx` | `/a` |
+| `_app.tsx`, `_layout.tsx` | document shell, nested layout |
+| `_middleware.ts` | Hono middleware for the directory subtree |
+| `_error.tsx` / `_500.tsx`, `_404.tsx` | page errors, unmatched paths |
 
-## Static files
+Static matches take precedence. `_components/` and `_islands/` are excluded from
+routing. Directory middleware wraps pages and branch 404s; use `app.use()` for
+policies shared with API routes.
 
-Files in `public/` are served from the site root in development and copied into
-the build's `public/` directory, so `/favicon.svg` means the same file before
-and after a build. Only that directory is public: the server entry sits next to
-it, never inside it. Everything Hum itself publishes — the client runtime,
-island chunks, stylesheets — is already covered by the framework and does not
-belong in `public/`.
-
-## SSR, SSG and ISG
-
-Select rendering on each page through `define.config`; the default is SSR:
-
-```ts
-// routes/posts/[slug].tsx
-export const config = define.config({
-  render: { mode: "ssg", slugs: ["hello", "getting-started"] },
-});
-```
-
-SSG generates listed paths during `vite build`; a route without parameters is
-included automatically. Dynamic SSG routes require `slugs`, and `[]` generates
-no pages. A single parameter accepts slug values or absolute paths. Multiple
-parameters require full paths, for example `/en/posts/hello` for
-`/[lang]/posts/[slug]`. Invalid, duplicate and shadowed paths fail the build;
-requests outside an SSG table return 404.
-
-ISG can pre-generate a table and generate other paths on their first request:
-
-```ts
-export const config = define.config({
-  render: { mode: "isg", revalidate: 60, slugs: ["hello"] },
-});
-```
-
-`revalidate` is a positive lifetime in seconds. Set `fallback: false` to return
-404 for paths outside the table. Without a background executor, expired pages
-update before the response; with one, they return the old version while updating.
-A failed update keeps the previous output. Concurrent generation of one path is
-combined within a service.
-
-Configure storage and scheduling in the application entry:
-
-```ts
-import { createPageService, mountHum } from "@humjs/core";
-import { config } from "virtual:hum/build";
-
-const pages = createPageService();
-await mountHum(app, { ...config, pages });
-```
-
-`mountHum` supplies this default in-memory service when `pages` is omitted.
-For persistent ISG output, pass a `store` with `get(key)` and `set(key, page)`;
-writes must atomically publish a whole page and keys include the build ID.
-Cross-instance generation coordination belongs to the adapter. Worker entries
-can provide `background: (task, c) => c.executionCtx.waitUntil(task)`.
-
-The build uses `devEntry` as its app module and never starts the Node listener.
-It evaluates route configuration in Node; pre-generation handlers must work
-without deployment-only bindings. Set the canonical generation origin with
-`hum({ devEntry: "app.ts", prerenderOrigin: "https://example.com" })`; it defaults
-to `http://localhost`. The build loads the compiled app module and embeds
-generated responses in the generated build module; standalone output bundles
-that module with the server. These responses are served through Hono, including
-Partial navigation with the same shared
-payload graph. This output format requires the app server; it is not a pure
-static-hosting export.
-
-Static modes generate public GET pages without cookies, authorization or query
-parameters. Hono app middleware wraps every request; directory middleware and
-page handlers run when generating a page. Keep personalized content and
-request-specific route guards on SSR. Generation rejects non-200 responses,
-`Set-Cookie`, `Vary`, encoded responses and private or non-cacheable output.
-Streaming is supported only in SSR. Other HTTP methods retain their normal
-handlers. Development renders fresh pages regardless of mode; use a production
-build to verify static behavior.
-
-## File-based routing
-
-Every file under `routes/` produces a URL based on its relative path.
-
-| File path                     | URL                        |
-| ----------------------------- | -------------------------- |
-| `routes/index.tsx`            | `/`                        |
-| `routes/about.tsx`            | `/about`                   |
-| `routes/blog/[id].tsx`        | `/blog/:id`                |
-| `routes/docs/[...slug].tsx`   | `/docs/*` (zero or more)   |
-| `routes/[[lang]]/about.tsx`   | `/about` or `/:lang/about` |
-| `routes/(marketing)/a.tsx`    | `/a`                       |
-
-- `[id].tsx` matches a single dynamic segment, read through Hono's context.
-- `[[id]].tsx` is an optional segment: the route matches with or without it.
-- `[...slug].tsx` is a wildcard segment, matching zero or more remaining
-  segments.
-- `(group)/` directories are transparent groups; they never appear in the URL.
-- Static routes take precedence over dynamic matches.
-
-**Special files** contribute extra behavior through the route tree:
-
-- `_app.tsx` — the outer document shell (`<html>`, `<head>`, `<body>`); the
-  deepest one in the tree wins.
-- `_layout.tsx` — wraps pages in its directory and below; layouts nest from the
-  routes root down to the matched route.
-- `_middleware.ts` — applies to routes below it (see [Middleware](#middleware)).
-- `_error.tsx` (alias `_500.tsx`) — renders route errors.
-- `_404.tsx` — handles unmatched paths under its directory subtree.
-
-Outside `routes/`, `app.ts` creates your Hono app and `server.ts` starts it on Node.
-The `public/` directory holds static files served unchanged. Import stylesheets
-directly from `_app.tsx`, layouts, pages or components; Hum discovers and links
-them automatically. No user client entry is needed.
-
-Directories named `_components/` and `_islands/` are excluded from route
-discovery, so you can co-locate reusable components with a route branch and
-import them by relative path.
-
-Declare an island explicitly at module scope:
+Handlers receive Hono `Context`; return a Response or `page(data, options)`:
 
 ```tsx
-// components/Counter.tsx
+import { define, page } from "@humjs/core";
+
+export const handlers = define.handlers({
+  GET: async (c) => page({ title: `Post ${c.req.param("id")}` }),
+});
+
+export default define.page<{ title: string }>(({ data }) => <h1>{data.title}</h1>);
+```
+
+Export `head` as JSX or a function of route props to override document head tags.
+See [routing](https://hum.runasp.net/docs/routing),
+[handlers/forms](https://hum.runasp.net/docs/handlers) and
+[Hono middleware](https://hum.runasp.net/docs/hono).
+
+## Islands and page-level reactivity
+
+Declare islands at module scope, then import/render them like ordinary components:
+
+```tsx
 import { defineIsland } from "@humjs/core/shared";
 import { useSignal } from "@preact/signals";
 
@@ -234,355 +119,79 @@ export const Counter = defineIsland(({ start = 0 }: { start?: number }) => {
 });
 ```
 
-Import `Counter` into a page and use `<Counter start={3} />`. The Vite plugin
-generates its ID and client registration; there is no ID argument or manual
-client-entry import. Named and default exports work, and one module can
-declare multiple islands. Exporting is optional for declarations used within the
-same module. Declarations can share a route file with server handlers:
-Hum extracts their same-file helpers, constants and used imports into a browser
-module, leaving unrelated handlers and server imports on the server. Dependencies
-of the extracted declaration must be browser-safe; external modules are imported
-normally and are not recursively split. Use props for request-specific data.
+Named/default exports, re-exports and multiple declarations per module work;
+exports are optional for local use. Declarations can live beside server handlers:
+Hum extracts their used same-file dependencies into client slices. Imported
+modules must be browser-safe; unsupported mutable/effectful dependencies fail
+compilation. Pass request-specific data through props/arguments.
 
-The first version supports top-level functions and `const` dependencies. Effectful
-constant initializers, module-level mutable state, local classes/runtime TypeScript
-enums, and non-CSS bare side-effect imports require moving the dependency into a
-browser-safe imported module or initialization into the component/factory. Hum
-reports unsupported dependencies during client compilation.
+IDs derive from declaration file/binding; aliases and body edits preserve them,
+while moves/renames can change them. No manual ID, client entry or special directory
+is needed. Independent roots hydrate within 200px of the viewport; roots owned by
+partials/reactive elements load eagerly. Missing observer support falls back to eager.
 
-IDs follow the project-relative module path and declaration binding (`default`
-for an inline default export). Body edits and re-export aliases retain the ID;
-moving the declaration or renaming its binding can change it. Only explicit
-`defineIsland` declarations are islands: directory placement and plain default
-exports do not register components. The former `islandsDir` option is removed.
+For page-level signals and DOM handlers, use `signal` from `@preact/signals` and
+`add`, `setValue`, `toggle`, `setFromProp` from `@humjs/core/events`. Custom handlers
+use module-level `defineFactory(fn)`; pass signals/data as arguments rather than
+serializing closures. Hum loads used factories automatically and preserves shared
+signal identity across islands, bindings and partials.
 
-Standalone island modules are loaded when their server-rendered root is within
-200 pixels of the viewport, then hydrated. Until that point the HTML is visible
-but its island behavior is not active. If `IntersectionObserver` is unavailable
-or the island has no observable element, Hum activates it eagerly. An island
-whose markup is owned by a partial or a page-level reactive element is loaded
-eagerly so its enclosing Preact tree can be restored.
+[Reactivity and factory examples](https://hum.runasp.net/docs/facets)
 
-### Head tags and SEO
+## Partial navigation
 
-Fresh's `head` injection mechanism is fairly complex; Hum improves on it. `head`
-is exported by each route file and can be a JSX fragment or a function that
-receives the route props; it overrides the defaults from `_app.tsx` by tag.
+Wrap update regions in named `Partial` components and opt in on an ancestor:
 
 ```tsx
-export const head = define.head(<title>Home</title>); // `define` is just a helper for type checking
-
-export function head({ params }: RouteProps) {
-  return <title>Blog {params.id}</title>;
-}
-```
-
-### handlers and forms
-
-Export a `handlers` object keyed by HTTP method. Each handler receives the raw
-Hono `Context` and can either return a `Response` or render the page in the same
-file with `page(data)`. When no `handlers` is defined, the default-exported view
-is rendered.
-
-```tsx
-import { define, page, type Handlers } from "@humjs/core";
-
-export const handlers: Handlers = {
-  GET: async (c) => {
-    const post = await loadPost(c.req.param("id"));
-    return page({ post });
-  },
-  POST: async (c) => {
-    const form = await c.req.formData();
-    await savePost(form);
-    return c.redirect("/blog");
-  },
-};
-
-export default define.page<{ post: { title: string } }>(({ data }) => (
-  <article><h1>{data.post.title}</h1></article>
-));
-```
-
-### Middleware
-
-`_middleware.ts` is a directory-scoped mount point for Hono middleware: the
-default export is a [Hono middleware](https://hono.dev/docs/guides/middleware),
-and the directory the file lives in decides where it runs. It applies to Hum
-file routes in that directory and below, parent middleware is inherited, and the
-chain runs from the routes root down to the matched route, wrapping the route's
-`handlers` and its default view. It also wraps the `_404` render for unmatched
-paths under its directory, so a branch guard covers typos in that branch too. It
-does not apply to Hono API routes declared in `app.ts`.
-
-```ts
-// routes/admin/_middleware.ts
-import { define } from "@humjs/core";
-
-export default define.middleware(async (c, next) => {
-  const session = await getSession(c.req.raw);
-  if (!session) {
-    return c.redirect("/login"); // returning a Response short-circuits
-  }
-  c.set("user", session.user);
-  await next();
-});
-```
-
-For app-wide or URL-prefix policy, register Hono middleware with `app.use()` in
-`app.ts` instead. That is the general alternative: it wraps both Hum pages and
-Hono API routes, and a path pattern selects what it applies to. Reach for
-`_middleware.ts` only when the policy belongs to a branch of Hum's route tree,
-such as a URL-transparent `(group)/` directory, which a Hono path pattern cannot
-express.
-
-```ts
-// app.ts
-import { mountHum } from "@humjs/core";
-import { config } from "virtual:hum/build";
-
-const app = new Hono();
-
-app.use("/api/*", cors());
-app.use("*", async (c, next) => {
-  const start = performance.now();
-  await next();
-  c.header("x-response-time", `${(performance.now() - start).toFixed(1)}ms`);
-});
-
-await mountHum(app, config);
-export default app;
-```
-
-Hum is explicitly mounted after the application middleware and API routes.
-API errors raised by Hono are still handled by the app's
-`onError`, while Hum errors render `_error.tsx`.
-
-### Client navigation and Partial
-
-Wrap the part of the page that should update in a named `Partial`, then opt in
-to client navigation on an ancestor. Links inside it fetch and render the
-destination on the server; Hum replaces the matching partial while leaving the
-rest of the page in place.
-
-```tsx
-import type { RouteProps } from "@humjs/core";
 import { Partial } from "@humjs/core/shared";
 
-const topics: Record<string, string> = {
-  preact: "Preact renders the page on the server.",
-  hono: "Hono handles the request and response.",
-};
-
-export default function TopicsPage({ url }: RouteProps) {
-  const topic = url.searchParams.get("topic") ?? "preact";
-
-  return (
-    <main data-hum-client-nav>
-      <nav>
-        <a href="/topics?topic=preact">Preact</a>
-        {" · "}
-        <a href="/topics?topic=hono">Hono</a>
-      </nav>
-
-      <Partial name="topic">
-        <p>{topics[topic] ?? "Choose a topic."}</p>
-      </Partial>
-    </main>
-  );
+export default function Page() {
+  return <main data-hum-client-nav>
+    <a href="/topics?topic=hono">Hono</a>
+    <Partial name="topic"><p>Current topic</p></Partial>
+  </main>;
 }
 ```
 
-**Note:** The opt-in attribute is `data-hum-client-nav` instead of fresh's `f-client-nav`; setting it to `"false"` switches
-client navigation off for that subtree.
+Links/forms fetch server-rendered partials and replace matching regions.
+`data-hum-client-nav="false"` opts a subtree out. Successful updates reconcile
+history; failures retain the current page/URL. View Transitions are used when
+available. [Partial guide](https://hum.runasp.net/docs/partials)
 
-### Interactive runtime model
+## Rendering modes
 
-Hum coordinates interactive DOM ownership through one client-side
-`InteractionManager`. All three unit kinds (`island`, `partial`, and `binding`)
-use Preact VNode trees; `@preact/signals` provides signal tracking and reactive
-updates within those trees. Islands, Partial roots, and page-level element facets
-act as hosts; signals and handlers are reactive bindings that can live inside
-any host. A signal outside every host gets a standalone binding range. The
-InteractionManager treats page-level element facets and unhosted signal ranges
-alike as `binding` units; signal children inside a host are revived as part of
-its tree. Each signal use gets a `SignalText` VNode boundary around the shared
-signal value, so multiple trees can subscribe independently without sharing
-VNode bookkeeping. Island and Partial roots mount before binding units. The
-manager coordinates ownership checks, mounting, Partial update routing,
-scheduling, and cleanup; Preact and Signals handle rendering and reactive updates.
-
-```mermaid
-flowchart TD
-  SSR["Server render"] --> HTML["HTML + shared payload"]
-  HTML --> MANAGER["InteractionManager<br/>DOM ownership, scheduling and cleanup"]
-  MANAGER --> ISLAND["island"]
-  MANAGER --> PARTIAL["partial"]
-  MANAGER --> BINDING["binding"]
-  ISLAND --> PREACT["Preact + @preact/signals<br/>Rendering and reactive updates"]
-  PARTIAL --> PREACT
-  BINDING --> PREACT
-  PREACT --> DOM["Interactive DOM"]
-
-  NAV["Client navigation<br/>Partial response"] -->|"Update owning unit"| MANAGER
-```
-
-On successful client navigation, link clicks add a history entry, while form
-submissions reconcile the URL only after the partial response has been applied.
-A failed link or form request leaves the current URL and rendered page in place.
-Browsers with the View Transitions API animate the committed DOM update; other
-browsers use the same update path without a transition.
-
-### Page-level reactivity
-
-A page-level facet is a signal or a handler bound to a single node of the page's
-markup. A signal written into the markup is bound in the browser without a
-component of your own: render it as a child and it stays a live text node, pass it
-as a prop and the matching DOM property follows it, and point a handler at it to
-write back.
-The server renders the value into that response—so it may come from the
-request—and the client revives its own copy from the payload. State that has to
-survive a re-render, hooks, and anything else a component instance owns is still
-island work.
-
-```tsx
-import { signal } from "@preact/signals";
-import { add, setFromProp } from "@humjs/core/events";
-
-export default function Checkout() {
-  const tickets = signal(2);
-
-  return (
-    <form>
-      <button type="button" onClick={add(tickets, -1, { min: 1, max: 8 })}>−</button>
-      <output>{tickets}</output>
-      <button type="button" onClick={add(tickets, 1, { min: 1, max: 8 })}>+</button>
-      <input type="number" value={tickets} onInput={setFromProp(tickets, "value")} />
-    </form>
-  );
-}
-```
-
-A handler is rebuilt in the browser, so it travels as a factory ID plus the
-arguments it was called with; a closure cannot be serialized and throws at render
-time. `@humjs/core/events` ships `add(signal, delta, options)`,
-`setValue(signal, value)`, `toggle(signal)` and `setFromProp(signal, key)`; a
-handler of your own is a factory created with `defineFactory(fn)`.
+SSR is the default. Select SSG or ISG per page:
 
 ```ts
-// routes/checkout.tsx — alongside its page and server handlers
-import { defineFactory } from "@humjs/core/events";
-import type { Signal } from "@preact/signals";
+import { define } from "@humjs/core";
 
-/** Resets both options at once; each built-in factory drives one signal. */
-const resetOrder = defineFactory(
-  (
-    tickets: Signal<number>,
-    giftWrap: Signal<boolean>,
-    defaults: { tickets: number; giftWrap: boolean },
-  ) =>
-    () => {
-      tickets.value = defaults.tickets;
-      giftWrap.value = defaults.giftWrap;
-    },
-);
-```
-
-Declare the factory at module scope; exporting is optional. Hum generates its ID
-from the project-relative file path and variable name, and uses the same code
-extraction as islands and automatically loads modules for factories used by the
-response before restoring its payload, including partial navigation. No manual
-client-entry import is needed for project declarations. Pass request-specific
-data and signals as arguments instead of capturing them in a module closure.
-
-See Hum's [documentation](https://hum.runasp.net/docs/facets) and its
-[source](./packages/docs/routes/docs/facets.tsx).
-
-### Stylesheets
-
-Import styles directly. Put global CSS in `_app.tsx`, shared CSS in
-`_layout.tsx`, and page-specific CSS in the page or its components:
-
-```tsx
-import "../styles.css";
-```
-
-Hum adds stylesheet links to the document head automatically. Vite processes
-Tailwind/PostCSS, `@import` and referenced assets. Production stylesheets are
-hashed and published under `/_hum/assets/`; development serves them through
-Vite with stylesheet HMR. This works for pages without islands or client-side
-JavaScript. No stylesheet `head` export or client entry is needed.
-
-Partial navigation waits for new stylesheets before updating the DOM and reuses
-loaded URLs. Existing styles remain loaded for surviving layouts and partials;
-page-level loading does not scope ordinary CSS selectors.
-
-For scoped styles, import a CSS Module directly:
-
-```tsx
-import styles from "./page.module.css";
-
-export default function Page() {
-  return <main class={`${styles.page} p-4`}>Hello</main>;
-}
-```
-
-Hum automatically links ordinary CSS and CSS Modules from the active app, layouts, page and
-static component dependencies, including error and 404 views. This works in
-SSR, streaming, SSG and ISG, with or without islands. Partial responses carry the
-same stylesheet links. Production CSS and referenced assets use the configured
-base path; server chunk merging does not combine unrelated pages' styles.
-CSS Modules edits reload the page in development so scoped class names in the
-HTML stay consistent. Ordinary linked styles retain Vite's stylesheet HMR.
-
-CSS Modules can share an element with Tailwind utilities. Tailwind v4 `@apply`
-inside a module can use `@reference "../styles.css"` to access the application's
-theme; continue importing that global stylesheet from `_app` because `@reference`
-does not emit its CSS. Vite's `composes` is supported, including across files;
-shared rules may appear in more than one emitted stylesheet. URL deduplication
-does not remove duplicate rules. Imports reachable only through dynamic
-`import()` are not included in automatic route stylesheet discovery; keep SSR
-style dependencies static.
-
-The former `clientEntry` option and automatic `client/main.ts` import are removed.
-Move global CSS imports into `_app.tsx`; project event factories are
-loaded automatically from `defineFactory` declarations.
-
-### Streaming
-
-Streaming SSR is an optional advanced capability. In some cases `handlers` may
-need to load slow data, which means nothing is returned until that data is
-ready — hardly ideal. Streaming rendering can be enabled through an optional
-config.
-
-```tsx
-import {
-  createResource,
-  define,
-  page,
-  Suspense, // a wrapper around Preact's Suspense component and error boundary
-  type Resource,
-} from "@humjs/core";
-
-type PageData = { profile: Resource<{ name: string }> };
-
-export const config = define.config({ streaming: true }); // config
-
-export const handlers = define.handlers({
-  GET: (c) => page({
-    profile: createResource(loadProfile(c.req.param("id"))),
-  }),
+export const config = define.config({
+  render: { mode: "ssg", slugs: ["hello"] },
+  // Or: render: { mode: "isg", revalidate: 60, slugs: ["hello"] }
 });
-
-export default define.page<PageData>(({ data }) => (
-  <Suspense
-    resource={data.profile}
-    fallback={<p>Loading profile…</p>} // shown while the resource is pending
-    errorFallback={(error) => ( // the resource rejected or a child threw
-      <p role="alert">Could not load: {String(error)}</p>
-    )}
-  >
-    {(profile) => <ProfilePanel profile={profile} />}
-  </Suspense>
-));
 ```
+
+Dynamic SSG requires `slugs`; parameter-free routes generate automatically.
+ISG can generate unlisted paths on demand; `fallback: false` restricts the table.
+Failed regeneration retains old output. `mountHum` supplies an in-memory page
+service; use `createPageService({ store, background })` for persistence/background
+updates and `prerenderOrigin` for the canonical build origin.
+
+Generated pages are public GET responses without request-specific credentials or
+query parameters; keep personalized pages and guards on SSR. App middleware still
+runs on cache hits. Development always renders fresh pages. Builds embed HTML and
+partial responses and require the app server, not pure static hosting.
+
+[SSR/SSG/ISG guide](https://hum.runasp.net/docs/generation)
+
+## CSS and streaming
+
+Import CSS directly from `_app`, layouts, pages or components. Hum links static
+style dependencies automatically, including on pages without client JavaScript.
+Vite handles Tailwind/PostCSS, CSS Modules and assets. Partial navigation waits
+for new styles before updating DOM and retains loaded styles. Dynamic-only imports
+are outside automatic SSR style discovery; CSS Module edits reload dev HTML.
+
+Experimental streaming SSR uses `define.config({ streaming: true })`,
+`createResource` and Hum's `Suspense`; it is unavailable in SSG/ISG.
+[Streaming examples](https://hum.runasp.net/docs/streaming)

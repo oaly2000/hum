@@ -1,62 +1,66 @@
 @import "tailwindcss";
 
-/*
-  The palette is a set of variables, so a theme is a different set of values
-  rather than a second copy of every class: `bg-fg`/`text-bg` even swap roles
-  between the two, which is what keeps a button readable in both. The `.dark`
-  class on `<html>` picks the dark set, and an inline script in `_app.tsx`
-  applies it before the first paint so the page never flashes the wrong theme.
-*/
+/* Follow the system palette until the native checkbox selects its opposite.
+   This state belongs to the document; no client script or storage is needed. */
 :root {
-  --hum-bg: #fbfcf8;
-  --hum-fg: #17211b;
-  --hum-fg-soft: #465348;
-  --hum-fg-hover: #2e4033;
-  --hum-muted: #657168;
-  --hum-faint: #b7c1b8;
-  --hum-line: #e3eadb;
-  --hum-surface: #ffffff;
-  --hum-surface-2: #f4f8ec;
-  --hum-accent: #587d26;
-  --hum-accent-strong: #45651c;
-  --hum-accent-bg: #eff8d6;
-  --hum-danger: #651c1c;
-  --hum-danger-bg: #f8ecec;
-  --hum-danger-line: #e8c8c8;
-  --hum-glow-1: #e5f8a9;
-  --hum-glow-2: #eaf8ce;
-}
+  color-scheme: light;
+  --hum-theme-light-icon: block;
+  --hum-theme-dark-icon: none;
+  --hum-bg: light-dark(#fbfcf8, #0f1512);
+  --hum-fg: light-dark(#17211b, #e9eee9);
+  --hum-fg-soft: light-dark(#465348, #c2ccc3);
+  --hum-fg-hover: light-dark(#2e4033, #f4f8f3);
+  --hum-muted: light-dark(#657168, #98a59b);
+  --hum-faint: light-dark(#b7c1b8, #5f6d64);
+  --hum-line: light-dark(#e3eadb, #262f29);
+  --hum-surface: light-dark(#ffffff, #151c18);
+  --hum-surface-2: light-dark(#f4f8ec, #1a221d);
+  --hum-accent: light-dark(#587d26, #a8cf5e);
+  --hum-accent-strong: light-dark(#45651c, #c6e283);
+  --hum-accent-bg: light-dark(#eff8d6, #232f1c);
+  --hum-danger: light-dark(#651c1c, #ffb3b3);
+  --hum-danger-bg: light-dark(#f8ecec, #2a1719);
+  --hum-danger-line: light-dark(#e8c8c8, #4a2529);
+  --hum-glow-1: light-dark(#e5f8a9, #2d3a1e);
+  --hum-glow-2: light-dark(#eaf8ce, #1c2620);
 
-.dark {
-  --hum-bg: #0f1512;
-  --hum-fg: #e9eee9;
-  --hum-fg-soft: #c2ccc3;
-  --hum-fg-hover: #f4f8f3;
-  --hum-muted: #98a59b;
-  --hum-faint: #5f6d64;
-  --hum-line: #262f29;
-  --hum-surface: #151c18;
-  --hum-surface-2: #1a221d;
-  --hum-accent: #a8cf5e;
-  --hum-accent-strong: #c6e283;
-  --hum-accent-bg: #232f1c;
-  --hum-danger: #ffb3b3;
-  --hum-danger-bg: #2a1719;
-  --hum-danger-line: #4a2529;
-  --hum-glow-1: #2d3a1e;
-  --hum-glow-2: #1c2620;
-}
-
-/*
-  The brand colour and the code surface are the same in both themes: the lime
-  badge keeps its contrast against the label it sits on, and a code block stays
-  a code block.
-*/
-:root,
-.dark {
+  /* Brand and code surfaces keep the same colours in both palettes. */
   --hum-brand: #d8f36a;
   --hum-brand-fg: #101813;
   --hum-code: #101813;
+}
+
+:root:has(.theme-toggle-input:checked) {
+  color-scheme: dark;
+  --hum-theme-light-icon: none;
+  --hum-theme-dark-icon: block;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --hum-theme-light-icon: none;
+    --hum-theme-dark-icon: block;
+  }
+
+  :root:has(.theme-toggle-input:checked) {
+    color-scheme: light;
+    --hum-theme-light-icon: block;
+    --hum-theme-dark-icon: none;
+  }
+}
+
+.theme-toggle:has(input:focus-visible) {
+  outline: 2px solid var(--hum-accent);
+  outline-offset: 2px;
+}
+
+.theme-icon-light {
+  display: var(--hum-theme-light-icon);
+}
+
+.theme-icon-dark {
+  display: var(--hum-theme-dark-icon);
 }
 
 /*
