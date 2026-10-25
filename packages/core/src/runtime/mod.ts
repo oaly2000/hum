@@ -12,7 +12,7 @@ import { ISLAND_REGISTRY } from "./registry.js";
 import { PartialComp } from "./partial_component.js";
 import { revive } from "./reviver.js";
 import { boot } from "./boot.js";
-import { applyPartials, startPartialNavigation } from "./partials.js";
+import { applyPartials, startPartialNavigation } from "./navigation.js";
 
 export { boot, revive, ISLAND_REGISTRY as hum_island_registry, PartialComp };
 export { applyPartials, startPartialNavigation };

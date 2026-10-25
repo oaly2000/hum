@@ -155,6 +155,7 @@ export default function Page() {
 ```
 
 Links/forms fetch server-rendered partials and replace matching regions.
+Response parsing and updates load on demand at the first partial navigation.
 `data-hum-client-nav="false"` opts a subtree out. Successful updates reconcile
 history; failures retain the current page/URL. View Transitions are used when
 available. [Partial guide](https://hum.runasp.net/docs/partials)

@@ -57,6 +57,40 @@ describe("the default production artifact", () => {
     expect(await exists(join(root, "_hum"))).toBe(false);
   });
 
+  it("loads partial response handling through a dynamic chunk", async () => {
+    const directory = join(root, "dist", "public", "_hum", "assets");
+    const files = await readdir(directory);
+    const modules = new Map<string, { code: string; sources: string[] }>();
+    for (const file of files.filter(file => file.endsWith(".js.map"))) {
+      const map = JSON.parse(await readFile(join(directory, file), "utf8"));
+      modules.set(file.slice(0, -4), {
+        code: await readFile(join(directory, file.slice(0, -4)), "utf8"),
+        sources: map.sources,
+      });
+    }
+    const responseChunk = [...modules.keys()].find(file => file.startsWith("partials-"));
+    expect(responseChunk).toBeDefined();
+    expect(modules.get(responseChunk!)!.code).toContain("contained no partial regions");
+    const runtime = [...modules].find(([, module]) =>
+      module.sources.some(source => source.endsWith("/.hum/client-runtime.js"))
+    )![0];
+    const initial = new Set<string>();
+    function visit(file: string): void {
+      if (initial.has(file)) return;
+      initial.add(file);
+      const code = modules.get(file)!.code;
+      for (const match of code.matchAll(/(?:\bfrom\s*|\bimport\s*)["'`]\.\/([^"'`]+)["'`]/g)) {
+        visit(match[1]);
+      }
+    }
+    visit(runtime);
+    expect(initial.has(responseChunk!)).toBe(false);
+    const dynamicImports = Array.from(modules.get(runtime)!.code.matchAll(
+      /\bimport\(["'`]\.\/([^"'`]+)["'`]\)/g,
+    ), match => match[1]);
+    expect(dynamicImports).toContain(responseChunk);
+  });
+
   it("addresses the client assets through /_hum, never through the outDir", async () => {
     const outDir = "dist";
 

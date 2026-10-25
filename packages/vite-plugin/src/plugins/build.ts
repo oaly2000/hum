@@ -110,8 +110,11 @@ const coreDirectory = dirname(fileURLToPath(import.meta.resolve("@humjs/core")))
 
 function runtimeModule(id: string): boolean {
   const path = id.replace(/\\/g, "/");
+  // Keep response handling behind its dynamic import instead of pulling it
+  // back into the eager framework group.
+  const lazyPartial = /\/runtime\/partials\.[jt]s$/.test(path);
   return path.endsWith("/" + CLIENT_RUNTIME_ENTRY) ||
-    path.startsWith(coreDirectory + "/") ||
+    (path.startsWith(coreDirectory + "/") && !lazyPartial) ||
     path === "\0vite/preload-helper.js";
 }
 

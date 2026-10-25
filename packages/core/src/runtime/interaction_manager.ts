@@ -183,7 +183,9 @@ export class InteractionManager {
           );
         }
       }
-      if (errors.length === 0) errors.push(...this.flushPendingUpdates());
+      if (errors.length === 0) {
+        errors.push(...this.applyUpdates(this.pendingUpdates.splice(0)));
+      }
       if (errors.length > 0) {
         try {
           this.dispose();
@@ -208,56 +210,13 @@ export class InteractionManager {
   }
 
   updateMany(updates: InteractionUpdate[]): boolean[] {
-    if (this.disposed) return updates.map(() => false);
-    const resolved = updates.map((update) => ({
-      update,
-      unit: this.ownerOf(update.kind, update.key),
-    }));
-    const scheduled: Array<{
-      unit: InteractionUnitInstance;
-      update: InteractionUpdate;
-    }> =
-      [];
-    for (const { unit, update } of resolved) {
-      if (unit === undefined) continue;
-      const mounted = this.mounted.some((entry) => entry.unit === unit);
-      if (!mounted) this.pendingUpdates.push({ unit, update });
-      else scheduled.push({ unit, update });
-    }
-
-    if (scheduled.length > 0) {
-      scheduleInteractionMount(() => {
-        const errors: Error[] = [];
-        for (const { unit, update } of scheduled) {
-          if (
-            this.disposed ||
-            !this.mounted.some((entry) => entry.unit === unit)
-          ) continue;
-          try {
-            this.applyUpdate(unit, update);
-          } catch (error) {
-            errors.push(
-              new Error(
-                `hum: failed to apply an update to ${unit.definition.kind} unit "${unit.id}".`,
-                { cause: error },
-              ),
-            );
-          }
-        }
-        if (errors.length > 0) {
-          throw new AggregateError(errors, "hum: interaction updates failed.");
-        }
-      });
-    }
+    const resolved = this.resolveUpdates(updates);
+    this.scheduleUpdates(resolved);
     return resolved.map(({ unit }) => unit !== undefined);
   }
 
   updateManyAndWait(updates: InteractionUpdate[]): Promise<boolean[]> {
-    if (this.disposed) return Promise.resolve(updates.map(() => false));
-    const resolved = updates.map((update) => ({
-      update,
-      unit: this.ownerOf(update.kind, update.key),
-    }));
+    const resolved = this.resolveUpdates(updates);
     const result = resolved.map(({ unit }) => unit !== undefined);
     let remaining = result.filter(Boolean).length;
     if (remaining === 0) return Promise.resolve(result);
@@ -276,37 +235,10 @@ export class InteractionManager {
         }
       };
 
-      for (let i = 0; i < resolved.length; i++) {
-        const { unit, update } = resolved[i];
-        if (unit === undefined) continue;
-        const complete = (applied: boolean, error?: Error) =>
-          settle(i, applied, error);
-        if (!this.mounted.some((entry) => entry.unit === unit)) {
-          this.pendingUpdates.push({ unit, update, settle: complete });
-          continue;
-        }
-        scheduleInteractionMount(() => {
-          if (
-            this.disposed ||
-            !this.mounted.some((entry) => entry.unit === unit)
-          ) {
-            complete(false);
-            return;
-          }
-          try {
-            this.applyUpdate(unit, update);
-            complete(true);
-          } catch (error) {
-            complete(
-              false,
-              new Error(
-                `hum: failed to apply an update to ${unit.definition.kind} unit "${unit.id}".`,
-                { cause: error },
-              ),
-            );
-          }
-        });
-      }
+      this.scheduleUpdates(resolved.map((entry, index) => ({
+        ...entry,
+        settle: (applied: boolean, error?: Error) => settle(index, applied, error),
+      })), true);
     });
   }
 
@@ -355,11 +287,40 @@ export class InteractionManager {
     return errors;
   }
 
-  private flushPendingUpdates(): Error[] {
-    const pending = this.pendingUpdates.splice(0);
+  private resolveUpdates(updates: InteractionUpdate[]) {
+    return updates.map((update) => ({
+      update,
+      unit: this.disposed ? undefined : this.ownerOf(update.kind, update.key),
+    }));
+  }
+
+  private scheduleUpdates(
+    updates: Array<Omit<PendingInteractionUpdate, "unit"> & {
+      unit: InteractionUnitInstance | undefined;
+    }>,
+    waiting = false,
+  ): void {
+    const scheduled: PendingInteractionUpdate[] = [];
+    for (const { unit, update, settle } of updates) {
+      if (unit === undefined) continue;
+      const queue = this.mounted.some((entry) => entry.unit === unit)
+        ? scheduled
+        : this.pendingUpdates;
+      queue.push({ unit, update, settle });
+    }
+    if (scheduled.length === 0) return;
+    scheduleInteractionMount(() => {
+      const errors = this.applyUpdates(scheduled);
+      if (!waiting && errors.length > 0) {
+        throw new AggregateError(errors, "hum: interaction updates failed.");
+      }
+    });
+  }
+
+  private applyUpdates(pending: PendingInteractionUpdate[]): Error[] {
     const errors: Error[] = [];
     for (const { unit, update, settle } of pending) {
-      if (!this.mounted.some((entry) => entry.unit === unit)) {
+      if (this.disposed || !this.mounted.some((entry) => entry.unit === unit)) {
         settle?.(false);
         continue;
       }

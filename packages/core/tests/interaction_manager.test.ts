@@ -390,6 +390,53 @@ describe("interaction manager", () => {
     expect(settled).toBe(true);
   });
 
+  it("runs a waiting batch in one task and settles cancelled owners in place", async () => {
+    vi.useFakeTimers();
+    const manager = new InteractionManager();
+    const order: string[] = [];
+    for (const key of ["first", "removed"]) {
+      manager.register({
+        id: key, kind: "partial", key,
+        owner: document.createElement("section"), phase: "root", mount: () => {},
+      });
+    }
+    manager.mount();
+    await vi.runAllTimersAsync();
+    const result = manager.updateManyAndWait([
+      { kind: "partial", key: "first", apply: () => order.push("first") },
+      { kind: "partial", key: "removed", apply: () => order.push("removed") },
+      { kind: "partial", key: "missing", apply: () => order.push("missing") },
+      { kind: "partial", key: "first", apply: () => order.push("last") },
+    ]);
+    expect(vi.getTimerCount()).toBe(1);
+    manager.unregister("removed");
+    await vi.runAllTimersAsync();
+    await expect(result).resolves.toEqual([true, false, false, true]);
+    expect(order).toEqual(["first", "last"]);
+  });
+
+  it("rolls back mounted units when a waiting pending update fails", async () => {
+    vi.useFakeTimers();
+    const report = vi.spyOn(console, "error").mockImplementation(() => {});
+    const cleanup = vi.fn();
+    const manager = new InteractionManager();
+    manager.register({
+      id: "pending", kind: "partial", key: "pending",
+      owner: document.createElement("section"), phase: "root", mount: () => cleanup,
+    });
+    const result = manager.updateManyAndWait([{
+      kind: "partial", key: "pending", apply: () => { throw new Error("broken"); },
+    }]);
+    const rejected = expect(result).rejects.toThrow("interaction updates failed");
+    manager.mount();
+    await vi.runAllTimersAsync();
+    await rejected;
+    expect(cleanup).toHaveBeenCalledOnce();
+    expect(report).toHaveBeenCalledOnce();
+    expect(manager.update("partial", "pending", () => {})).toBe(false);
+    report.mockRestore();
+  });
+
   it("replaces delegated partial targets when their owning partial updates", async () => {
     vi.useFakeTimers();
     const manager = new InteractionManager();
