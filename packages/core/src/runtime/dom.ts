@@ -60,6 +60,7 @@ interface IslandReq {
   propsIdx: number;
   delegates: string[];
   delegateGroups: Record<string, string[]>;
+  host?: ElementFacetReq;
   start: Comment | Text;
   end: Comment | Text | null;
 }
@@ -69,6 +70,7 @@ interface PartialReq {
   name: string;
   delegates: string[];
   delegateGroups: Record<string, string[]>;
+  host?: ElementFacetReq;
   start: Comment | Text;
   end: Comment | Text | null;
 }
@@ -222,7 +224,11 @@ function markerData(node: Comment | HumMarkerText): string {
   return isHumMarkerText(node) ? node._humMarker : node.data;
 }
 
-export function walkInner(ctx: ReviveContext, node: Node): void {
+export function walkInner(
+  ctx: ReviveContext,
+  node: Node,
+  host?: ElementFacetReq,
+): void {
   if (isElementNode(node)) {
     // Scripts and styles never contain markers, and once inside a slot the
     // content is collected when the slot is revived.
@@ -234,14 +240,19 @@ export function walkInner(ctx: ReviveContext, node: Node): void {
     }
     // Facets inside an island or a partial are owned by that root's own tree.
     if (
-      ctx.stack.length === 0 && ctx.signalStack.length === 0 &&
+      host === undefined && ctx.stack.length === 0 && ctx.signalStack.length === 0 &&
       (node.hasAttribute(FACET_SIGNAL_ATTR) ||
         node.hasAttribute(FACET_HANDLER_ATTR))
     ) {
-      ctx.facets.push({ kind: FacetKind.Element, el: node, delegates: [] });
+      host = { kind: FacetKind.Element, el: node, delegates: [] };
+      ctx.facets.push(host);
     }
-    for (let i = 0; i < node.childNodes.length; i++) {
-      walkInner(ctx, node.childNodes[i]);
+    let child = node.firstChild;
+    while (child !== null) {
+      // Marker comments are replaced during the visit, so save their sibling first.
+      const next = child.nextSibling;
+      walkInner(ctx, child, host);
+      child = next;
     }
     return;
   }
@@ -272,7 +283,10 @@ export function walkInner(ctx: ReviveContext, node: Node): void {
         }
       }
       const found = openRoot(node, marker.kind, marker.parts);
-      if (ctx.stack.length === 0) ctx.roots.push(found);
+      if (ctx.stack.length === 0) {
+        found.host = host;
+        ctx.roots.push(found);
+      }
       ctx.stack.push(found);
       return;
     }
@@ -300,7 +314,7 @@ export function walkInner(ctx: ReviveContext, node: Node): void {
       ctx.signalStack.push(facet);
       // Only a signal outside every root needs a root of its own; the others
       // are turned into vnodes while their region is adopted.
-      if (ctx.stack.length === 0 && ctx.signalStack.length === 1) {
+      if (host === undefined && ctx.stack.length === 0 && ctx.signalStack.length === 1) {
         ctx.facets.push(facet);
       }
       return;
@@ -384,9 +398,10 @@ export function createRootFragment(
     },
     contains(node: Node | null): boolean {
       if (node === null) return false;
-      const children = rootFrag.childNodes as ChildNode[];
-      for (let i = 0; i < children.length; i++) {
-        if (children[i].contains(node)) return true;
+      let child = startMarker.nextSibling;
+      while (child !== null && child !== endMarker) {
+        if (child.contains(node)) return true;
+        child = child.nextSibling;
       }
       return false;
     },
@@ -446,24 +461,25 @@ export function domToVNode(
         domToVNode(payload, vnodeStack, markerStack, first, end);
       }
     } else if (isElementNode(sib)) {
-      const props: Record<string, unknown> = {};
       const el = sib;
-      for (let i = 0; i < el.attributes.length; i++) {
-        const attr = el.attributes[i];
-        if (attr.name === DATA_HUM_KEY) {
-          props.key = attr.value;
-          continue;
-        }
-        // Boolean attributes are `true` whenever they are present.
-        props[attr.name] =
-          typeof (el as any)[attr.name] === "boolean" ? true : attr.value;
-      }
-      applyFacetAttrs(el, props, payload);
-
-      const vnode = h(el.localName, props);
       const marker = markerStack.at(-1);
       const append = marker === Marker.Slot || marker === Marker.Partial;
+      // Island output and signal text belong to their components. Only adopt
+      // elements in a slot or partial, but keep looking for nested slot markers.
       if (append) {
+        const props: Record<string, unknown> = {};
+        for (let i = 0; i < el.attributes.length; i++) {
+          const attr = el.attributes[i];
+          if (attr.name === DATA_HUM_KEY) {
+            props.key = attr.value;
+            continue;
+          }
+          // Boolean attributes are `true` whenever they are present.
+          props[attr.name] =
+            typeof (el as any)[attr.name] === "boolean" ? true : attr.value;
+        }
+        applyFacetAttrs(el, props, payload);
+        const vnode = h(el.localName, props);
         addVNodeChild(vnodeStack.at(-1)!, vnode);
         vnodeStack.push(vnode);
       }
@@ -596,57 +612,31 @@ export function domToVNode(
 }
 
 /**
- * Facets that sit outside every island and partial need a Preact root of their
- * own, because nothing else owns their DOM. This orders and filters the facets
- * found by `walkInner`, and hands back the roots a host takes over:
- *
- * - an element facet covered by an already accepted host is dropped, the host's
- *   adopted tree turns it into a component leaf while it walks that subtree;
- * - a host renders its whole subtree, islands and partials included, so a root
- *   starting inside a host is removed from `ctx.roots`: one range must never be
- *   rendered by two roots, which would fight over the same DOM;
- * - a signal facet inside a host is dropped for the same reason.
- *
- * Removing the roots also removes the diagnostics `boot` runs for them, so an
- * unbalanced root of a host is reported here instead.
+ * Finalize owners recorded during the DOM walk. Hosts adopt their nested roots
+ * and signal facets; independent element facets still mount before signals.
  */
 export function planFacets(ctx: ReviveContext): FacetReq[] {
-  const hosts: ElementFacetReq[] = [];
-
-  for (const facet of ctx.facets) {
-    if (facet.kind !== FacetKind.Element) continue;
-    if (hosts.some((host) => host.el.contains(facet.el))) continue;
-    hosts.push({ ...facet, delegates: [] });
-  }
-
-  if (hosts.length > 0) {
-    ctx.roots = ctx.roots.filter((root) => {
-      const host = hosts.find((candidate) =>
-        candidate.el.contains(root.start)
+  const out: FacetReq[] = ctx.facets.filter((facet) => facet.kind === FacetKind.Element);
+  if (out.length === 0) return ctx.facets;
+  ctx.roots = ctx.roots.filter((root) => {
+    const host = root.host;
+    if (host === undefined) return true;
+    if (root.kind === RootKind.Partial) {
+      host.delegates.push(`partial:${root.name}`);
+    }
+    // Hosted roots bypass boot's standalone-root validation.
+    if (root.end !== null && root.start.parentNode !== root.end.parentNode) {
+      console.error(
+        `Hum hydration error: the ${
+          root.kind === RootKind.Island ? "island" : "partial"
+        } "${root.name}" has invalid HTML nesting: its start and end markers ` +
+          `were reparented into different nodes by the browser.`,
       );
-      if (host === undefined) return true;
-
-      if (root.kind === RootKind.Partial) {
-        host.delegates.push(`partial:${root.name}`);
-      }
-
-      if (root.end !== null && root.start.parentNode !== root.end.parentNode) {
-        console.error(
-          `Hum hydration error: the ${
-            root.kind === RootKind.Island ? "island" : "partial"
-          } "${root.name}" has invalid HTML nesting: its start and end markers ` +
-            `were reparented into different nodes by the browser.`,
-        );
-      }
-      return false;
-    });
-  }
-
-  const out: FacetReq[] = [...hosts];
+    }
+    return false;
+  });
   for (const facet of ctx.facets) {
-    if (facet.kind !== FacetKind.Signal) continue;
-    if (hosts.some((host) => host.el.contains(facet.start))) continue;
-    out.push(facet);
+    if (facet.kind === FacetKind.Signal) out.push(facet);
   }
   return out;
 }

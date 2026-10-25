@@ -727,4 +727,111 @@ describe("interaction manager", () => {
     vi.runAllTimers();
     expect(mount).not.toHaveBeenCalled();
   });
+
+  it("rechecks ownership before mounting if registered DOM nodes have moved", () => {
+    vi.useFakeTimers();
+    const first = document.createElement("section");
+    const second = document.createElement("section");
+    const manager = new InteractionManager();
+    for (const [id, owner] of [["first", first], ["second", second]] as const) {
+      manager.register({ id, kind: "binding", owner, phase: "binding", mount: () => {} });
+    }
+    first.append(second);
+    expect(() => manager.mount()).toThrow(/overlapping DOM ownership/);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("prefers direct owners and falls back to current delegates after removal", async () => {
+    vi.useFakeTimers();
+    const manager = new InteractionManager();
+    for (const id of ["host-a", "host-b"]) {
+      manager.register({
+        id, kind: "binding", owner: document.createElement("div"),
+        phase: "binding", delegates: ["partial:panel"], mount: () => {},
+      });
+    }
+    manager.register({
+      id: "direct", kind: "partial", key: "panel",
+      owner: document.createElement("section"), phase: "root", mount: () => {},
+    });
+    manager.mount();
+    await vi.runAllTimersAsync();
+    const apply = vi.fn();
+    expect(manager.update("partial", "panel", apply)).toBe(true);
+    await vi.runAllTimersAsync();
+    expect(apply).toHaveBeenCalledOnce();
+    manager.unregister("direct");
+    expect(() => manager.update("partial", "panel", apply)).toThrow(/multiple owners/);
+    manager.unregister("host-a");
+    expect(manager.update("partial", "panel", apply)).toBe(true);
+    await vi.runAllTimersAsync();
+    expect(apply).toHaveBeenCalledTimes(2);
+  });
+
+  it("detects duplicate direct keys and removes only the unregistered owner", async () => {
+    vi.useFakeTimers();
+    const manager = new InteractionManager();
+    for (const id of ["first", "second"]) {
+      manager.register({
+        id, kind: "partial", key: "panel", owner: document.createElement("div"),
+        phase: "root", mount: () => {},
+      });
+    }
+    const apply = vi.fn();
+    expect(() => manager.updateManyAndWait([
+      { kind: "partial", key: "panel", apply },
+    ])).toThrow(/multiple owners/);
+    manager.unregister("first");
+    manager.mount();
+    await vi.runAllTimersAsync();
+    expect(manager.update("partial", "panel", apply)).toBe(true);
+    await vi.runAllTimersAsync();
+    expect(apply).toHaveBeenCalledOnce();
+    manager.unregister("second");
+    expect(manager.update("partial", "panel", apply)).toBe(false);
+  });
+
+  it("does not apply an old queued update to a new unit with the same id and key", async () => {
+    vi.useFakeTimers();
+    const manager = new InteractionManager();
+    const registration = {
+      id: "panel", kind: "partial" as const, key: "panel",
+      owner: document.createElement("div"), phase: "root" as const, mount: () => {},
+    };
+    manager.register(registration);
+    manager.mount();
+    await vi.runAllTimersAsync();
+    const oldApply = vi.fn();
+    const old = manager.updateManyAndWait([{ kind: "partial", key: "panel", apply: oldApply }]);
+    manager.unregister("panel");
+    manager.register(registration);
+    const newApply = vi.fn();
+    const current = manager.updateManyAndWait([{ kind: "partial", key: "panel", apply: newApply }]);
+    await vi.runAllTimersAsync();
+    await expect(old).resolves.toEqual([false]);
+    await expect(current).resolves.toEqual([true]);
+    expect(oldApply).not.toHaveBeenCalled();
+    expect(newApply).toHaveBeenCalledOnce();
+  });
+
+  it.each(["unregister", "dispose"])("cleans up a mount that calls %s before returning", async (action) => {
+    vi.useFakeTimers();
+    const manager = new InteractionManager();
+    const cleanup = vi.fn();
+    const dispose = vi.fn();
+    manager.register({
+      id: "self", kind: "island", owner: document.createElement("div"), phase: "root",
+      mount: () => {
+        if (action === "unregister") manager.unregister("self");
+        else manager.dispose();
+        return cleanup;
+      },
+      dispose,
+    });
+    manager.mount();
+    await vi.runAllTimersAsync();
+    manager.dispose();
+    expect(cleanup).toHaveBeenCalledOnce();
+    expect(dispose).toHaveBeenCalledOnce();
+  });
 });

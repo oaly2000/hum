@@ -47,7 +47,7 @@ export interface InteractionUpdate {
 }
 
 interface PendingInteractionUpdate {
-  unit: InteractionUnitInstance;
+  unit: InteractionUnitInstance | undefined;
   update: InteractionUpdate;
   settle?: (applied: boolean, error?: Error) => void;
 }
@@ -64,22 +64,20 @@ interface RootFragment extends Node {
  * scheduling are shared.
  */
 export class InteractionManager {
-  private readonly units: InteractionUnitInstance[] = [];
-  private readonly mounted: Array<{
-    unit: InteractionUnitInstance;
-    cleanup?: () => void;
-  }> = [];
-  private readonly pendingUpdates: PendingInteractionUpdate[] = [];
-  private readonly scheduled = new Set<InteractionUnitInstance>();
-  private started = false;
-  private disposed = false;
-  private mountTaskScheduled = false;
+  #units = new Map<string, InteractionUnitInstance>();
+  #mounted = new Map<InteractionUnitInstance, (() => void) | void>();
+  #owners = new Map<string, Set<InteractionUnitInstance>>();
+  #pendingUpdates: PendingInteractionUpdate[] = [];
+  #scheduled = new Set<InteractionUnitInstance>();
+  #started = false;
+  #disposed = false;
+  #mountTaskScheduled = false;
 
   register(registration: InteractionUnitRegistration): void {
-    if (this.disposed) {
+    if (this.#disposed) {
       throw new Error("hum: cannot register an interaction unit after disposal.");
     }
-    if (this.units.some((registered) => registered.id === registration.id)) {
+    if (this.#units.has(registration.id)) {
       throw new Error(
         `hum: interaction unit "${registration.id}" was registered more than once.`,
       );
@@ -93,27 +91,37 @@ export class InteractionManager {
     }
     const { kind: _kind, phase: _phase, ...instance } = registration;
     const unit: InteractionUnitInstance = { ...instance, definition };
-    this.assertExclusiveOwnership([...this.units, unit]);
-    this.units.push(unit);
-    if (this.started) this.scheduleMount([unit]);
+    this.#assertExclusiveOwnership(unit);
+    this.#units.set(unit.id, unit);
+    if (unit.key !== undefined) {
+      const target = `${unit.definition.kind}:${unit.key}`;
+      let owners = this.#owners.get(target);
+      if (owners === undefined) this.#owners.set(target, owners = new Set());
+      owners.add(unit);
+    }
+    if (this.#started) this.#scheduleMount([unit]);
   }
 
   unregister(id: string): boolean {
-    const index = this.units.findIndex((unit) => unit.id === id);
-    if (index === -1) return false;
-    const [unit] = this.units.splice(index, 1);
-    this.scheduled.delete(unit);
-    for (let i = this.pendingUpdates.length - 1; i >= 0; i--) {
-      if (this.pendingUpdates[i].unit === unit) {
-        this.pendingUpdates[i].settle?.(false);
-        this.pendingUpdates.splice(i, 1);
+    const unit = this.#units.get(id);
+    if (unit === undefined) return false;
+    this.#units.delete(id);
+    if (unit.key !== undefined) {
+      const target = `${unit.definition.kind}:${unit.key}`;
+      const owners = this.#owners.get(target)!;
+      owners.delete(unit);
+      if (owners.size === 0) this.#owners.delete(target);
+    }
+    this.#scheduled.delete(unit);
+    for (let i = this.#pendingUpdates.length - 1; i >= 0; i--) {
+      if (this.#pendingUpdates[i].unit === unit) {
+        this.#pendingUpdates[i].settle?.(false);
+        this.#pendingUpdates.splice(i, 1);
       }
     }
 
-    const mountedIndex = this.mounted.findIndex((entry) => entry.unit === unit);
-    if (mountedIndex !== -1) {
-      const [mounted] = this.mounted.splice(mountedIndex, 1);
-      const errors = this.disposeMounted(mounted);
+    if (this.#mounted.has(unit)) {
+      const errors = this.#disposeMounted(unit);
       if (errors.length > 0) {
         throw new AggregateError(
           errors,
@@ -125,66 +133,65 @@ export class InteractionManager {
   }
 
   disposeIfDetached(): boolean {
-    if (this.units.some((unit) => isConnected(unit.owner))) return false;
+    for (const unit of this.#units.values()) {
+      if (isConnected(unit.owner)) return false;
+    }
     this.dispose();
     return true;
   }
 
   mount(): void {
-    if (this.started) {
+    if (this.#started) {
       throw new Error("hum: the interaction manager was mounted more than once.");
     }
 
-    this.assertExclusiveOwnership();
-    this.started = true;
-    this.scheduleMount(this.units);
+    const checked: InteractionUnitInstance[] = [];
+    for (const unit of this.#units.values()) {
+      this.#assertExclusiveOwnership(unit, checked);
+      checked.push(unit);
+    }
+    this.#started = true;
+    this.#scheduleMount(this.#units.values());
   }
 
-  private scheduleMount(units: InteractionUnitInstance[]): void {
-    const scheduledUnits = units.filter((unit) =>
-      !this.disposed &&
-      this.units.includes(unit) &&
-      !this.scheduled.has(unit) &&
-      !this.mounted.some((entry) => entry.unit === unit)
-    );
-    for (const unit of scheduledUnits) this.scheduled.add(unit);
-    if (scheduledUnits.length === 0 || this.mountTaskScheduled) return;
+  #scheduleMount(units: Iterable<InteractionUnitInstance>): void {
+    if (this.#disposed) return;
+    for (const unit of units) {
+      if (!this.#mounted.has(unit)) this.#scheduled.add(unit);
+    }
+    if (this.#scheduled.size === 0 || this.#mountTaskScheduled) return;
 
-    this.mountTaskScheduled = true;
+    this.#mountTaskScheduled = true;
     scheduleInteractionMount(() => {
-      this.mountTaskScheduled = false;
-      if (this.disposed) return;
-      const ordered = [...this.scheduled].sort((a, b) =>
+      this.#mountTaskScheduled = false;
+      if (this.#disposed) return;
+      const ordered = [...this.#scheduled].sort((a, b) =>
         a.definition.phase === b.definition.phase
           ? 0
           : a.definition.phase === "root"
           ? -1
           : 1
       );
-      this.scheduled.clear();
+      this.#scheduled.clear();
       const errors: Error[] = [];
       for (const unit of ordered) {
-        if (!this.units.includes(unit)) continue;
-        if (this.disposed) break;
-        const mounted = { unit } as {
-          unit: InteractionUnitInstance;
-          cleanup?: () => void;
-        };
-        this.mounted.push(mounted);
+        if (this.#units.get(unit.id) !== unit) continue;
+        if (this.#disposed) break;
+        this.#mounted.set(unit, undefined);
         try {
           const cleanup = unit.mount();
-          if (typeof cleanup === "function") mounted.cleanup = cleanup;
+          if (typeof cleanup === "function") {
+            if (this.#mounted.has(unit)) this.#mounted.set(unit, cleanup);
+            else cleanup();
+          }
         } catch (error) {
           errors.push(
-            new Error(
-              `hum: failed to mount ${unit.definition.kind} interaction unit "${unit.id}".`,
-              { cause: error },
-            ),
+            unitError(unit, "mount", error),
           );
         }
       }
       if (errors.length === 0) {
-        errors.push(...this.applyUpdates(this.pendingUpdates.splice(0)));
+        errors.push(...this.#applyUpdates(this.#pendingUpdates.splice(0)));
       }
       if (errors.length > 0) {
         try {
@@ -210,13 +217,13 @@ export class InteractionManager {
   }
 
   updateMany(updates: InteractionUpdate[]): boolean[] {
-    const resolved = this.resolveUpdates(updates);
-    this.scheduleUpdates(resolved);
+    const resolved = this.#resolveUpdates(updates);
+    this.#scheduleUpdates(resolved);
     return resolved.map(({ unit }) => unit !== undefined);
   }
 
   updateManyAndWait(updates: InteractionUpdate[]): Promise<boolean[]> {
-    const resolved = this.resolveUpdates(updates);
+    const resolved = this.#resolveUpdates(updates);
     const result = resolved.map(({ unit }) => unit !== undefined);
     let remaining = result.filter(Boolean).length;
     if (remaining === 0) return Promise.resolve(result);
@@ -235,103 +242,99 @@ export class InteractionManager {
         }
       };
 
-      this.scheduleUpdates(resolved.map((entry, index) => ({
-        ...entry,
-        settle: (applied: boolean, error?: Error) => settle(index, applied, error),
-      })), true);
+      this.#scheduleUpdates(resolved, settle);
     });
   }
 
   dispose(): void {
-    if (this.disposed) return;
-    this.disposed = true;
-    for (const pending of this.pendingUpdates.splice(0)) {
+    if (this.#disposed) return;
+    this.#disposed = true;
+    for (const pending of this.#pendingUpdates.splice(0)) {
       pending.settle?.(false);
     }
-    this.scheduled.clear();
+    this.#scheduled.clear();
     const errors: Error[] = [];
-    for (const { unit, cleanup } of this.mounted.splice(0).reverse()) {
-      errors.push(...this.disposeMounted({ unit, cleanup }));
+    for (const unit of [...this.#mounted.keys()].reverse()) {
+      if (this.#mounted.has(unit)) errors.push(...this.#disposeMounted(unit));
     }
-    this.units.length = 0;
+    this.#units.clear();
+    this.#owners.clear();
     if (errors.length > 0) {
       throw new AggregateError(errors, "hum: interaction unit disposal failed.");
     }
   }
 
-  private disposeMounted(
-    mounted: { unit: InteractionUnitInstance; cleanup?: () => void },
+  #disposeMounted(
+    unit: InteractionUnitInstance,
   ): Error[] {
-    const { unit, cleanup } = mounted;
+    const cleanup = this.#mounted.get(unit);
+    this.#mounted.delete(unit);
     const errors: Error[] = [];
     try {
       cleanup?.();
     } catch (error) {
       errors.push(
-        new Error(
-          `hum: failed to run the cleanup for ${unit.definition.kind} unit "${unit.id}".`,
-          { cause: error },
-        ),
+        unitError(unit, "run the cleanup for", error),
       );
     }
     try {
       unit.dispose?.();
     } catch (error) {
       errors.push(
-        new Error(
-          `hum: failed to dispose ${unit.definition.kind} interaction unit "${unit.id}".`,
-          { cause: error },
-        ),
+        unitError(unit, "dispose", error),
       );
     }
     return errors;
   }
 
-  private resolveUpdates(updates: InteractionUpdate[]) {
+  #resolveUpdates(updates: InteractionUpdate[]): PendingInteractionUpdate[] {
     return updates.map((update) => ({
       update,
-      unit: this.disposed ? undefined : this.ownerOf(update.kind, update.key),
+      unit: this.#disposed ? undefined : this.#ownerOf(update.kind, update.key),
     }));
   }
 
-  private scheduleUpdates(
-    updates: Array<Omit<PendingInteractionUpdate, "unit"> & {
-      unit: InteractionUnitInstance | undefined;
-    }>,
-    waiting = false,
+  #scheduleUpdates(
+    updates: PendingInteractionUpdate[],
+    settle?: (index: number, applied: boolean, error?: Error) => void,
   ): void {
     const scheduled: PendingInteractionUpdate[] = [];
-    for (const { unit, update, settle } of updates) {
-      if (unit === undefined) continue;
-      const queue = this.mounted.some((entry) => entry.unit === unit)
-        ? scheduled
-        : this.pendingUpdates;
-      queue.push({ unit, update, settle });
+    for (let i = 0; i < updates.length; i++) {
+      const entry = updates[i];
+      if (entry.unit === undefined) continue;
+      if (settle !== undefined) {
+        entry.settle = (applied, error) => settle(i, applied, error);
+      }
+      const queue = this.#mounted.has(entry.unit) ? scheduled : this.#pendingUpdates;
+      queue.push(entry);
     }
     if (scheduled.length === 0) return;
     scheduleInteractionMount(() => {
-      const errors = this.applyUpdates(scheduled);
-      if (!waiting && errors.length > 0) {
+      const errors = this.#applyUpdates(scheduled);
+      if (settle === undefined && errors.length > 0) {
         throw new AggregateError(errors, "hum: interaction updates failed.");
       }
     });
   }
 
-  private applyUpdates(pending: PendingInteractionUpdate[]): Error[] {
+  #applyUpdates(pending: PendingInteractionUpdate[]): Error[] {
     const errors: Error[] = [];
     for (const { unit, update, settle } of pending) {
-      if (this.disposed || !this.mounted.some((entry) => entry.unit === unit)) {
+      if (unit === undefined || this.#disposed || !this.#mounted.has(unit)) {
         settle?.(false);
         continue;
       }
       try {
-        this.applyUpdate(unit, update);
+        update.apply();
+        if (update.delegates !== undefined) {
+          unit.delegateGroups ??= {};
+          unit.delegateGroups[`${update.kind}:${update.key}`] = update.delegates.map(
+            (key) => `${update.kind}:${key}`,
+          );
+        }
         settle?.(true);
       } catch (error) {
-        const failure = new Error(
-          `hum: failed to apply an update to ${unit.definition.kind} unit "${unit.id}".`,
-          { cause: error },
-        );
+        const failure = unitError(unit, "apply an update to", error);
         errors.push(failure);
         settle?.(false, failure);
       }
@@ -339,56 +342,53 @@ export class InteractionManager {
     return errors;
   }
 
-  private applyUpdate(
-    unit: InteractionUnitInstance,
-    update: InteractionUpdate,
-  ): void {
-    update.apply();
-    if (update.delegates !== undefined) {
-      unit.delegateGroups ??= {};
-      unit.delegateGroups[`${update.kind}:${update.key}`] = update.delegates.map(
-        (key) => `${update.kind}:${key}`,
-      );
-    }
-  }
-
-  private ownerOf(
+  #ownerOf(
     kind: InteractionUnitKind,
     key: string,
   ): InteractionUnitInstance | undefined {
-    const direct = this.units.filter((candidate) =>
-      candidate.definition.kind === kind && candidate.key === key
-    );
-    const delegated = direct.length === 0
-      ? this.units.filter((candidate) =>
-        candidate.delegates?.includes(`${kind}:${key}`) === true ||
-        Object.values(candidate.delegateGroups ?? {}).some((keys) =>
-          keys.includes(`${kind}:${key}`)
-        )
-      )
-      : direct;
-    if (delegated.length > 1) {
-      throw new Error(
-        `hum: interaction update "${kind}:${key}" has multiple owners.`,
-      );
+    const target = `${kind}:${key}`;
+    // Direct owners take precedence, even if multiple hosts delegate the key.
+    const direct = this.#owners.get(target);
+    let owner: InteractionUnitInstance | undefined;
+    for (const candidate of direct ?? this.#units.values()) {
+      if (
+        direct === undefined && !candidate.delegates?.includes(target) &&
+        !Object.values(candidate.delegateGroups ?? {}).some((keys) => keys.includes(target))
+      ) {
+        continue;
+      }
+      if (owner !== undefined) {
+        throw new Error(`hum: interaction update "${target}" has multiple owners.`);
+      }
+      owner = candidate;
     }
-    return delegated[0];
+    return owner;
   }
 
-  private assertExclusiveOwnership(units = this.units): void {
-    for (let i = 0; i < units.length; i++) {
-      for (let j = i + 1; j < units.length; j++) {
-        const a = units[i];
-        const b = units[j];
-        if (boundariesOverlap(a.owner, b.owner)) {
-          throw new Error(
-            `hum: interaction units "${a.id}" (${a.definition.kind}) and ` +
-              `"${b.id}" (${b.definition.kind}) have overlapping DOM ownership.`,
-          );
-        }
+  #assertExclusiveOwnership(
+    unit: InteractionUnitInstance,
+    others: Iterable<InteractionUnitInstance> = this.#units.values(),
+  ): void {
+    for (const other of others) {
+      if (containsNode(other.owner, unit.owner) || containsNode(unit.owner, other.owner)) {
+        throw new Error(
+          `hum: interaction units "${other.id}" (${other.definition.kind}) and ` +
+            `"${unit.id}" (${unit.definition.kind}) have overlapping DOM ownership.`,
+        );
       }
     }
   }
+}
+
+function unitError(
+  unit: InteractionUnitInstance,
+  action: string,
+  cause: unknown,
+): Error {
+  return new Error(
+    `hum: failed to ${action} ${unit.definition.kind} unit "${unit.id}".`,
+    { cause },
+  );
 }
 
 function rangeMarkers(node: Node): [Node, Node] | undefined {
@@ -416,10 +416,6 @@ function containsNode(owner: Node, candidate: Node): boolean {
     return owner.contains(markers[0]) || owner.contains(markers[1]);
   }
   return owner.contains(candidate);
-}
-
-function boundariesOverlap(a: Node, b: Node): boolean {
-  return containsNode(a, b) || containsNode(b, a);
 }
 
 export function scheduleInteractionMount(callback: () => void): void {
