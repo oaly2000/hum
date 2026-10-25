@@ -438,14 +438,19 @@ export function humBuild(ctx: HumContext): Plugin {
 
     // Publish server-referenced assets beside client output. Rendered asset
     // URLs already use the build's /_hum/ base. Stylesheet links are supplied
-    // by the independent style compilation before prerendering.
+    // by the independent style compilation before prerendering, so extracted
+    // SSR CSS is redundant. Explicit asset imports (including CSS ?url) remain.
     generateBundle: {
       order: "post",
       handler(_options, bundle) {
         if (this.environment.name !== "ssr") return;
+        const referencedAssets = new Set(Object.values(bundle).flatMap(output =>
+          output.type === "chunk" ? [...(output.viteMetadata?.importedAssets ?? [])] : [],
+        ));
         for (const [file, output] of Object.entries(bundle)) {
           if (output.type !== "asset") continue;
           delete bundle[file];
+          if (file.endsWith(".css") && !referencedAssets.has(file)) continue;
           this.emitFile({
             type: "asset",
             fileName: `public/${HUM_ASSETS_DIR}/${file}`,

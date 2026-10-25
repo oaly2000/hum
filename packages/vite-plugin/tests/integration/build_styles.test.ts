@@ -12,6 +12,8 @@ describe("automatically linked stylesheet imports", () => {
       entry: "app", standalone, basePath: prefix || "/",
       configure: () => ({
         build: { assetsInlineLimit: 0 },
+        // Distinct SSR processing must not publish a second stylesheet copy.
+        environments: { ssr: { build: { cssMinify: false } } },
         css: { postcss: { plugins: [{
           postcssPlugin: "test-head-styles",
           Declaration(decl: { prop: string; value: string }) {
@@ -23,8 +25,10 @@ describe("automatically linked stylesheet imports", () => {
         "index.tsx": `
 import { Partial } from "@humjs/core/shared";
 import "../page.css";
+import icon from "../icon.svg";
+import download from "../download.css?url";
 export const config = {render: {mode: "ssg"}};
-export default () => <Partial name="content"><p class="page">PAGE_ONLY_SENTINEL</p></Partial>;`,
+export default () => <Partial name="content"><p class="page">PAGE_ONLY_SENTINEL</p><img src={icon}/><a href={download}>Download CSS</a></Partial>;`,
         "_layout.tsx": `import "../layout.css"; export default ({children}) => <main>{children}</main>;`,
         "other.tsx": `import "../other.css"; export default () => <p>other</p>;`,
       },
@@ -34,6 +38,8 @@ export default () => <Partial name="content"><p class="page">PAGE_ONLY_SENTINEL<
         "layout.css": ".layout { margin: 0; }",
         "other.css": ".other { padding: 1px; }",
         "pattern.svg": '<svg xmlns="http://www.w3.org/2000/svg"><rect width="2" height="2"/></svg>',
+        "icon.svg": '<svg xmlns="http://www.w3.org/2000/svg"><circle r="3"/></svg>',
+        "download.css": '.download { color: green; }',
         "client/main.ts": 'throw new Error("REMOVED_CLIENT_ENTRY_EXECUTED");',
       },
     });
@@ -59,6 +65,16 @@ export default () => <Partial name="content"><p class="page">PAGE_ONLY_SENTINEL<
       const staticHtml = await (await app.request("/other")).text();
       expect(staticHtml).toMatch(/rel="stylesheet" href="[^" ]*other-[^"]+\.css"/);
       expect(staticHtml).not.toContain('<script type="module"');
+      const download = html.match(/href="([^"]+)">Download CSS/)![1]!;
+      expect(await readFile(join(root, "dist/public", download.slice(prefix.length)), "utf8")).toContain(".download");
+      const icon = html.match(/<img src="([^"]+)"/)![1]!;
+      expect(await exists(join(root, "dist/public", icon.slice(prefix.length)))).toBe(true);
+      const linkedCss = [html, staticHtml].flatMap(body =>
+        [...body.matchAll(/rel="stylesheet" href="([^"]+)"/g)].map(match => match[1]!.slice(prefix.length + "/_hum/".length)),
+      );
+      const published = await readdir(join(root, "dist/public/_hum"), { recursive: true });
+      expect(published.filter(file => file.endsWith(".css")).map(file => file.replace(/\\/g, "/")).sort())
+        .toEqual([...new Set([...linkedCss, download.slice(prefix.length + "/_hum/".length)])].sort());
       const clientFiles = await readdir(join(root, "dist/public/_hum/assets"));
       for (const file of clientFiles.filter(file => file.endsWith(".js"))) {
         const js = await readFile(join(root, "dist/public/_hum/assets", file), "utf8");
