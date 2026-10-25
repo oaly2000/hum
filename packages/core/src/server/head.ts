@@ -1,6 +1,6 @@
 import { Fragment, isValidElement, type ComponentChildren, type VNode } from "preact";
 
-import type { HeadExport, RouteProps } from "../types.js";
+import type { HeadExport, PageViewProps, RouteProps } from "../types.js";
 
 /**
  * One head tag after normalization. `key === null` means the node carries no
@@ -74,7 +74,7 @@ function flatten(node: ComponentChildren, out: HeadEntry[]): void {
 /** Resolves a `head` export to JSX, supporting both its forms. */
 function resolveHead<State = Record<string, unknown>>(
   head: HeadExport<State>,
-  props: RouteProps<State>,
+  props: RouteProps<State> & PageViewProps<unknown>,
 ): ComponentChildren {
   return typeof head === "function" ? head(props) : head;
 }
@@ -90,7 +90,7 @@ function resolveHead<State = Record<string, unknown>>(
  */
 export function mergeHeads(
   chain: Array<{ head?: HeadExport } | undefined>,
-  props: RouteProps,
+  props: RouteProps & PageViewProps<unknown>,
 ): ComponentChildren[] {
   const byKey = new Map<string, HeadEntry>();
   const unkeyed: HeadEntry[] = [];

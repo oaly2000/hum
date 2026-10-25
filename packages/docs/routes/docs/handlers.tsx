@@ -74,7 +74,9 @@ export default define.page<HandlerPageData>(({ data }: HandlerPageProps) => {
       <CodeBlock code={handlerExample} language="typescript" />
       <ul class="mt-4 list-disc space-y-2 pl-6 leading-7 text-muted">
         <li>
-          The first argument becomes the view’s <code>data</code> prop.
+          The first argument becomes the view’s <code>data</code> prop. A
+          synchronous <code>{`define.head<Data>(({ data }) => ...)`}</code> export
+          can reuse that same payload for SEO tags after the handler has loaded it.
         </li>
         <li>
           Pass <code>{`{ status: 201 }`}</code>{" "}

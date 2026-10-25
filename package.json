@@ -7,7 +7,7 @@
     "node": ">=22.18"
   },
   "scripts": {
-    "build:pkgs": "pnpm --filter \"./packages/*\" run build",
+    "build:pkgs": "pnpm --filter \"./packages/*\" --filter \"!hum-store\" run build",
     "dev": "pnpm build:pkgs && pnpm --filter hum-docs dev",
     "build": "pnpm build:pkgs && pnpm --filter hum-docs build",
     "start": "pnpm --filter hum-docs start",

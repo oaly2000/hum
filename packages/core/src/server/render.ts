@@ -19,6 +19,7 @@ import type {
   HeadExport,
   LayoutModule,
   PageRenderOptions,
+  PageViewProps,
   RouteManifestEntry,
   RouteModule,
   RouteProps,
@@ -111,7 +112,10 @@ async function renderTree(
     buildCache,
     basePath: config.basePath,
   });
-  renderState.headNodes = mergeHeads(headChain, props as unknown as RouteProps);
+  renderState.headNodes = mergeHeads(
+    headChain,
+    props as unknown as RouteProps & PageViewProps<unknown>,
+  );
 
   return await withRenderState(renderState, () => {
     if (pageModule?.config?.streaming === true) {

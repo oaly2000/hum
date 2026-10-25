@@ -40,6 +40,26 @@ vite.config.ts   hum({ devEntry: "app.ts" }) and CSS plugins
 
 ## Application and deployment
 
+### Digital store example
+
+[`packages/store`](./packages/store/README.md) is a digital-goods shop using Hum,
+Better Auth, SQLite, and the official Creem TypeScript SDK in test mode. It covers
+product filtering, shared-signal islands, hosted checkout, verified webhooks,
+order history, and private downloads.
+
+```sh
+pnpm --filter hum-store setup:creem --from-cli # requires Creem CLI test login
+pnpm build:pkgs
+pnpm --filter hum-store dev                  # http://localhost:3001
+```
+
+Follow the example's setup guide to forward local payment events. The repository
+does not include credentials or a database. Configure the store before building
+that example; see its `.env.example` for manual configuration. The store is
+excluded from `build:pkgs`, so existing workspace builds need no payment setup.
+
+### Mounting an application
+
 Create the app, register middleware/APIs, then mount Hum once:
 
 ```ts
@@ -100,7 +120,10 @@ export const handlers = define.handlers({
 export default define.page<{ title: string }>(({ data }) => <h1>{data.title}</h1>);
 ```
 
-Export `head` as JSX or a function of route props to override document head tags.
+Export `head` as JSX or a synchronous function of route props to override document
+head tags. `define.head<Data>(({ data }) => ...)` types the same `page(data)` payload
+used by `define.page<Data>()`; await database queries in the handler before calling
+`page(data)`, then reuse the result in both the head and the view.
 See [routing](https://hum.runasp.net/docs/routing),
 [handlers/forms](https://hum.runasp.net/docs/handlers) and
 [Hono middleware](https://hum.runasp.net/docs/hono).
@@ -159,6 +182,11 @@ Response parsing and updates load on demand at the first partial navigation.
 `data-hum-client-nav="false"` opts a subtree out. Successful updates reconcile
 history; failures retain the current page/URL. View Transitions are used when
 available. [Partial guide](https://hum.runasp.net/docs/partials)
+
+GET forms put submitted controls in the browser URL and add a history entry,
+so refresh and Back preserve filters. An explicit `data-hum-partial` endpoint
+may use a different path or extra query parameters without exposing them in
+the browser URL. POST forms retain their existing history entry.
 
 ## Rendering modes
 

@@ -60,12 +60,16 @@ const { app, get } = await createRenderApp([
     urlPath: "/page-fn",
     load: async () => ({
       default: PageView,
+      head: define.head<{ extra: string }>(({ data }) =>
+        h("title", null, data.extra)),
       handlers: {
-        GET: () =>
-          page({
-            extra: "from-handler",
+        GET: async () => {
+          const extra = await Promise.resolve("from-handler");
+          return page({
+            extra,
             params: { id: "from-data" },
-          }, { status: 202 }),
+          }, { status: 202 });
+        },
       },
     }),
   },
@@ -114,6 +118,7 @@ describe("handlers", () => {
     expect(res.status).toBe(202);
     // The handler's data reached the page component...
     expect(html).toContain("extra: from-handler");
+    expect(html).toContain("<title>from-handler</title>");
     expect(html).toContain("route param: none; data param: from-data");
     // ...and the result is still a full document.
     expect(html).toContain('<div id="page-view">');

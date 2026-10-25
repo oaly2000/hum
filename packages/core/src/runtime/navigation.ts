@@ -251,13 +251,27 @@ document.addEventListener("submit", async (event) => {
   let init: RequestInit | undefined;
   if (method === "get") {
     const query = new URLSearchParams(new FormData(form, submitter) as any);
-    query.forEach((value, key) => partialUrl.searchParams.append(key, value));
+    // Match a native GET form: successful controls replace the action's query.
+    // Keep an explicit partial endpoint's other parameters out of the public URL.
+    actionUrl.search = query.toString();
+    const hasPartialOverride = submitter?.hasAttribute(PARTIAL_ATTR) ||
+      form.hasAttribute(PARTIAL_ATTR);
+    if (!hasPartialOverride) {
+      partialUrl.search = query.toString();
+    } else {
+      for (const key of new Set(query.keys())) partialUrl.searchParams.delete(key);
+      query.forEach((value, key) => partialUrl.searchParams.append(key, value));
+    }
   } else {
     init = { method, body: new FormData(form, submitter) };
   }
 
   event.preventDefault();
-  await fetchPartials(actionUrl, partialUrl, true, init);
+  try {
+    await fetchPartials(actionUrl, partialUrl, true, init, method === "get" ? "push" : "replace");
+  } catch (err) {
+    console.error("Hum: client navigation failed; keeping the current page.", err);
+  }
 });
 
 /** Load response handling only when the application applies a partial. */

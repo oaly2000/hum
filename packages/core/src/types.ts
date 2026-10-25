@@ -124,29 +124,30 @@ export interface RouteConfig {
 /**
  * A `head` export of a route file. Either a fixed JSX fragment
  * (`<title>…</title>`) or a function receiving the route props, which can use
- * `params`, `url` and `state` to build SEO tags.
+ * `params`, `url`, `state` and the handler's `page(data)` payload to build SEO tags.
+ * The first type parameter remains route state; the second types handler data.
  */
-export type HeadExport<State = Record<string, unknown>> =
+export type HeadExport<State = Record<string, unknown>, Data = unknown> =
   | ComponentChildren
-  | ((props: RouteProps<State>) => ComponentChildren);
+  | ((props: RouteProps<State> & PageViewProps<Data>) => ComponentChildren);
 
 /** Everything a route file (`routes/**`) can export. */
-export interface RouteModule<State = Record<string, unknown>> {
+export interface RouteModule<State = Record<string, unknown>, Data = unknown> {
   default?: ComponentType<RouteProps<State>>;
   handlers?: Handlers;
-  head?: HeadExport<State>;
+  head?: HeadExport<State, Data>;
   config?: RouteConfig;
 }
 
 /** Everything an `_app` / `_layout` file can export. */
-export interface AppModule<State = Record<string, unknown>> {
+export interface AppModule<State = Record<string, unknown>, Data = unknown> {
   default?: ComponentType<RouteProps<State> & { children?: ComponentChildren }>;
-  head?: HeadExport<State>;
+  head?: HeadExport<State, Data>;
   config?: RouteConfig;
 }
 
-export type LayoutModule<State = Record<string, unknown>> = AppModule<State>;
-export type ErrorModule<State = Record<string, unknown>> = AppModule<State>;
+export type LayoutModule<State = Record<string, unknown>, Data = unknown> = AppModule<State, Data>;
+export type ErrorModule<State = Record<string, unknown>, Data = unknown> = AppModule<State, Data>;
 
 export type RouteKind =
   | "route"

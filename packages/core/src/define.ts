@@ -33,7 +33,8 @@ import type {
  * `define.page<Data>()` types a route's view. The handler passes business data
  * with `page(data)`, and the view receives it under `data`.
  *
- * Use `define.head()` for static or route-aware head content, and
+ * Use `define.head<Data>()` to read the same handler data as the page view,
+ * or `define.head()` for static or route-aware head content, and
  * `define.config()` for route rendering options:
  *
  * ```ts
@@ -42,15 +43,15 @@ import type {
  * ```
  */
 export interface Define<State = Record<string, unknown>> {
-  route(module: RouteModule<State>): RouteModule<State>;
-  head(head: HeadExport<State>): HeadExport<State>;
+  route<Data = unknown>(module: RouteModule<State, Data>): RouteModule<State, Data>;
+  head<Data = unknown>(head: HeadExport<State, Data>): HeadExport<State, Data>;
   config(config: RouteConfig): RouteConfig;
   page<Data>(
     component: ComponentType<RouteProps<State> & PageViewProps<Data>>,
   ): ComponentType<RouteProps<State> & PageViewProps<Data>>;
-  app(module: AppModule<State>): AppModule<State>;
-  layout(module: LayoutModule<State>): LayoutModule<State>;
-  error(module: ErrorModule<State>): ErrorModule<State>;
+  app<Data = unknown>(module: AppModule<State, Data>): AppModule<State, Data>;
+  layout<Data = unknown>(module: LayoutModule<State, Data>): LayoutModule<State, Data>;
+  error<Data = unknown>(module: ErrorModule<State, Data>): ErrorModule<State, Data>;
   handlers(handlers: Handlers): Handlers;
   middleware(
     middleware: HumMiddleware | HumMiddleware[],

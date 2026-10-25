@@ -1,0 +1,32 @@
+{
+  "name": "hum-store",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 3001 --strictPort",
+    "build": "node ../../tools/clean-dist.mjs && vite build && node tools/copy-resources.mjs",
+    "start": "node --env-file-if-exists=.env.local dist/server.js",
+    "setup:creem": "node --env-file-if-exists=.env.local tools/setup-creem.mjs",
+    "reconcile": "node --env-file-if-exists=.env.local tools/reconcile.mjs",
+    "test:browser": "node --env-file-if-exists=.env.local tools/check-browser.mjs"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.4",
+    "@humjs/core": "workspace:*",
+    "@preact/signals": "^2.11.3",
+    "better-auth": "1.7.12",
+    "creem": "1.13.0",
+    "hono": "^4.13.13",
+    "preact": "^11.0.1"
+  },
+  "devDependencies": {
+    "@humjs/vite-plugin": "workspace:*",
+    "@types/node": "^26.6.5",
+    "playwright": "^1.64.1",
+    "vite": "^8.3.4"
+  }
+}
